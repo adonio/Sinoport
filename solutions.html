@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sinoport | 产品与解决方案</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#d8dadd",
+                        "outline-variant": "#e4beba",
+                        "tertiary-fixed": "#dbe2f9",
+                        "tertiary": "#474f62",
+                        "background": "#f7f9fc",
+                        "on-primary-fixed": "#410004",
+                        "surface-bright": "#f7f9fc",
+                        "surface": "#f7f9fc",
+                        "secondary-fixed": "#ffdf9e",
+                        "on-error": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#930012",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#5b403d",
+                        "on-secondary-fixed": "#261a00",
+                        "inverse-on-surface": "#eff1f4",
+                        "tertiary-container": "#5f677a",
+                        "secondary-fixed-dim": "#fabd00",
+                        "tertiary-fixed-dim": "#bfc6dc",
+                        "surface-variant": "#e0e3e6",
+                        "outline": "#8f706c",
+                        "surface-container-high": "#e6e8eb",
+                        "on-primary-container": "#ffe0dd",
+                        "surface-tint": "#b91c23",
+                        "surface-container-low": "#f2f4f7",
+                        "primary": "#a30316",
+                        "primary-fixed-dim": "#ffb3ad",
+                        "on-tertiary-container": "#dfe6fd",
+                        "inverse-primary": "#ffb3ad",
+                        "on-background": "#191c1e",
+                        "surface-container": "#eceef1",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#fdc003",
+                        "on-tertiary-fixed": "#141b2c",
+                        "on-secondary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#c6272b",
+                        "error-container": "#ffdad6",
+                        "surface-container-highest": "#e0e3e6",
+                        "on-secondary-container": "#6c5000",
+                        "primary-fixed": "#ffdad7",
+                        "secondary": "#785900",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#5b4300",
+                        "on-surface": "#191c1e",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#3f4759"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .hero-pattern {
+            background-image: radial-gradient(circle at 2px 2px, #e4beba 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body antialiased">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-12 h-20 w-full">
+<div class="flex items-center gap-2">
+<img alt="Sinoport" class="h-10 w-auto" src="assets/logo/sinoport-logo.png"/>
+</div>
+<div class="hidden md:flex items-center gap-8 Manrope display text-sm font-semibold tracking-tight">
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="index.html">首页</a>
+<a class="text-red-800 dark:text-red-500 border-b-2 border-red-800 pb-1" href="solutions.html">产品与解决方案</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="network.html">履约网络</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="sinoport-os.html">Sinoport OS</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="scenarios.html">应用场景</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="about.html">关于与联系</a>
+</div>
+<a href="en/solutions.html" class="flex items-center gap-2 mr-6 cursor-pointer hover:text-red-800 transition-colors text-zinc-600 font-headline text-sm font-semibold tracking-tight">
+<span class="material-symbols-outlined text-lg">public</span>
+<span>中 / EN</span>
+</a><a href="about.html" class="bg-primary hover:opacity-80 transition-all duration-300 text-white px-6 py-2.5 rounded-sm text-sm font-semibold tracking-tight active:scale-95">
+            预约业务沟通
+        </a>
+</nav>
+<main class="pt-20">
+<!-- Hero Section -->
+<section class="relative min-h-[819px] flex items-center overflow-hidden bg-surface">
+<div class="absolute inset-0 hero-pattern opacity-20"></div>
+<div class="absolute right-0 top-0 w-1/2 h-full opacity-10 pointer-events-none">
+<svg class="w-full h-full text-primary" viewbox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+<path d="M50,250 Q150,50 250,250 T450,250" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+<path d="M50,280 Q150,80 250,280 T450,280" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+<path d="M50,220 Q150,20 250,220 T450,220" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+</svg>
+</div>
+<div class="max-w-7xl mx-auto px-8 w-full relative z-10 grid lg:grid-cols-2 gap-12 items-center">
+<div>
+<span class="inline-block text-primary font-bold tracking-widest text-xs uppercase mb-4 py-1 px-3 bg-primary/5 rounded-full">架构化物流</span>
+<h1 class="text-6xl md:text-7xl font-headline font-extrabold tracking-tighter text-on-surface leading-[1.1] mb-6">
+                        承诺兑现型<span class="text-primary">履约。</span>
+</h1>
+<p class="text-xl text-on-surface-variant max-w-lg mb-8 leading-relaxed">
+                        通过端到端控制和架构级确定性，把运输动作转化为可兑现的客户承诺。
+                    </p>
+<div class="flex gap-4">
+<button class="bg-primary text-on-primary px-8 py-4 rounded-sm font-bold tracking-tight shadow-lg hover:shadow-primary/20 transition-all">查看解决方案</button>
+<button class="px-8 py-4 rounded-sm font-bold tracking-tight border border-outline-variant text-on-surface hover:bg-surface-container-low transition-all">查看履约网络</button>
+</div>
+</div>
+<div class="relative hidden lg:block">
+<div class="aspect-square bg-surface-container-high rounded-xl overflow-hidden shadow-2xl relative">
+<img class="w-full h-full object-cover" data-alt="Abstract architectural visualization of light rays passing through complex geometric glass structures, symbolizing precise logistics control and data transparency" src="assets/images/site/solutions-hero.jpg"/>
+<div class="absolute bottom-8 left-8 right-8 bg-white/90 backdrop-blur-md p-6 border-l-4 border-primary">
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="text-xs font-bold tracking-widest uppercase">精度指数</span>
+</div>
+<div class="text-3xl font-headline font-bold">99.98%</div>
+<p class="text-xs text-on-surface-variant font-medium">承诺时效兑现率</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Why Clients Choose Us: Detailed Comparison -->
+<section class="py-24 bg-surface-container-low">
+<div class="max-w-7xl mx-auto px-8">
+<div class="text-center mb-16">
+<h2 class="text-4xl font-headline font-bold tracking-tight mb-4">基础设施 vs. 中间层拼接</h2>
+<p class="text-on-surface-variant max-w-2xl mx-auto">为什么全球企业正在从碎片化传统物流，迁移到 Sinoport 的一体化履约基础设施。</p>
+</div>
+<div class="grid md:grid-cols-2 gap-1 px-4 lg:px-0">
+<!-- Traditional -->
+<div class="bg-surface-container-lowest p-10 rounded-l-xl shadow-sm border-r-0 border-outline-variant/10">
+<div class="flex items-center gap-3 mb-8 text-zinc-400">
+<span class="material-symbols-outlined">repartition</span>
+<h3 class="font-headline font-bold text-xl uppercase tracking-wider">传统物流</h3>
+</div>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400">error</span>
+<div>
+<p class="font-bold text-on-surface">层层外包</p>
+<p class="text-sm text-on-surface-variant">多层分包会导致数据丢失和责任链断裂。</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400">visibility_off</span>
+<div>
+<p class="font-bold text-on-surface">被动可视</p>
+<p class="text-sm text-on-surface-variant">状态往往滞后更新，甚至要等异常发生后才被看见。</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400">cloud_off</span>
+<div>
+<p class="font-bold text-on-surface">系统孤岛</p>
+<p class="text-sm text-on-surface-variant">人工录入和割裂系统会拖慢整个履约流程。</p>
+</div>
+</li>
+</ul>
+</div>
+<!-- Sinoport -->
+<div class="bg-white p-10 rounded-r-xl shadow-xl border-l-4 border-primary relative z-10">
+<div class="flex items-center gap-3 mb-8 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">hub</span>
+<h3 class="font-headline font-bold text-xl uppercase tracking-wider">Sinoport 履约体系</h3>
+</div>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<div>
+<p class="font-bold text-on-surface">端到端资产控制</p>
+<p class="text-sm text-on-surface-variant">统一节点管理确保责任持续不断档、过程全程可追。</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-primary">sensors</span>
+<div>
+<p class="font-bold text-on-surface">预测式精准控制</p>
+<p class="text-sm text-on-surface-variant">结合实时感知与智能预测，尽可能消除延误和资源错位。</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-primary">integration_instructions</span>
+<div>
+<p class="font-bold text-on-surface">统一的 Sinoport OS</p>
+<p class="text-sm text-on-surface-variant">以单一数字架构控制网络中的每一次实体流转。</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- Five-Stage Control Logic -->
+<section class="py-24 bg-white overflow-hidden">
+<div class="max-w-7xl mx-auto px-8">
+<div class="flex flex-col md:flex-row justify-between items-end gap-6 mb-16">
+<div class="max-w-2xl">
+<span class="text-secondary font-bold tracking-widest text-xs uppercase">确定性的架构</span>
+<h2 class="text-4xl md:text-5xl font-headline font-bold mt-2">五段控制逻辑</h2>
+</div>
+<div class="text-on-surface-variant max-w-sm text-sm border-l-2 border-outline-variant pl-4">
+                        我们不只是运输，而是在设计链路。每个阶段都是全球履约系统中的明确控制点。
+                    </div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-2 relative">
+<!-- Progress Line (Desktop) -->
+<div class="absolute top-1/2 left-0 w-full h-0.5 bg-surface-container-high hidden md:block -translate-y-12"></div>
+<!-- Stage 1 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">input</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">环节 01</div>
+<h4 class="font-headline font-bold text-lg mb-3">集货</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">通过智能揽收、即时登记和源头件重体校验完成前置收货。</p>
+</div>
+</div>
+<!-- Stage 2 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">warehouse</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">环节 02</div>
+<h4 class="font-headline font-bold text-lg mb-3">出港枢纽</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">在 Sinoport 控制的关口节点完成自动分拣与合规预清关。</p>
+</div>
+</div>
+<!-- Stage 3 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">flight_takeoff</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">环节 03</div>
+<h4 class="font-headline font-bold text-lg mb-3">干线运输</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">通过专属空运或海运舱位与连续跟踪能力保障主干链路稳定。</p>
+</div>
+</div>
+<!-- Stage 4 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">lan</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">环节 04</div>
+<h4 class="font-headline font-bold text-lg mb-3">进港节点</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">在受控节点内完成快速清关、拆分与区域配送准备。</p>
+</div>
+</div>
+<!-- Stage 5 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">local_shipping</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">环节 05</div>
+<h4 class="font-headline font-bold text-lg mb-3">最后一公里</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">以照片级签收证明和即时 KPI 回传实现精准妥投。</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Service Levels & Result Guarantees -->
+<section class="py-24 bg-surface-container">
+<div class="max-w-7xl mx-auto px-8">
+<div class="grid lg:grid-cols-2 gap-16 items-center">
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">schedule</span>
+<h5 class="font-headline font-bold text-xl mb-2">准时</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">以明确交付时窗和延误触发机制保障时效承诺。</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm translate-y-6">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">task_alt</span>
+<h5 class="font-headline font-bold text-xl mb-2">准确</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">通过 OS 审核机制把库存与交付准确率稳定在高水平。</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">visibility</span>
+<h5 class="font-headline font-bold text-xl mb-2">可视</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">在整个责任链内实现件级可视化追踪。</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm translate-y-6">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">shield</span>
+<h5 class="font-headline font-bold text-xl mb-2">可追责</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">以单一合同和单一责任线覆盖全球履约流向。</p>
+</div>
+</div>
+<div>
+<h2 class="text-4xl font-headline font-bold mb-6">保证的是结果，而不只是努力。</h2>
+<p class="text-lg text-on-surface-variant mb-8 leading-relaxed">
+                            Sinoport 不再停留在传统货代“尽力而为”的模式，而是以实体基础设施控制和服务等级承诺来保障结果兑现。
+                        </p>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-4 bg-white/50 rounded-lg">
+<div class="w-2 h-10 bg-secondary rounded-full"></div>
+<div>
+<div class="text-xs font-bold uppercase tracking-widest text-secondary mb-1">高级保障</div>
+<div class="font-headline font-bold">全球优先节点接入</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 bg-white/50 rounded-lg">
+<div class="w-2 h-10 bg-primary rounded-full"></div>
+<div>
+<div class="text-xs font-bold uppercase tracking-widest text-primary mb-1">标准承诺</div>
+<div class="font-headline font-bold">24 小时问题响应机制</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-24 relative overflow-hidden">
+<div class="absolute inset-0 bg-inverse-surface"></div>
+<div class="absolute inset-0 opacity-10 bg-[url('assets/images/site/carbon-fibre.png')]"></div>
+<div class="max-w-4xl mx-auto px-8 relative z-10 text-center">
+<h2 class="text-4xl md:text-5xl font-headline font-bold text-white mb-6">用确定性构建你的履约基础设施。</h2>
+<p class="text-zinc-400 text-lg mb-10 max-w-xl mx-auto">把供应链从一连串执行任务，升级为真正可运营的战略资产。我们的团队已经准备好为你绘制新的履约逻辑。</p>
+<div class="flex flex-col sm:flex-row gap-4 justify-center">
+<button class="bg-primary text-on-primary px-10 py-5 rounded-sm font-bold text-lg shadow-2xl shadow-primary/30 hover:translate-y-[-2px] transition-all">
+                        咨询方案专家
+                    </button>
+<button class="bg-transparent border border-zinc-700 text-white px-10 py-5 rounded-sm font-bold text-lg hover:bg-zinc-800 transition-all">
+                        查看产品演示
+                    </button>
+</div>
+<div class="mt-12 flex justify-center gap-8 text-zinc-500">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">public</span>
+<span class="text-xs font-bold tracking-widest uppercase">全球可用</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">lock</span>
+<span class="text-xs font-bold tracking-widest uppercase">企业级安全</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-zinc-100 py-16 px-8">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-12 mb-16">
+<div>
+<img alt="Sinoport" class="h-8 w-auto mb-6" src="assets/logo/sinoport-logo.png"/>
+<p class="text-sm text-zinc-500 leading-relaxed max-w-xs">面向架构级确定性与端到端控制而设计的全球履约基础设施。</p>
+</div>
+<div class="flex flex-col gap-4">
+<h6 class="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 mb-2">网络</h6>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">全球节点</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">区域履约</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">网络状态</a>
+</div>
+<div class="flex flex-col gap-4">
+<h6 class="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 mb-2">治理</h6>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">合规</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">隐私政策</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">法律协议</a>
+</div>
+<div class="flex flex-col gap-4">
+<h6 class="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 mb-2">公司</h6>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">招聘</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">关于我们</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">联系支持</a>
+</div>
+</div>
+<div class="pt-8 border-t border-zinc-200 flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="text-sm text-zinc-500">© 2024 Sinoport Fulfillment Infrastructure。保留所有权利。</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-zinc-400 cursor-pointer hover:text-primary">language</span>
+<span class="material-symbols-outlined text-zinc-400 cursor-pointer hover:text-primary">share</span>
+</div>
+</div>
+</div>
+</footer>
+</body></html>

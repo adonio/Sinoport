@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Promise-Driven Fulfillment | Sinoport</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#d8dadd",
+                        "outline-variant": "#e4beba",
+                        "tertiary-fixed": "#dbe2f9",
+                        "tertiary": "#474f62",
+                        "background": "#f7f9fc",
+                        "on-primary-fixed": "#410004",
+                        "surface-bright": "#f7f9fc",
+                        "surface": "#f7f9fc",
+                        "secondary-fixed": "#ffdf9e",
+                        "on-error": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#930012",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#5b403d",
+                        "on-secondary-fixed": "#261a00",
+                        "inverse-on-surface": "#eff1f4",
+                        "tertiary-container": "#5f677a",
+                        "secondary-fixed-dim": "#fabd00",
+                        "tertiary-fixed-dim": "#bfc6dc",
+                        "surface-variant": "#e0e3e6",
+                        "outline": "#8f706c",
+                        "surface-container-high": "#e6e8eb",
+                        "on-primary-container": "#ffe0dd",
+                        "surface-tint": "#b91c23",
+                        "surface-container-low": "#f2f4f7",
+                        "primary": "#a30316",
+                        "primary-fixed-dim": "#ffb3ad",
+                        "on-tertiary-container": "#dfe6fd",
+                        "inverse-primary": "#ffb3ad",
+                        "on-background": "#191c1e",
+                        "surface-container": "#eceef1",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#fdc003",
+                        "on-tertiary-fixed": "#141b2c",
+                        "on-secondary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#c6272b",
+                        "error-container": "#ffdad6",
+                        "surface-container-highest": "#e0e3e6",
+                        "on-secondary-container": "#6c5000",
+                        "primary-fixed": "#ffdad7",
+                        "secondary": "#785900",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#5b4300",
+                        "on-surface": "#191c1e",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#3f4759"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .hero-pattern {
+            background-image: radial-gradient(circle at 2px 2px, #e4beba 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body antialiased">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-12 h-20 w-full">
+<div class="flex items-center gap-2">
+<img alt="Sinoport" class="h-10 w-auto" src="../assets/logo/sinoport-logo.png"/>
+</div>
+<div class="hidden md:flex items-center gap-8 Manrope display text-sm font-semibold tracking-tight">
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="index.html">Home</a>
+<a class="text-red-800 dark:text-red-500 border-b-2 border-red-800 pb-1" href="solutions.html">Product &amp; Solutions</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="network.html">Fulfillment Network</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="sinoport-os.html">Sinoport OS</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="scenarios.html">Scenarios</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="about.html">About/Contact</a>
+</div>
+<a href="../solutions.html" class="flex items-center gap-2 mr-6 cursor-pointer hover:text-red-800 transition-colors text-zinc-600 font-headline text-sm font-semibold tracking-tight">
+<span class="material-symbols-outlined text-lg">public</span>
+<span>EN / 中</span>
+</a><a href="about.html" class="bg-primary hover:opacity-80 transition-all duration-300 text-white px-6 py-2.5 rounded-sm text-sm font-semibold tracking-tight active:scale-95">
+            Book a Meeting
+        </a>
+</nav>
+<main class="pt-20">
+<!-- Hero Section -->
+<section class="relative min-h-[819px] flex items-center overflow-hidden bg-surface">
+<div class="absolute inset-0 hero-pattern opacity-20"></div>
+<div class="absolute right-0 top-0 w-1/2 h-full opacity-10 pointer-events-none">
+<svg class="w-full h-full text-primary" viewbox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+<path d="M50,250 Q150,50 250,250 T450,250" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+<path d="M50,280 Q150,80 250,280 T450,280" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+<path d="M50,220 Q150,20 250,220 T450,220" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+</svg>
+</div>
+<div class="max-w-7xl mx-auto px-8 w-full relative z-10 grid lg:grid-cols-2 gap-12 items-center">
+<div>
+<span class="inline-block text-primary font-bold tracking-widest text-xs uppercase mb-4 py-1 px-3 bg-primary/5 rounded-full">Architectural Logistics</span>
+<h1 class="text-6xl md:text-7xl font-headline font-extrabold tracking-tighter text-on-surface leading-[1.1] mb-6">
+                        Promise-Driven <span class="text-primary">Fulfillment.</span>
+</h1>
+<p class="text-xl text-on-surface-variant max-w-lg mb-8 leading-relaxed">
+                        Converting transportation into commitment through end-to-end control and architectural certainty.
+                    </p>
+<div class="flex gap-4">
+<button class="bg-primary text-on-primary px-8 py-4 rounded-sm font-bold tracking-tight shadow-lg hover:shadow-primary/20 transition-all">Explore Solution</button>
+<button class="px-8 py-4 rounded-sm font-bold tracking-tight border border-outline-variant text-on-surface hover:bg-surface-container-low transition-all">View Network</button>
+</div>
+</div>
+<div class="relative hidden lg:block">
+<div class="aspect-square bg-surface-container-high rounded-xl overflow-hidden shadow-2xl relative">
+<img class="w-full h-full object-cover" data-alt="Abstract architectural visualization of light rays passing through complex geometric glass structures, symbolizing precise logistics control and data transparency" src="../assets/images/site/solutions-hero.jpg"/>
+<div class="absolute bottom-8 left-8 right-8 bg-white/90 backdrop-blur-md p-6 border-l-4 border-primary">
+<div class="flex items-center gap-3 mb-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="text-xs font-bold tracking-widest uppercase">Precision Index</span>
+</div>
+<div class="text-3xl font-headline font-bold">99.98%</div>
+<p class="text-xs text-on-surface-variant font-medium">On-time commitment fulfillment rate</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Why Clients Choose Us: Detailed Comparison -->
+<section class="py-24 bg-surface-container-low">
+<div class="max-w-7xl mx-auto px-8">
+<div class="text-center mb-16">
+<h2 class="text-4xl font-headline font-bold tracking-tight mb-4">Infrastructure vs. Intermediaries</h2>
+<p class="text-on-surface-variant max-w-2xl mx-auto">Why global enterprises migrate from fragmented traditional logistics to Sinoport's integrated infrastructure.</p>
+</div>
+<div class="grid md:grid-cols-2 gap-1 px-4 lg:px-0">
+<!-- Traditional -->
+<div class="bg-surface-container-lowest p-10 rounded-l-xl shadow-sm border-r-0 border-outline-variant/10">
+<div class="flex items-center gap-3 mb-8 text-zinc-400">
+<span class="material-symbols-outlined">repartition</span>
+<h3 class="font-headline font-bold text-xl uppercase tracking-wider">Traditional Logistics</h3>
+</div>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400">error</span>
+<div>
+<p class="font-bold text-on-surface">Layered Outsourcing</p>
+<p class="text-sm text-on-surface-variant">Multiple sub-contractors lead to data loss and accountability gaps.</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400">visibility_off</span>
+<div>
+<p class="font-bold text-on-surface">Reactive Visibility</p>
+<p class="text-sm text-on-surface-variant">Updates are often delayed or only provided after an exception occurs.</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400">cloud_off</span>
+<div>
+<p class="font-bold text-on-surface">Siloed Software</p>
+<p class="text-sm text-on-surface-variant">Manual data entry and disparate systems slow down operations.</p>
+</div>
+</li>
+</ul>
+</div>
+<!-- Sinoport -->
+<div class="bg-white p-10 rounded-r-xl shadow-xl border-l-4 border-primary relative z-10">
+<div class="flex items-center gap-3 mb-8 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">hub</span>
+<h3 class="font-headline font-bold text-xl uppercase tracking-wider">Sinoport Fulfillment</h3>
+</div>
+<ul class="space-y-6">
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<div>
+<p class="font-bold text-on-surface">End-to-End Asset Control</p>
+<p class="text-sm text-on-surface-variant">Unified node management ensures continuous custody and absolute accountability.</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-primary">sensors</span>
+<div>
+<p class="font-bold text-on-surface">Predictive Precision</p>
+<p class="text-sm text-on-surface-variant">Real-time IoT integration and AI-driven node forecasting for zero-delay movement.</p>
+</div>
+</li>
+<li class="flex gap-4">
+<span class="material-symbols-outlined text-primary">integration_instructions</span>
+<div>
+<p class="font-bold text-on-surface">Unified Sinoport OS</p>
+<p class="text-sm text-on-surface-variant">A single digital architecture controlling every physical movement across the network.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- Five-Stage Control Logic -->
+<section class="py-24 bg-white overflow-hidden">
+<div class="max-w-7xl mx-auto px-8">
+<div class="flex flex-col md:flex-row justify-between items-end gap-6 mb-16">
+<div class="max-w-2xl">
+<span class="text-secondary font-bold tracking-widest text-xs uppercase">The Architecture of Certainty</span>
+<h2 class="text-4xl md:text-5xl font-headline font-bold mt-2">Five-Stage Control Logic</h2>
+</div>
+<div class="text-on-surface-variant max-w-sm text-sm border-l-2 border-outline-variant pl-4">
+                        We don't just ship; we engineer the path. Each stage is a hard-coded control point in our global fulfillment system.
+                    </div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-5 gap-2 relative">
+<!-- Progress Line (Desktop) -->
+<div class="absolute top-1/2 left-0 w-full h-0.5 bg-surface-container-high hidden md:block -translate-y-12"></div>
+<!-- Stage 1 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">input</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">Link 01</div>
+<h4 class="font-headline font-bold text-lg mb-3">Collection</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">Smart pick-ups with immediate digital check-in and weight/volume verification at source.</p>
+</div>
+</div>
+<!-- Stage 2 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">warehouse</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">Link 02</div>
+<h4 class="font-headline font-bold text-lg mb-3">Export Hub</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">Automated sorting and compliance pre-clearance at Sinoport-operated gateway facilities.</p>
+</div>
+</div>
+<!-- Stage 3 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">flight_takeoff</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">Link 03</div>
+<h4 class="font-headline font-bold text-lg mb-3">Line Haul</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">Secured arterial movement via dedicated air or sea capacity with non-stop satellite tracking.</p>
+</div>
+</div>
+<!-- Stage 4 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">lan</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">Link 04</div>
+<h4 class="font-headline font-bold text-lg mb-3">Import Node</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">Express customs decryption and regional distribution prep within our secure nodes.</p>
+</div>
+</div>
+<!-- Stage 5 -->
+<div class="relative group">
+<div class="bg-surface-container-lowest p-6 rounded-lg transition-all group-hover:bg-primary/5 group-hover:-translate-y-2">
+<div class="w-12 h-12 bg-surface flex items-center justify-center mb-6 relative z-10 rounded-sm shadow-sm group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">local_shipping</span>
+</div>
+<div class="mb-2 text-[10px] font-bold tracking-[0.2em] uppercase text-on-surface-variant">Link 05</div>
+<h4 class="font-headline font-bold text-lg mb-3">Final Mile</h4>
+<p class="text-xs leading-relaxed text-on-surface-variant">Precise execution to the door with photo-verified POD and instant KPI reporting.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Service Levels & Result Guarantees -->
+<section class="py-24 bg-surface-container">
+<div class="max-w-7xl mx-auto px-8">
+<div class="grid lg:grid-cols-2 gap-16 items-center">
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">schedule</span>
+<h5 class="font-headline font-bold text-xl mb-2">Timely</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">Guaranteed delivery windows with automatic credit triggers for delays.</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm translate-y-6">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">task_alt</span>
+<h5 class="font-headline font-bold text-xl mb-2">Accurate</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">Inventory and delivery accuracy maintained at 99.9% through OS-audit.</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">visibility</span>
+<h5 class="font-headline font-bold text-xl mb-2">Visible</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">100% item-level visibility throughout the entire custody chain.</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-lg shadow-sm translate-y-6">
+<span class="material-symbols-outlined text-primary text-4xl mb-4">shield</span>
+<h5 class="font-headline font-bold text-xl mb-2">Accountable</h5>
+<p class="text-sm text-on-surface-variant leading-relaxed">One contract, one single point of accountability for all global flows.</p>
+</div>
+</div>
+<div>
+<h2 class="text-4xl font-headline font-bold mb-6">Guaranteed Results, Not Just Efforts.</h2>
+<p class="text-lg text-on-surface-variant mb-8 leading-relaxed">
+                            Sinoport moves away from the "best effort" model of traditional forwarding. Our service level agreements are backed by physical infrastructure control and financial guarantees.
+                        </p>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-4 bg-white/50 rounded-lg">
+<div class="w-2 h-10 bg-secondary rounded-full"></div>
+<div>
+<div class="text-xs font-bold uppercase tracking-widest text-secondary mb-1">Elite Status</div>
+<div class="font-headline font-bold">Priority Global Node Access</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-4 bg-white/50 rounded-lg">
+<div class="w-2 h-10 bg-primary rounded-full"></div>
+<div>
+<div class="text-xs font-bold uppercase tracking-widest text-primary mb-1">Standard Guarantee</div>
+<div class="font-headline font-bold">24-Hour Resolution Commitment</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-24 relative overflow-hidden">
+<div class="absolute inset-0 bg-inverse-surface"></div>
+<div class="absolute inset-0 opacity-10 bg-[url('../assets/images/site/carbon-fibre.png')]"></div>
+<div class="max-w-4xl mx-auto px-8 relative z-10 text-center">
+<h2 class="text-4xl md:text-5xl font-headline font-bold text-white mb-6">Build your infrastructure on certainty.</h2>
+<p class="text-zinc-400 text-lg mb-10 max-w-xl mx-auto">Transition your supply chain from a series of tasks to a strategic asset. Our experts are ready to map your new fulfillment logic.</p>
+<div class="flex flex-col sm:flex-row gap-4 justify-center">
+<button class="bg-primary text-on-primary px-10 py-5 rounded-sm font-bold text-lg shadow-2xl shadow-primary/30 hover:translate-y-[-2px] transition-all">
+                        Consult our Solution Experts
+                    </button>
+<button class="bg-transparent border border-zinc-700 text-white px-10 py-5 rounded-sm font-bold text-lg hover:bg-zinc-800 transition-all">
+                        View Product Demo
+                    </button>
+</div>
+<div class="mt-12 flex justify-center gap-8 text-zinc-500">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">public</span>
+<span class="text-xs font-bold tracking-widest uppercase">Global Availability</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">lock</span>
+<span class="text-xs font-bold tracking-widest uppercase">Enterprise Security</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-zinc-100 py-16 px-8">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-12 mb-16">
+<div>
+<img alt="Sinoport" class="h-8 w-auto mb-6" src="../assets/logo/sinoport-logo.png"/>
+<p class="text-sm text-zinc-500 leading-relaxed max-w-xs">Global fulfillment infrastructure designed for architectural certainty and end-to-end control.</p>
+</div>
+<div class="flex flex-col gap-4">
+<h6 class="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 mb-2">Network</h6>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Global Nodes</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Regional Fulfillment</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Network Status</a>
+</div>
+<div class="flex flex-col gap-4">
+<h6 class="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 mb-2">Governance</h6>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Compliance</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Privacy Policy</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Legal Agreements</a>
+</div>
+<div class="flex flex-col gap-4">
+<h6 class="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 mb-2">Company</h6>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Careers</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">About Us</a>
+<a class="text-sm text-zinc-500 hover:text-red-800 transition-all hover:underline decoration-red-800" href="#">Contact Support</a>
+</div>
+</div>
+<div class="pt-8 border-t border-zinc-200 flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="text-sm text-zinc-500">© 2024 Sinoport Fulfillment Infrastructure. All rights reserved.</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-zinc-400 cursor-pointer hover:text-primary">language</span>
+<span class="material-symbols-outlined text-zinc-400 cursor-pointer hover:text-primary">share</span>
+</div>
+</div>
+</div>
+</footer>
+</body></html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sinoport | Fulfillment Network</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#d8dadd",
+                        "outline-variant": "#e4beba",
+                        "tertiary-fixed": "#dbe2f9",
+                        "tertiary": "#474f62",
+                        "background": "#f7f9fc",
+                        "on-primary-fixed": "#410004",
+                        "surface-bright": "#f7f9fc",
+                        "surface": "#f7f9fc",
+                        "secondary-fixed": "#ffdf9e",
+                        "on-error": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#930012",
+                        "inverse-surface": "#2d3133",
+                        "on-surface-variant": "#5b403d",
+                        "on-secondary-fixed": "#261a00",
+                        "inverse-on-surface": "#eff1f4",
+                        "tertiary-container": "#5f677a",
+                        "secondary-fixed-dim": "#fabd00",
+                        "tertiary-fixed-dim": "#bfc6dc",
+                        "surface-variant": "#e0e3e6",
+                        "outline": "#8f706c",
+                        "surface-container-high": "#e6e8eb",
+                        "on-primary-container": "#ffe0dd",
+                        "surface-tint": "#b91c23",
+                        "surface-container-low": "#f2f4f7",
+                        "primary": "#a30316",
+                        "primary-fixed-dim": "#ffb3ad",
+                        "on-tertiary-container": "#dfe6fd",
+                        "inverse-primary": "#ffb3ad",
+                        "on-background": "#191c1e",
+                        "surface-container": "#eceef1",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#fdc003",
+                        "on-tertiary-fixed": "#141b2c",
+                        "on-secondary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#c6272b",
+                        "error-container": "#ffdad6",
+                        "surface-container-highest": "#e0e3e6",
+                        "on-secondary-container": "#6c5000",
+                        "primary-fixed": "#ffdad7",
+                        "secondary": "#785900",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#5b4300",
+                        "on-surface": "#191c1e",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#3f4759"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .asymmetric-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+        }
+        @media (max-width: 768px) {
+            .asymmetric-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-12 h-20 w-full">
+<div class="flex items-center gap-2">
+<img alt="Sinoport" class="h-10 w-auto" src="../assets/logo/sinoport-logo.png"/>
+</div>
+<div class="hidden md:flex items-center gap-8 Manrope display text-sm font-semibold tracking-tight">
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="index.html">Home</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="solutions.html">Product &amp; Solutions</a>
+<a class="text-red-800 dark:text-red-500 border-b-2 border-red-800 pb-1" href="network.html">Fulfillment Network</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="sinoport-os.html">Sinoport OS</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="scenarios.html">Scenarios</a>
+<a class="text-zinc-600 dark:text-zinc-400 hover:text-red-800 transition-colors" href="about.html">About/Contact</a>
+</div>
+<a href="../network.html" class="flex items-center gap-2 mr-6 cursor-pointer hover:text-red-800 transition-colors text-zinc-600 font-headline text-sm font-semibold tracking-tight">
+<span class="material-symbols-outlined text-lg">public</span>
+<span>EN / 中</span>
+</a><a href="about.html" class="bg-primary hover:opacity-80 transition-all duration-300 text-white px-6 py-2.5 rounded-sm text-sm font-semibold tracking-tight active:scale-95">
+            Book a Meeting
+        </a>
+</nav>
+<main class="pt-20">
+<!-- Hero & Global Network Overview -->
+<section class="relative min-height-[819px] bg-inverse-surface text-inverse-on-surface overflow-hidden">
+<div class="max-w-7xl mx-auto px-8 pt-24 pb-32 relative z-10">
+<div class="grid lg:grid-cols-2 gap-16 items-center">
+<div>
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-primary/20 rounded-sm mb-6">
+<span class="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+<span class="text-[10px] uppercase tracking-widest font-bold text-primary-fixed-dim">Live Network Status: Operational</span>
+</div>
+<h1 class="text-5xl md:text-7xl font-headline font-bold leading-tight mb-8 tracking-tighter">
+                            Architecting the <span class="text-primary-fixed-dim">Global Pulse.</span>
+</h1>
+<p class="text-xl text-surface-dim max-w-lg mb-12 leading-relaxed">
+                            A highly controlled, high-precision infrastructure connecting China, Central Asia, and Europe through proprietary nodes.
+                        </p>
+<div class="flex flex-wrap gap-4">
+<div class="px-6 py-4 bg-white/5 backdrop-blur-md rounded-sm border-l-2 border-primary">
+<div class="text-3xl font-headline font-bold text-white">42</div>
+<div class="text-xs uppercase tracking-widest opacity-60">Controlled Nodes</div>
+</div>
+<div class="px-6 py-4 bg-white/5 backdrop-blur-md rounded-sm border-l-2 border-secondary">
+<div class="text-3xl font-headline font-bold text-white">12k+</div>
+<div class="text-xs uppercase tracking-widest opacity-60">Daily Transits</div>
+</div>
+</div>
+</div>
+<div class="relative">
+<!-- Abstract World Map Map -->
+<div class="w-full aspect-video bg-zinc-800 rounded-lg overflow-hidden relative shadow-2xl">
+<img class="w-full h-full object-cover opacity-40 mix-blend-luminosity" data-alt="abstract stylized digital world map with glowing red lines connecting major trade hubs across Eurasia, dark architectural style" src="../assets/images/site/network-map.jpg"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="relative w-full h-full">
+<!-- Decorative Node Points -->
+<div class="absolute top-1/2 left-1/4 w-3 h-3 bg-primary rounded-full shadow-[0_0_15px_rgba(163,3,22,0.8)]"></div>
+<div class="absolute top-1/3 left-1/2 w-3 h-3 bg-primary rounded-full shadow-[0_0_15px_rgba(163,3,22,0.8)]"></div>
+<div class="absolute top-1/4 right-1/4 w-3 h-3 bg-primary rounded-full shadow-[0_0_15px_rgba(163,3,22,0.8)]"></div>
+<svg class="absolute inset-0 w-full h-full pointer-events-none" viewbox="0 0 800 400">
+<path d="M200 200 Q 400 150 600 100" fill="none" stroke="#a30316" stroke-dasharray="4 4" stroke-width="1.5"></path>
+<path d="M200 200 Q 300 180 400 140" fill="none" stroke="#a30316" stroke-dasharray="2 2" stroke-width="1"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- Floating Location Tags -->
+<div class="absolute -bottom-6 -left-6 p-4 bg-surface-container-lowest text-on-surface shadow-xl rounded-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="hub">hub</span>
+<div>
+<div class="text-sm font-bold">Main Hub: URC</div>
+<div class="text-[10px] opacity-60">Xinjiang, China</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Decorative Background Grid -->
+<div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 2px 2px, #fff 1px, transparent 0); background-size: 40px 40px;"></div>
+</section>
+<!-- Regional Node Breakdown -->
+<section class="py-24 bg-surface">
+<div class="max-w-7xl mx-auto px-8">
+<div class="mb-16">
+<h2 class="text-sm font-label uppercase tracking-[0.2em] text-primary font-bold mb-4">Network Topography</h2>
+<h3 class="text-4xl font-headline font-semibold text-on-surface">Regional Node Breakdown</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-outline-variant/20 border border-outline-variant/20">
+<!-- China Node -->
+<div class="bg-surface-container-lowest p-8 hover:bg-surface-container-low transition-colors group">
+<div class="text-primary font-bold text-xs tracking-widest mb-4">CHINA</div>
+<h4 class="text-2xl font-headline font-bold mb-2">URC</h4>
+<p class="text-sm text-on-surface-variant mb-6">Urumqi International Hub. The gateway to the West, managing 65% of trans-Eurasian rail volume.</p>
+<ul class="space-y-3">
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Customs Clearance</li>
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Intermodal Transfer</li>
+</ul>
+</div>
+<!-- Central Asia -->
+<div class="bg-surface-container-lowest p-8 hover:bg-surface-container-low transition-colors group">
+<div class="text-primary font-bold text-xs tracking-widest mb-4">CENTRAL ASIA</div>
+<h4 class="text-2xl font-headline font-bold mb-2">KGF</h4>
+<p class="text-sm text-on-surface-variant mb-6">Karaganda Strategic Node. Critical buffer for silk road logistics and regional sorting.</p>
+<ul class="space-y-3">
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Regional Sorting</li>
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Bonded Warehousing</li>
+</ul>
+</div>
+<!-- Europe Nodes -->
+<div class="bg-surface-container-lowest p-8 hover:bg-surface-container-low transition-colors group">
+<div class="text-primary font-bold text-xs tracking-widest mb-4">EUROPE HUB</div>
+<h4 class="text-2xl font-headline font-bold mb-2">NVI, RZE, MST</h4>
+<p class="text-sm text-on-surface-variant mb-6">Novara, Rzeszow, and Maastricht. Tri-node mesh ensuring zero-delay European distribution.</p>
+<ul class="space-y-3">
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Cross-border Mesh</li>
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Last-mile Injection</li>
+</ul>
+</div>
+<!-- UK Node -->
+<div class="bg-surface-container-lowest p-8 hover:bg-surface-container-low transition-colors group">
+<div class="text-primary font-bold text-xs tracking-widest mb-4">UNITED KINGDOM</div>
+<h4 class="text-2xl font-headline font-bold mb-2">BoH</h4>
+<p class="text-sm text-on-surface-variant mb-6">Bournemouth MME Model Station. The flagship standard for Sinoport fulfillment excellence.</p>
+<ul class="space-y-3">
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Model SOP Excellence</li>
+<li class="flex items-center gap-2 text-xs font-semibold"><span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>Full Automation</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- Control Depths -->
+<section class="py-24 bg-surface-container-low">
+<div class="max-w-7xl mx-auto px-8">
+<div class="grid lg:grid-cols-3 gap-12">
+<div class="lg:col-span-1">
+<h2 class="text-sm font-label uppercase tracking-[0.2em] text-primary font-bold mb-4">Control Philosophy</h2>
+<h3 class="text-4xl font-headline font-semibold mb-6">Systemic Control Depths</h3>
+<p class="text-on-surface-variant leading-relaxed">
+                            Unlike traditional freight forwarders, Sinoport maintains tiered control over every node to guarantee performance consistency.
+                        </p>
+</div>
+<div class="lg:col-span-2 grid md:grid-cols-3 gap-6">
+<!-- L1 -->
+<div class="bg-surface-container-lowest p-8 border-t-4 border-primary shadow-sm">
+<div class="text-4xl font-headline font-extrabold text-primary/20 mb-4">L1</div>
+<h5 class="text-lg font-bold mb-3">Infrastructure</h5>
+<p class="text-sm text-on-surface-variant">Direct ownership or long-term lease of physical assets, docking bays, and hangar space.</p>
+</div>
+<!-- L2 -->
+<div class="bg-surface-container-lowest p-8 border-t-4 border-primary shadow-sm">
+<div class="text-4xl font-headline font-extrabold text-primary/20 mb-4">L2</div>
+<h5 class="text-lg font-bold mb-3">Data Flow</h5>
+<p class="text-sm text-on-surface-variant">Proprietary API mesh integrating local customs systems with Sinoport OS in real-time.</p>
+</div>
+<!-- L3 -->
+<div class="bg-surface-container-lowest p-8 border-t-4 border-primary shadow-sm">
+<div class="text-4xl font-headline font-extrabold text-primary/20 mb-4">L3</div>
+<h5 class="text-lg font-bold mb-3">Execution</h5>
+<p class="text-sm text-on-surface-variant">On-site Sinoport staff and SOPs managing physical handling and security protocols.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- MME Model Station -->
+<section class="py-32 relative overflow-hidden">
+<div class="max-w-7xl mx-auto px-8 relative z-10">
+<div class="bg-inverse-surface rounded-sm flex flex-col lg:flex-row overflow-hidden shadow-2xl">
+<div class="lg:w-1/2 p-12 lg:p-20 text-inverse-on-surface flex flex-col justify-center">
+<div class="flex items-center gap-2 mb-8">
+<div class="w-8 h-px bg-secondary"></div>
+<span class="text-secondary font-bold text-xs uppercase tracking-widest">Flagship Station</span>
+</div>
+<h2 class="text-4xl font-headline font-bold mb-6">MME Model Station (BoH/UK)</h2>
+<p class="text-surface-dim text-lg mb-10 leading-relaxed">
+                            Our Bournemouth facility represents the gold standard of the Sinoport Network. It serves as the blueprint for all future node expansions.
+                        </p>
+<div class="space-y-6">
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-primary-fixed-dim mt-1" data-icon="settings_suggest">settings_suggest</span>
+<div>
+<div class="font-bold">Automated Regional Transit</div>
+<div class="text-sm opacity-60">High-speed sorting systems with 99.9% accuracy rate.</div>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-primary-fixed-dim mt-1" data-icon="verified">verified</span>
+<div>
+<div class="font-bold">SOP Compliance Engine</div>
+<div class="text-sm opacity-60">Dynamic workload balancing based on real-time transit data.</div>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:w-1/2 relative min-h-[400px]">
+<img class="w-full h-full object-cover" data-alt="ultra-modern automated logistics center interior with robotic arms and clean geometric architecture, dramatic red lighting accents" src="../assets/images/site/network-automation.jpg"/>
+<div class="absolute inset-0 bg-primary/10 mix-blend-overlay"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Network Expansion CTA -->
+<section class="py-24 bg-white">
+<div class="max-w-4xl mx-auto px-8 text-center">
+<h2 class="text-sm font-label uppercase tracking-[0.3em] text-secondary font-bold mb-6">Expansion Strategy</h2>
+<h3 class="text-5xl font-headline font-bold mb-8 tracking-tight">Scale with Sinoport</h3>
+<p class="text-xl text-on-surface-variant mb-12">
+                    We are selectively expanding our global footprint. We seek infrastructure partners who meet our L1 and L3 control requirements.
+                </p>
+<div class="flex flex-col md:flex-row items-center justify-center gap-6">
+<button class="w-full md:w-auto px-10 py-5 bg-primary text-white font-bold rounded-sm hover:translate-y-[-2px] transition-all shadow-lg">
+                        Apply for Network Cooperation
+                    </button>
+<button class="w-full md:w-auto px-10 py-5 border border-outline-variant text-on-surface font-bold rounded-sm hover:bg-surface-container transition-all">
+                        Download Node Technical Specs
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-zinc-100 dark:bg-zinc-950 font-inter text-sm antialiased">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-12 max-w-7xl mx-auto py-16 px-8">
+<div>
+<img alt="Sinoport" class="h-8 w-auto mb-6" src="../assets/logo/sinoport-logo.png"/>
+<p class="text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    The next-generation fulfillment infrastructure for global trade.
+                </p>
+</div>
+<div>
+<h5 class="font-bold text-zinc-900 dark:text-white mb-6">Network</h5>
+<ul class="space-y-4">
+<li><a class="text-zinc-500 dark:text-zinc-400 hover:text-red-800 hover:underline decoration-red-800 transition-all" href="#">Global Nodes</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-400 hover:text-red-800 hover:underline decoration-red-800 transition-all" href="#">Regional Fulfillment</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-400 hover:text-red-800 hover:underline decoration-red-800 transition-all" href="#">Network Status</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-zinc-900 dark:text-white mb-6">Company</h5>
+<ul class="space-y-4">
+<li><a class="text-zinc-500 dark:text-zinc-400 hover:text-red-800 hover:underline decoration-red-800 transition-all" href="#">Compliance</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-400 hover:text-red-800 hover:underline decoration-red-800 transition-all" href="#">Careers</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-400 hover:text-red-800 hover:underline decoration-red-800 transition-all" href="#">Privacy Policy</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold text-zinc-900 dark:text-white mb-6">Connect</h5>
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-zinc-400 cursor-pointer hover:text-primary transition-colors" data-icon="alternate_email">alternate_email</span>
+<span class="material-symbols-outlined text-zinc-400 cursor-pointer hover:text-primary transition-colors" data-icon="share">share</span>
+</div>
+</div>
+</div>
+<div class="max-w-7xl mx-auto px-8 pb-12 border-t border-zinc-200 dark:border-zinc-800 pt-8 text-zinc-500 text-xs">
+            © 2024 Sinoport Fulfillment Infrastructure. All rights reserved.
+        </div>
+</footer>
+</body></html>

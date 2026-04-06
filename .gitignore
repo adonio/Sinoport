@@ -1,0 +1,8 @@
+.DS_Store
+**/.DS_Store
+
+admin-console/node_modules/
+admin-console/dist/
+admin-console/.wrangler/
+
+*.log

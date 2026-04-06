@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sinoport | 货站管理员后台</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body data-page="station">
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="index.html">
+          <img class="brand-logo" src="assets/logo/sinoport-logo.png" alt="Sinoport" />
+          <span class="brand-copy">
+            <span>货站运营控制台</span>
+          </span>
+        </a>
+        <nav class="main-nav" aria-label="主导航">
+          <a href="index.html" data-nav="home">企业端网站</a>
+          <a href="platform-admin.html" data-nav="platform">平台管理方</a>
+          <a href="station-admin.html" data-nav="station">货站管理员</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-panel">
+            <span class="eyebrow">货站管理员</span>
+            <h1 data-station-title>MME 货站管理员看板</h1>
+            <p class="hero-copy" data-station-subtitle>
+              样板站：直接把既有 SOP 转成节点状态机与硬门槛控制
+            </p>
+            <div class="toolbar">
+              <div class="field" style="min-width: 220px;">
+                <label for="station-selector" style="color: rgba(255,255,255,0.72);">切换货站</label>
+                <select id="station-selector"></select>
+              </div>
+            </div>
+            <div class="kpi-grid" data-station-metrics style="margin-top: 26px;"></div>
+          </div>
+
+          <aside class="spotlight-panel">
+            <span class="eyebrow eyebrow-light">站内控制重点</span>
+            <h2>货站管理员管理的是执行真相，不是报表截图。</h2>
+            <ul class="spotlight-list">
+              <li>
+                <strong>节点状态机</strong>
+                <span>谁录入、录什么、何时可进入下一状态</span>
+              </li>
+              <li>
+                <strong>硬门槛控制</strong>
+                <span>未放行、未复核、未 POD 不得流转</span>
+              </li>
+              <li>
+                <strong>结构化异常</strong>
+                <span>数量、标签、板位、时效、运输、质量异常统一编码</span>
+              </li>
+              <li>
+                <strong>KPI 闭环</strong>
+                <span>12 小时完成率、装车准确率、POD 闭环率、异常闭环时长</span>
+              </li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container ops-grid">
+          <div class="table-card">
+            <span class="eyebrow eyebrow-light">航班看板</span>
+            <h2>班次与航班看板</h2>
+            <p class="table-note">货站管理员首页首先应该是状态看板，而不是复杂菜单。这里按站点动态切换示例数据。</p>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>班次</th>
+                    <th>当前状态</th>
+                    <th>更新时间</th>
+                    <th>等级</th>
+                    <th>备注</th>
+                  </tr>
+                </thead>
+                <tbody data-flight-table></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <span class="eyebrow eyebrow-light">班组控制</span>
+            <h2>站内快捷操作</h2>
+            <div class="task-grid" style="margin-top: 18px;">
+              <article class="task-card">
+                <h3>二次复核</h3>
+                <p>未通过不得装车，是进港样板站最关键的系统硬门槛之一。</p>
+              </article>
+              <article class="task-card">
+                <h3>装车会话</h3>
+                <p>登记司机、车牌、操作人、托盘数和异常信息，形成车辆级操作会话。</p>
+              </article>
+              <article class="task-card">
+                <h3>POD 双签</h3>
+                <p>签字双方、时间戳和文件编号都是结构化字段，不应只保存图片。</p>
+              </article>
+              <article class="task-card">
+                <h3>异常升级</h3>
+                <p>任何影响承诺兑现的异常都要进入统一分类与责任链。</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container split">
+          <div class="panel dark-panel">
+            <span class="eyebrow">节点状态</span>
+            <h2>按节点而不是按页面组织站内控制。</h2>
+            <div class="status-list" data-status-list style="margin-top: 18px;"></div>
+          </div>
+
+          <div class="panel">
+            <span class="eyebrow eyebrow-light">优先级与异常</span>
+            <h2>优先级、异常和资源必须在同一屏联动。</h2>
+            <div class="priority-grid" data-priority-list style="margin-top: 18px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow eyebrow-light">执行模块</span>
+              <h2>站内执行模块围绕 SOP 落地，而不是围绕传统 ERP 栏目。</h2>
+            </div>
+            <p>不同站点都可以共用同一套结构，只是控制深度和现场动作不同。MME 会是第一版样板。</p>
+          </div>
+          <div class="task-grid" data-task-list></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container split">
+          <div class="panel">
+            <span class="eyebrow eyebrow-light">关键指标</span>
+            <h2>四个一级指标必须能直接回到站内动作。</h2>
+            <div class="kpi-grid" style="margin-top: 18px;">
+              <div class="kpi-item">
+                <strong>准时</strong>
+                <span>落地后 12 小时完成率、准点离场率</span>
+              </div>
+              <div class="kpi-item">
+                <strong>准确</strong>
+                <span>拆板核对准确率、装车准确率、POD 一致率</span>
+              </div>
+              <div class="kpi-item">
+                <strong>可视</strong>
+                <span>关键节点可见率、状态更新时间延迟</span>
+              </div>
+              <div class="kpi-item">
+                <strong>可追责</strong>
+                <span>异常首报时效、审计链完整率、签收链完整率</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel dark-panel">
+            <span class="eyebrow">样板 SOP 到 OS</span>
+            <h2>MME 经验为什么适合做第一站。</h2>
+            <div class="lane-list">
+              <article class="lane-card">
+                <h3>逐箱核对 AWB</h3>
+                <p class="muted">把“逐箱真实核对”写进节点字段和校验规则，不允许托盘级估算。</p>
+              </article>
+              <article class="lane-card">
+                <h3>相同提单号同托</h3>
+                <p class="muted">把“严禁混托”写进系统规则，变成自动校验，而不是口头提醒。</p>
+              </article>
+              <article class="lane-card">
+                <h3>卡车到达后二次复核</h3>
+                <p class="muted">将 `Second Check Passed` 设成硬门槛，未通过不得装车。</p>
+              </article>
+              <article class="lane-card">
+                <h3>POD 双签</h3>
+                <p class="muted">让 POD 成为结构化对象，直接服务后续对账、争议和可信预留。</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">货站运营原型 · 从样板 SOP 到状态机控制。</div>
+    </footer>
+
+    <script src="assets/app.js"></script>
+  </body>
+</html>
