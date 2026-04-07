@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import ApartmentOutlined from '@ant-design/icons/ApartmentOutlined';
+import ImportOutlined from '@ant-design/icons/ImportOutlined';
 
 // project imports
 import NavItem from './NavItem';
@@ -22,25 +25,55 @@ export default function Navigation() {
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
   const downLG = useMediaQuery((theme) => theme.breakpoints.down('lg'));
+  const location = useLocation();
 
   const [selectedID, setSelectedID] = useState('');
   const [selectedItems, setSelectedItems] = useState('');
   const [selectedLevel, setSelectedLevel] = useState(0);
 
   const isHorizontal = state.menuOrientation === MenuOrientation.HORIZONTAL && !downLG;
+  const isStationRoute = location.pathname.startsWith('/station');
+
+  const backendSwitchGroup = {
+    id: 'backend-switch-group',
+    title: '后台切换',
+    type: 'group',
+    children: [
+      isStationRoute
+        ? {
+            id: 'switch-to-platform',
+            title: '平台',
+            type: 'item',
+            url: '/platform/stations',
+            icon: ApartmentOutlined
+          }
+        : {
+            id: 'switch-to-station',
+            title: '货站',
+            type: 'item',
+            url: '/station/inbound/flights',
+            icon: ImportOutlined
+          }
+    ]
+  };
+
+  const navigationItems = [
+    ...menuItems.items.filter((item) => item.id === (isStationRoute ? 'station-group' : 'platform-group')),
+    backendSwitchGroup
+  ];
 
   const lastItem = isHorizontal ? HORIZONTAL_MAX_ITEM : null;
-  let lastItemIndex = menuItems.items.length - 1;
+  let lastItemIndex = navigationItems.length - 1;
   let remItems = [];
   let lastItemId;
 
   //  first it checks menu item is more than giving HORIZONTAL_MAX_ITEM after that get lastItemid by giving horizontal max
   // item and it sets horizontal menu by giving horizontal max item lastly slice menuItem from array and set into remItems
 
-  if (lastItem && lastItem < menuItems.items.length) {
-    lastItemId = menuItems.items[lastItem - 1].id;
+  if (lastItem && lastItem < navigationItems.length) {
+    lastItemId = navigationItems[lastItem - 1].id;
     lastItemIndex = lastItem - 1;
-    remItems = menuItems.items.slice(lastItem - 1, menuItems.items.length).map((item) => ({
+    remItems = navigationItems.slice(lastItem - 1, navigationItems.length).map((item) => ({
       title: item.title,
       elements: item.children,
       icon: item.icon,
@@ -50,7 +83,7 @@ export default function Navigation() {
     }));
   }
 
-  const navGroups = menuItems.items.slice(0, lastItemIndex + 1).map((item, index) => {
+  const navGroups = navigationItems.slice(0, lastItemIndex + 1).map((item, index) => {
     switch (item.type) {
       case 'group':
         if (item.url && item.id !== lastItemId) {

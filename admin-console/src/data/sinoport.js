@@ -74,10 +74,128 @@ export const stationDashboardKpis = [
 ];
 
 export const inboundFlights = [
-  { flightNo: 'SE803', eta: '19:05', status: '运行中', step: '拆板中', priority: 'P1', cargo: '214 pcs / 3,860 kg' },
-  { flightNo: 'SE681', eta: '19:20', status: '运行中', step: '理货中', priority: 'P2', cargo: '166 pcs / 2,940 kg' },
-  { flightNo: 'URO901', eta: '20:10', status: '待处理', step: '待 NOA', priority: 'P1', cargo: '72 pcs / 1,180 kg' }
+  {
+    flightNo: 'SE803',
+    eta: '19:05',
+    etd: '17:40',
+    source: 'MING PAO CANADA',
+    status: '运行中',
+    step: '拆板中',
+    priority: 'P1',
+    cargo: '214 pcs / 3,860 kg'
+  },
+  {
+    flightNo: 'SE681',
+    eta: '19:20',
+    etd: '18:00',
+    source: 'MING PAO TORONTO',
+    status: '运行中',
+    step: '理货中',
+    priority: 'P2',
+    cargo: '166 pcs / 2,940 kg'
+  },
+  {
+    flightNo: 'URO901',
+    eta: '20:10',
+    etd: '18:35',
+    source: 'MING PAO CANADA',
+    status: '待处理',
+    step: '待 NOA',
+    priority: 'P1',
+    cargo: '72 pcs / 1,180 kg'
+  }
 ];
+
+export const inboundFlightSourceOptions = ['MING PAO CANADA', 'MING PAO TORONTO'];
+
+export const inboundFlightWaybillDetails = {
+  SE803: [
+    {
+      awb: '436-10358585',
+      consignee: 'SMDG LOGISTICS',
+      pieces: '50',
+      weight: '700 kg',
+      currentNode: '拆板中',
+      noaStatus: '待处理',
+      podStatus: '待处理',
+      transferStatus: '待分配卡车'
+    },
+    {
+      awb: '436-10354363',
+      consignee: 'LGG Transfer',
+      pieces: '132',
+      weight: '2,038 kg',
+      currentNode: '已入货站',
+      noaStatus: '待处理',
+      podStatus: '待处理',
+      transferStatus: '待理货'
+    },
+    {
+      awb: '436-10359018',
+      consignee: 'MME Hub',
+      pieces: '32',
+      weight: '1,122 kg',
+      currentNode: '拆板完成',
+      noaStatus: '运行中',
+      podStatus: '待处理',
+      transferStatus: '待发送 NOA'
+    }
+  ],
+  SE681: [
+    {
+      awb: '436-10357944',
+      consignee: 'LUCAROM AIR',
+      pieces: '115',
+      weight: '2,029 kg',
+      currentNode: '理货中',
+      noaStatus: '待处理',
+      podStatus: '待处理',
+      transferStatus: '待理货完成'
+    },
+    {
+      awb: '436-10358827',
+      consignee: 'MST Hub',
+      pieces: '24',
+      weight: '426 kg',
+      currentNode: '已入货站',
+      noaStatus: '待处理',
+      podStatus: '待处理',
+      transferStatus: '待理货'
+    },
+    {
+      awb: '436-10358831',
+      consignee: 'RZE Transfer',
+      pieces: '27',
+      weight: '485 kg',
+      currentNode: '拆板完成',
+      noaStatus: '运行中',
+      podStatus: '待处理',
+      transferStatus: '待转运'
+    }
+  ],
+  URO901: [
+    {
+      awb: '436-10357093',
+      consignee: 'MST Hub',
+      pieces: '176',
+      weight: '2,820 kg',
+      currentNode: '待发送 NOA',
+      noaStatus: '待处理',
+      podStatus: '待处理',
+      transferStatus: '待预约提货'
+    },
+    {
+      awb: '436-10359166',
+      consignee: 'Birmingham Partner',
+      pieces: '18',
+      weight: '352 kg',
+      currentNode: '已理货',
+      noaStatus: '待处理',
+      podStatus: '待处理',
+      transferStatus: '待发送 NOA'
+    }
+  ]
+};
 
 export const inboundCargoLifecycle = [
   { label: '运达', count: 214, note: '随航班到站并完成接收' },
@@ -95,10 +213,50 @@ export const noaQueue = [
 ];
 
 export const inboundWaybillRows = [
-  { awb: '436-10358585', flightNo: 'SE803', consignee: 'SMDG LOGISTICS', pieces: '50', weight: '700 kg', currentNode: '待发送 NOA', noaStatus: '待处理', podStatus: '待处理' },
-  { awb: '436-10357944', flightNo: 'SE681', consignee: 'LUCAROM AIR', pieces: '115', weight: '2029 kg', currentNode: '理货完成', noaStatus: '待处理', podStatus: '待处理' },
-  { awb: '436-10357093', flightNo: 'URO901', consignee: 'MST Hub', pieces: '176', weight: '2820 kg', currentNode: '二次转运中', noaStatus: '运行中', podStatus: '待处理' },
-  { awb: '436-10354363', flightNo: 'SE803', consignee: 'LGG Transfer', pieces: '132', weight: '2038 kg', currentNode: '已交付', noaStatus: '运行中', podStatus: '运行中' }
+  {
+    awb: '436-10358585',
+    barcode: '436-10358585',
+    flightNo: 'SE803',
+    consignee: 'SMDG LOGISTICS',
+    pieces: '50',
+    weight: '700 kg',
+    currentNode: '待发送 NOA',
+    noaStatus: '待处理',
+    podStatus: '待处理'
+  },
+  {
+    awb: '436-10357944',
+    barcode: '436-10357944',
+    flightNo: 'SE681',
+    consignee: 'LUCAROM AIR',
+    pieces: '115',
+    weight: '2029 kg',
+    currentNode: '理货完成',
+    noaStatus: '待处理',
+    podStatus: '待处理'
+  },
+  {
+    awb: '436-10357093',
+    barcode: '436-10357093',
+    flightNo: 'URO901',
+    consignee: 'MST Hub',
+    pieces: '176',
+    weight: '2820 kg',
+    currentNode: '二次转运中',
+    noaStatus: '运行中',
+    podStatus: '待处理'
+  },
+  {
+    awb: '436-10354363',
+    barcode: '436-10354363',
+    flightNo: 'SE803',
+    consignee: 'LGG Transfer',
+    pieces: '132',
+    weight: '2038 kg',
+    currentNode: '已交付',
+    noaStatus: '运行中',
+    podStatus: '运行中'
+  }
 ];
 
 export const transferRecords = [
@@ -116,7 +274,12 @@ export const outboundFlights = [
 export const ffmForecastRows = [
   { awb: '436-10357583', destination: 'MST', pieces: 185, weight: '2930 kg', goods: 'PHONE', uld: 'PMC08800R7' },
   { awb: '436-10357896', destination: 'MST', pieces: 122, weight: '1944 kg', goods: 'STICKER HAIR', uld: 'PMC81793YD' },
-  { awb: '436-10358585', destination: 'MME', pieces: 50, weight: '700 kg', goods: 'TAIL BAG', uld: 'BULK' }
+  { awb: '436-10358585', destination: 'MME', pieces: 50, weight: '700 kg', goods: 'TAIL BAG', uld: 'BULK' },
+  { awb: '436-10359044', destination: 'MME', pieces: 68, weight: '1028 kg', goods: 'GARMENT', uld: 'ULD88004' },
+  { awb: '436-10359218', destination: 'MME', pieces: 42, weight: '756 kg', goods: 'ACCESSORIES', uld: 'ULD88005' },
+  { awb: '436-10359301', destination: 'MME', pieces: 36, weight: '612 kg', goods: 'E-COMMERCE', uld: 'ULD88006' },
+  { awb: '436-10359477', destination: 'MST', pieces: 75, weight: '1185 kg', goods: 'COSMETIC', uld: 'PMC99001' },
+  { awb: '436-10359512', destination: 'MST', pieces: 64, weight: '960 kg', goods: 'TEXTILE', uld: 'PMC99002' }
 ];
 
 export const receiptRows = [
@@ -127,6 +290,11 @@ export const receiptRows = [
 
 export const masterAwbRows = [
   { awb: '436-10358585', shipper: 'DONGGUAN PENGXUAN', consignee: 'SMDG LOGISTICS', route: 'URC → MME', pcs: 50, weight: '700 kg' },
+  { awb: '436-10359044', shipper: 'SHENZHEN QIHANG', consignee: 'MME FASHION HUB', route: 'URC → MME', pcs: 68, weight: '1028 kg' },
+  { awb: '436-10359218', shipper: 'GUANGZHOU HAOYI', consignee: 'MME ACCESSORY BV', route: 'URC → MME', pcs: 42, weight: '756 kg' },
+  { awb: '436-10359301', shipper: 'YIWU LINK', consignee: 'MME ECOM DC', route: 'URC → MME', pcs: 36, weight: '612 kg' },
+  { awb: '436-10359477', shipper: 'NINGBO BEST', consignee: 'MST COSMETIC NL', route: 'URC → MST', pcs: 75, weight: '1185 kg' },
+  { awb: '436-10359512', shipper: 'SUZHOU NOVA', consignee: 'MST TEXTILE BV', route: 'URC → MST', pcs: 64, weight: '960 kg' },
   { awb: '436-10361352', shipper: 'AJ', consignee: 'LHR Partner', route: 'URC → LHR', pcs: 124, weight: '2332 kg' }
 ];
 

@@ -14,7 +14,7 @@ export default function NavCard() {
         </Typography>
         <Divider />
         <Typography variant="caption" color="text.secondary">
-          已接入模块：平台总览、货站管理、航线网络、规则中心、审计中心、货站看板、进港、出港、文件中心、异常中心。
+          已接入模块：货站管理、航线网络、规则中心、审计中心、货站看板、进港、出港、文件中心、异常中心。
         </Typography>
       </Stack>
     </MainCard>

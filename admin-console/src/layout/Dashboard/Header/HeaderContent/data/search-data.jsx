@@ -15,7 +15,6 @@ export const searchData = [
     id: 'platform',
     title: '平台管理后台',
     childs: [
-      { id: 'platform-overview', title: '平台总览', icon: <DashboardOutlined />, path: '/dashboard/platform-overview' },
       { id: 'platform-stations', title: '货站管理', icon: <ApartmentOutlined />, path: '/platform/stations' },
       { id: 'platform-network', title: '航线网络', icon: <EnvironmentOutlined />, path: '/platform/network' },
       { id: 'platform-rules', title: '规则中心', icon: <DatabaseOutlined />, path: '/platform/rules' },

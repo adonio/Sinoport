@@ -6,6 +6,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
@@ -26,6 +27,11 @@ export default function StationInboundFlightsPage() {
           title="进港管理 / 航班管理"
           description="按航班管理进港作业，逐航班推进落地、卸机、入货站、理货、NOA、交付和二次转运等动作。"
           chips={['Flight Level Ops', 'Per-Flight Actions', 'Inbound Workflow']}
+          action={
+            <Button component={RouterLink} to="/station/inbound/flights/new" variant="contained">
+              新建航班
+            </Button>
+          }
         />
       </Grid>
 
@@ -73,7 +79,7 @@ export default function StationInboundFlightsPage() {
                   <TableCell>{item.cargo}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                      <Button size="small" variant="outlined">
+                      <Button component={RouterLink} to={`/station/inbound/flights/${item.flightNo}`} size="small" variant="outlined">
                         查看
                       </Button>
                       <Button size="small" variant="outlined">

@@ -3,7 +3,6 @@ import { lazy } from 'react';
 import Loadable from 'components/Loadable';
 import DashboardLayout from 'layout/Dashboard';
 
-const PlatformOverviewPage = Loadable(lazy(() => import('pages/dashboard/platform-overview')));
 const PlatformStationsPage = Loadable(lazy(() => import('pages/platform/stations')));
 const PlatformNetworkPage = Loadable(lazy(() => import('pages/platform/network')));
 const PlatformRulesPage = Loadable(lazy(() => import('pages/platform/rules')));
@@ -11,7 +10,10 @@ const PlatformAuditPage = Loadable(lazy(() => import('pages/platform/audit')));
 
 const StationDashboardPage = Loadable(lazy(() => import('pages/station/dashboard')));
 const StationInboundPage = Loadable(lazy(() => import('pages/station/inbound')));
+const StationInboundMobilePage = Loadable(lazy(() => import('pages/station/inbound-mobile')));
 const StationInboundFlightsPage = Loadable(lazy(() => import('pages/station/inbound-flights')));
+const StationInboundFlightDetailPage = Loadable(lazy(() => import('pages/station/inbound-flight-detail')));
+const StationInboundFlightCreatePage = Loadable(lazy(() => import('pages/station/inbound-flight-create')));
 const StationInboundWaybillsPage = Loadable(lazy(() => import('pages/station/inbound-waybills')));
 const StationOutboundPage = Loadable(lazy(() => import('pages/station/outbound')));
 const StationOutboundFlightsPage = Loadable(lazy(() => import('pages/station/outbound-flights')));
@@ -28,16 +30,7 @@ const MainRoutes = {
       children: [
         {
           path: 'sample-page',
-          element: <PlatformOverviewPage />
-        },
-        {
-          path: 'dashboard',
-          children: [
-            {
-              path: 'platform-overview',
-              element: <PlatformOverviewPage />
-            }
-          ]
+          element: <PlatformStationsPage />
         },
         {
           path: 'platform',
@@ -75,8 +68,20 @@ const MainRoutes = {
                   element: <StationInboundPage />
                 },
                 {
+                  path: 'mobile',
+                  element: <StationInboundMobilePage />
+                },
+                {
                   path: 'flights',
                   element: <StationInboundFlightsPage />
+                },
+                {
+                  path: 'flights/new',
+                  element: <StationInboundFlightCreatePage />
+                },
+                {
+                  path: 'flights/:flightNo',
+                  element: <StationInboundFlightDetailPage />
                 },
                 {
                   path: 'waybills',

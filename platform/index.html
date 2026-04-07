@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sinoport | 平台管理方后台</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body data-page="platform">
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="/platform/">
+          <img class="brand-logo" src="/assets/logo/sinoport-logo.png" alt="Sinoport" />
+          <span class="brand-copy">
+            <span>平台控制中心</span>
+          </span>
+        </a>
+        <nav class="main-nav" aria-label="主导航">
+          <a href="/index.html" data-nav="home">企业端网站</a>
+          <a href="/platform/stations/">货站</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container hero-grid">
+          <div class="hero-panel">
+            <span class="eyebrow">平台管理方</span>
+            <h1>用网络治理和规则治理，支撑承诺兑现。</h1>
+            <p class="hero-copy">
+              平台管理方的职责不是逐票操作，而是定义哪些站点进入网络、哪些节点强控制、哪些接口优先接入，
+              并确保主数据、服务等级、异常字典和可信预留从第一天就不跑偏。
+            </p>
+            <div class="subnav">
+              <a href="#stations">货站管理</a>
+              <a href="#governance">规则治理</a>
+              <a href="#interfaces">接口治理</a>
+            </div>
+            <div class="hero-stats">
+              <div class="metric-card">
+                <strong>7</strong>
+                <span>已纳入平台管理的货站节点</span>
+              </div>
+              <div class="metric-card">
+                <strong>4</strong>
+                <span>区域层级：中国 / 中亚 / 欧洲 / 英国</span>
+              </div>
+              <div class="metric-card">
+                <strong>5</strong>
+                <span>优先预留的核心接口类型</span>
+              </div>
+              <div class="metric-card">
+                <strong>L1-L3</strong>
+                <span>控制深度在平台统一定义</span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="spotlight-panel">
+            <span class="eyebrow eyebrow-light">平台管理重点</span>
+            <h2>平台管理方主要负责新增不同地区货站。</h2>
+            <ul class="spotlight-list">
+              <li>
+                <strong>站点准入</strong>
+                <span>区域、机场代码、站点负责人、控制深度、能力范围</span>
+              </li>
+              <li>
+                <strong>规则统一</strong>
+                <span>P1/P2/P3、节点硬门槛、异常字典、SLA 阈值</span>
+              </li>
+              <li>
+                <strong>接口优先级</strong>
+                <span>ERP、供应链系统、航班状态、POD、末端回传</span>
+              </li>
+              <li>
+                <strong>可信预留</strong>
+                <span>事件 ID、哈希、签名、存证字段治理</span>
+              </li>
+            </ul>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" id="stations">
+        <div class="container split">
+          <div class="table-card">
+            <span class="eyebrow eyebrow-light">货站台账</span>
+            <h2>货站网络总览</h2>
+            <p class="table-note">平台管理方从这里统一维护不同地区货站的进入方式、控制深度和当前阶段。</p>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>机场</th>
+                    <th>区域</th>
+                    <th>站点定位</th>
+                    <th>控制深度</th>
+                    <th>阶段</th>
+                    <th>管理方式</th>
+                  </tr>
+                </thead>
+                <tbody data-station-table></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <span class="eyebrow eyebrow-light">新增货站</span>
+            <h2>新增货站</h2>
+            <p class="table-note">这部分是平台管理方的核心动作，页面已预留新增不同地区货站的基础表单结构。</p>
+            <form class="form-grid">
+              <div class="field">
+                <label for="station-code">机场代码</label>
+                <input id="station-code" type="text" value="ALA" />
+              </div>
+              <div class="field">
+                <label for="station-region">所属区域</label>
+                <select id="station-region">
+                  <option>中国</option>
+                  <option selected>中亚</option>
+                  <option>欧洲</option>
+                  <option>英国</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="station-depth">控制深度</label>
+                <select id="station-depth">
+                  <option>L1 强控制</option>
+                  <option selected>L2 协同控制</option>
+                  <option>L3 接口可视</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="station-owner">站点负责人</label>
+                <input id="station-owner" type="text" value="区域运营负责人" />
+              </div>
+              <div class="field-full">
+                <label for="station-scope">能力范围</label>
+                <input id="station-scope" type="text" value="进港处理 / 卡车协同 / POD 回传 / 异常闭环" />
+              </div>
+              <div class="field-full">
+                <label for="station-notes">接入说明</label>
+                <textarea id="station-notes">先以协同控制接入，要求航班、卡车、POD 三类事件可回传，并绑定 P1/P2 服务等级规则。</textarea>
+              </div>
+            </form>
+            <div class="toolbar">
+              <a class="button" href="#">保存草稿</a>
+              <a class="button-ghost" href="#">提交审批</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="governance">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow eyebrow-light">治理</span>
+              <h2>平台后台要先管规则，再管菜单。</h2>
+            </div>
+            <p>商业模型说明书反复强调：PRD 不能从页面出发，而要从节点、状态机、主键和异常字典出发。</p>
+          </div>
+          <div class="module-grid" data-platform-modules></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container split">
+          <div class="panel dark-panel">
+            <span class="eyebrow">主数据</span>
+            <h2>平台必须冻结主键体系。</h2>
+            <p class="table-note">
+              没有统一对象，后续所有接口、对账和可信映射都会变形。平台后台应单独提供对象治理视图。
+            </p>
+            <div class="tag-row" data-platform-objects style="margin-top: 18px;"></div>
+          </div>
+
+          <div class="panel">
+            <span class="eyebrow eyebrow-light">服务规则</span>
+            <h2>服务等级与硬门槛</h2>
+            <div class="task-grid" style="margin-top: 18px;">
+              <article class="task-card">
+                <h3>P1 / 高优先级</h3>
+                <p>仓、港、车三个关键环节必须体现优先级，不能只显示在订单字段里。</p>
+              </article>
+              <article class="task-card">
+                <h3>P2 / 标准级</h3>
+                <p>纳入统一节点、统一异常和统一 KPI 体系，是网络复制的基准层。</p>
+              </article>
+              <article class="task-card">
+                <h3>节点硬门槛</h3>
+                <p>未放行、未装机前复核、未二次复核、未完成 POD 的记录不得进入下一状态。</p>
+              </article>
+              <article class="task-card">
+                <h3>异常字典</h3>
+                <p>数量、单证/标签、板位/托盘、时效、运输、质量六类异常必须结构化治理。</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="interfaces">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow eyebrow-light">接口</span>
+              <h2>接口治理要从第一天开始预留未来。</h2>
+            </div>
+            <p>当前不把自己定义为 Crypto 公司，但要从第一版数据模型开始预留可信事件和审计链。</p>
+          </div>
+          <div class="interface-grid">
+            <article class="doc-card">
+              <h3>ERP 与 OS</h3>
+              <p>回连合同、客户、航班、发票、结算与 SLA 引用，让履约结果回到经营事实。</p>
+            </article>
+            <article class="doc-card">
+              <h3>供应链系统与 OS</h3>
+              <p>统一 Order、Shipment、Warehouse、Truck、POD、Delivery 等对象映射。</p>
+            </article>
+            <article class="doc-card">
+              <h3>航班状态接口</h3>
+              <p>接入离场、起飞、预计到达、延误、备降、落地等事件，让飞行段不再是黑箱。</p>
+            </article>
+            <article class="doc-card">
+              <h3>末端回传接口</h3>
+              <p>接入派送单、承运商、派送中、已送达、失败原因码等状态。</p>
+            </article>
+            <article class="doc-card">
+              <h3>POD / 签收接口</h3>
+              <p>保证责任闭环和对账基础，把签收对象结构化，而不是只存一张图片。</p>
+            </article>
+            <article class="doc-card">
+              <h3>可信事件预留</h3>
+              <p>预留事件哈希、签名引用、存证引用字段，并不等于当前就上链。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">平台控制原型 · 货站接入、规则治理、接口治理。</div>
+    </footer>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

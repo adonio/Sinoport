@@ -18,25 +18,18 @@ const platform = {
   type: 'group',
   children: [
     {
-      id: 'platform-overview',
-      title: '平台总览',
-      type: 'item',
-      url: '/dashboard/platform-overview',
-      icon: icons.DashboardOutlined
-    },
-    {
       id: 'platform-stations',
       title: '货站管理',
       type: 'item',
       url: '/platform/stations',
-      icon: icons.ApartmentOutlined
+      icon: icons.DashboardOutlined
     },
     {
       id: 'platform-network',
       title: '航线网络',
       type: 'item',
       url: '/platform/network',
-      icon: icons.EnvironmentOutlined
+      icon: icons.ApartmentOutlined
     },
     {
       id: 'platform-rules',

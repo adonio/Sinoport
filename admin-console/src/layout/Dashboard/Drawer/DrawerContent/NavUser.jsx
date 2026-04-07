@@ -111,8 +111,8 @@ export default function NavUser() {
         transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
         <MenuItem onClick={handleLogout}>Logout</MenuItem>
-        <MenuItem component={Link} to="/dashboard/platform-overview" onClick={handleClose}>
-          Platform Overview
+        <MenuItem component={Link} to="/platform/stations" onClick={handleClose}>
+          Platform Stations
         </MenuItem>
         <MenuItem component={Link} to="/station/dashboard" onClick={handleClose}>
           Station Dashboard

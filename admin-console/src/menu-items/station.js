@@ -44,6 +44,12 @@ const station = {
           url: '/station/inbound/flights'
         },
         {
+          id: 'station-inbound-mobile',
+          title: '手机理货',
+          type: 'item',
+          url: '/station/inbound/mobile'
+        },
+        {
           id: 'station-inbound-waybills',
           title: '提单管理',
           type: 'item',
