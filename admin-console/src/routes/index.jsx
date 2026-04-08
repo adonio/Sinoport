@@ -10,6 +10,8 @@ import { APP_DEFAULT_PATH } from 'config';
 
 const useHashRouter = import.meta.env.VITE_APP_USE_HASH_ROUTER === 'true';
 const createRouter = useHashRouter ? createHashRouter : createBrowserRouter;
+const githubPagesBaseName =
+  typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') ? '/Sinoport' : import.meta.env.VITE_APP_BASE_NAME;
 
 const router = createRouter(
   [
@@ -21,7 +23,7 @@ const router = createRouter(
     MobileRoutes,
     MainRoutes
   ],
-  useHashRouter ? undefined : { basename: import.meta.env.VITE_APP_BASE_NAME }
+  useHashRouter ? undefined : { basename: githubPagesBaseName }
 );
 
 export default router;
