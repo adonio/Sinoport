@@ -25,6 +25,10 @@ function main() {
   rootFiles.forEach(copyEntry);
   rootDirs.forEach(copyEntry);
 
+  // The admin app still references some imported assets from absolute `/assets/...` URLs at runtime.
+  // Mirror built admin assets into the root assets directory so custom-domain deployments resolve them.
+  cpSync(join(repoRoot, 'admin-assets'), join(outputRoot, 'assets'), { recursive: true });
+
   writeFileSync(join(outputRoot, '.nojekyll'), '');
 }
 
