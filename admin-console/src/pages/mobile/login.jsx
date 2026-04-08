@@ -10,14 +10,16 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'components/MainCard';
 import sinoportLogo from 'assets/images/sinoport-logo.png';
+import { mobileRoleOptions } from 'data/sinoport-adapters';
 import { writeMobileSession } from 'utils/mobile/session';
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, writeMobileLanguage } from 'utils/mobile/i18n';
 
 const stationOptions = [
-  { value: 'mme', label: 'MME 样板站' },
-  { value: 'urc', label: 'URC 前置站' },
-  { value: 'mst', label: 'MST 分拨站' },
-  { value: 'boh', label: 'BoH 航站' }
+  { value: 'mme', code: 'MME', label: 'MME 样板站' },
+  { value: 'urc', code: 'URC', label: 'URC 前置站' },
+  { value: 'mst', code: 'MST', label: 'MST 分拨站' },
+  { value: 'boh', code: 'BOH', label: 'BoH 航站' },
+  { value: 'rze', code: 'RZE', label: 'RZE 协同站' }
 ];
 
 export default function MobileLoginPage() {
@@ -27,10 +29,11 @@ export default function MobileLoginPage() {
   const [form, setForm] = useState({
     operator: '',
     employeeId: '',
-    station: stationOptions[0].value
+    station: stationOptions[0].value,
+    roleKey: mobileRoleOptions[0].value
   });
 
-  const canSubmit = form.operator.trim() && form.employeeId.trim() && form.station;
+  const canSubmit = form.operator.trim() && form.employeeId.trim() && form.station && form.roleKey;
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: { xs: 2, sm: 6 } }}>
@@ -63,24 +66,40 @@ export default function MobileLoginPage() {
             </TextField>
 
             <TextField
+              name="operator"
               label={t(language, 'operator_name')}
               value={form.operator}
               onChange={(event) => setForm((prev) => ({ ...prev, operator: event.target.value }))}
               placeholder={t(language, 'operator_placeholder')}
             />
             <TextField
+              name="employee_id"
               label={t(language, 'employee_id')}
               value={form.employeeId}
               onChange={(event) => setForm((prev) => ({ ...prev, employeeId: event.target.value }))}
               placeholder={t(language, 'employee_placeholder')}
             />
             <TextField
+              name="station"
               select
               label={t(language, 'station')}
               value={form.station}
               onChange={(event) => setForm((prev) => ({ ...prev, station: event.target.value }))}
             >
               {stationOptions.map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {localizeMobileText(language, item.label)}
+                </MenuItem>
+                ))}
+              </TextField>
+            <TextField
+              name="demo_role"
+              select
+              label={localizeMobileText(language, 'Demo 角色')}
+              value={form.roleKey}
+              onChange={(event) => setForm((prev) => ({ ...prev, roleKey: event.target.value }))}
+            >
+              {mobileRoleOptions.map((item) => (
                 <MenuItem key={item.value} value={item.value}>
                   {localizeMobileText(language, item.label)}
                 </MenuItem>
@@ -91,10 +110,15 @@ export default function MobileLoginPage() {
               variant="contained"
               disabled={!canSubmit}
               onClick={() => {
+                const selectedRole = mobileRoleOptions.find((item) => item.value === form.roleKey) || mobileRoleOptions[0];
                 writeMobileSession({
                   operator: form.operator.trim(),
                   employeeId: form.employeeId.trim(),
+                  stationCode: stationOptions.find((item) => item.value === form.station)?.code || stationOptions[0].code,
                   station: stationOptions.find((item) => item.value === form.station)?.label || stationOptions[0].label,
+                  roleKey: selectedRole.value,
+                  roleLabel: selectedRole.label,
+                  role: selectedRole.label,
                   language,
                   businessType: '',
                   loginAt: new Date().toISOString()

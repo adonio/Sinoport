@@ -44,14 +44,14 @@ export default function Navigation() {
             id: 'switch-to-platform',
             title: '平台',
             type: 'item',
-            url: '/platform/stations',
+            url: '/platform/operations',
             icon: ApartmentOutlined
           }
         : {
             id: 'switch-to-station',
             title: '货站',
             type: 'item',
-            url: '/station/inbound/flights',
+            url: '/station/dashboard',
             icon: ImportOutlined
           }
     ]

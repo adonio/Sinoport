@@ -25,8 +25,8 @@ export default function StationInboundFlightsPage() {
         <PageHeader
           eyebrow="Inbound / Flights"
           title="进港管理 / 航班管理"
-          description="按航班管理进港作业，逐航班推进落地、卸机、入货站、理货、NOA、交付和二次转运等动作。"
-          chips={['Flight Level Ops', 'Per-Flight Actions', 'Inbound Workflow']}
+          description="按航班管理进港作业，逐航班推进落地、进港处理、理货、NOA、交付和二次转运，并为任务和文件联动提供入口。"
+          chips={['Flight Level Ops', 'Per-Flight Actions', 'Inbound Workflow', 'Task Entry', 'Document Gate']}
           action={
             <Button component={RouterLink} to="/station/inbound/flights/new" variant="contained">
               新建航班
@@ -82,14 +82,14 @@ export default function StationInboundFlightsPage() {
                       <Button component={RouterLink} to={`/station/inbound/flights/${item.flightNo}`} size="small" variant="outlined">
                         查看
                       </Button>
-                      <Button size="small" variant="outlined">
-                        理货
+                      <Button component={RouterLink} to="/station/tasks" size="small" variant="outlined">
+                        任务
                       </Button>
-                      <Button size="small" variant="outlined">
-                        NOA
+                      <Button component={RouterLink} to="/station/documents" size="small" variant="outlined">
+                        单证
                       </Button>
-                      <Button size="small" variant="contained">
-                        交付
+                      <Button component={RouterLink} to="/station/shipments" size="small" variant="contained">
+                        链路
                       </Button>
                     </Stack>
                   </TableCell>

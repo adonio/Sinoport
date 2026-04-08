@@ -21,10 +21,26 @@ export default function PlatformStationsPage() {
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
-          eyebrow="Station Provisioning"
-          title="货站管理"
-          description="平台方在这里创建不同机场货站、分配默认角色和服务范围，并从平台后台直接进入对应货站系统。"
-          chips={['Station Directory', 'Tenant Provisioning', 'Scope Control']}
+          eyebrow="Station & Resource Registry"
+          title="货站与资源管理"
+          description="平台方在这里维护站点目录、控制层级、服务范围和基础资源入口，为后续班组、区位、设备与站点能力矩阵预留统一基线。"
+          chips={['Station Directory', 'Control Level', 'Service Scope', 'Resource Entry']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/stations/capabilities" variant="outlined">
+                能力矩阵
+              </Button>
+              <Button component={RouterLink} to="/platform/stations/teams" variant="outlined">
+                班组映射
+              </Button>
+              <Button component={RouterLink} to="/platform/stations/zones" variant="outlined">
+                区位映射
+              </Button>
+              <Button component={RouterLink} to="/platform/stations/devices" variant="outlined">
+                设备映射
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 
@@ -73,7 +89,7 @@ export default function PlatformStationsPage() {
       </Grid>
 
       <Grid size={{ xs: 12, lg: 4 }}>
-        <MainCard title="新增货站" subheader="按 PRD 预留平台侧创建货站的基础字段">
+        <MainCard title="新增货站" subheader="当前阶段只做前端 demo，先冻结站点主数据和服务范围字段">
           <Stack sx={{ gap: 2 }}>
             <TextField label="货站名称" value="RZE 东欧入口站" />
             <TextField label="货站编码" value="RZE" />

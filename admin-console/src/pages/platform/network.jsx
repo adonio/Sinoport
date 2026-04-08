@@ -7,6 +7,8 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
@@ -18,9 +20,19 @@ export default function PlatformNetworkPage() {
       <Grid size={12}>
         <PageHeader
           eyebrow="Route Governance"
-          title="航线网络"
-          description="平台侧按链路维护货站协作关系、承诺时效和关键事件覆盖，避免只做站点台账而没有链路控制。"
-          chips={['Lane Matrix', 'Coverage', 'Station Collaboration']}
+          title="航线网络与链路配置"
+          description="平台侧按链路维护货站协作关系、承诺时效、关键事件覆盖和节点边界，避免只做站点台账而没有链路控制。"
+          chips={['Lane Matrix', 'Coverage', 'Station Collaboration', 'Node Configuration']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/network/lanes" variant="outlined">
+                链路模板
+              </Button>
+              <Button component={RouterLink} to="/platform/network/scenarios" variant="outlined">
+                场景模板
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

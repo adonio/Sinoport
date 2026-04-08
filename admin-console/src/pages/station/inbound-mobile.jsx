@@ -289,9 +289,9 @@ export default function StationInboundMobilePage() {
       <Grid size={12}>
         <PageHeader
           eyebrow="Inbound / Mobile Counting"
-          title="手机端理货"
-          description="现场通过摄像头扫描条码或手动输入提单号，逐箱点数、校验完成，并处理暂时缺货后续继续点货。"
-          chips={['扫码', '理货', '暂时缺货', '继续点货']}
+          title="PDA 作业终端 / 进港理货"
+          description="当前阶段以纯前端 demo 方式演示 PDA 现场理货，通过扫码、手输、差异校验和挂起恢复表达统一任务流。"
+          chips={['扫码', '理货', 'PDA Task', '暂时缺货', '继续点货']}
         />
       </Grid>
 

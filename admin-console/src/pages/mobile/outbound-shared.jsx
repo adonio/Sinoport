@@ -23,10 +23,14 @@ import InboxOutlined from '@ant-design/icons/InboxOutlined';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import StatusChip from 'components/sinoport/StatusChip';
+import TaskCard from 'components/sinoport/mobile/TaskCard';
+import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import { ffmForecastRows, masterAwbRows, outboundFlights } from 'data/sinoport';
+import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed, isMobileTabAllowed } from 'data/sinoport-adapters';
 import { useLocalStorage } from 'hooks/useLocalStorage';
-import { readMobileSession } from 'utils/mobile/session';
+import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage, t } from 'utils/mobile/i18n';
+import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
 export function parseNumber(value) {
   const parsed = parseFloat(String(value).replace(/[^\d.]/g, ''));
@@ -38,7 +42,7 @@ export function normalizeCode(value) {
 }
 
 function stationKeyOf(session) {
-  return (session?.station || 'default').replace(/\s+/g, '-');
+  return getMobileStationKey(session);
 }
 
 function mobileLanguage() {
@@ -47,6 +51,81 @@ function mobileLanguage() {
 
 function mt(value) {
   return localizeMobileText(mobileLanguage(), value);
+}
+
+function buildOutboundTaskCardConfig(type, flightNo) {
+  const flight = getOutboundFlight(flightNo);
+  const priority = flight?.stage?.includes('装载') ? 'P1' : 'P2';
+
+  const configMap = {
+    overview: {
+      title: '出港货站任务总览',
+      node: '出港机场货站操作',
+      role: 'Export Supervisor',
+      status: '运行中',
+      sla: '飞走前闭环',
+      description: '统一展示出港收货、理货、组板、集装器和装机准备任务。',
+      evidence: ['FFM / UWS / Manifest', 'Origin POD', '主单信息'],
+      blockers: ['Manifest 未冻结前不得飞走归档。'],
+      actions: [{ label: '查看收货', variant: 'contained' }, { label: '上报异常' }]
+    },
+    receipt: {
+      title: '出港收货任务',
+      node: '出港机场货站操作',
+      role: 'Export Receiver',
+      status: '运行中',
+      sla: '收货后 30 分钟',
+      description: '按 AWB 录入收货件数并完成重量复核。',
+      evidence: ['收货件数', '复核重量', 'Origin POD'],
+      blockers: ['未完成收货不得进入组板和机坪放行。'],
+      actions: [{ label: '收货', variant: 'contained' }, { label: '复核' }, { label: '异常' }]
+    },
+    container: {
+      title: '组板与集装器任务',
+      node: '出港机场货站操作',
+      role: 'Build-up Worker',
+      status: '运行中',
+      sla: '装机前 45 分钟',
+      description: '创建集装器、录入提单并准备机坪转运。',
+      evidence: ['集装器号', '提单清单', '重量复核'],
+      blockers: ['无集装器号或复核重量时不得进入装机。'],
+      actions: [{ label: '新建集装器', variant: 'contained' }, { label: '追加提单' }]
+    },
+    loading: {
+      title: '出港装机任务',
+      node: '出港机场机坪操作',
+      role: 'Ramp Loader',
+      status: '待处理',
+      sla: 'ETD 前 30 分钟',
+      description: '在机坪完成转运、Loaded 确认和装机证据上传。',
+      evidence: ['Loaded 照片', 'UWS 复核', '机坪签名'],
+      blockers: ['无 UWS / Manifest 时不得标记已装载。'],
+      actions: [{ label: '记录转运', variant: 'contained' }, { label: '确认 Loaded' }, { label: '上传证据' }]
+    }
+  };
+
+  return {
+    priority,
+    ...(configMap[type] || configMap.overview)
+  };
+}
+
+function roleAwareOutboundTaskCardConfig(type, flightNo, roleKey, roleView, runAction) {
+  const config = buildOutboundTaskCardConfig(type, flightNo);
+  const roleAllowed = isMobileRoleAllowed(roleKey, config.role);
+  const actions = filterMobileActionsByRole(
+    roleKey,
+    (config.actions || []).map((action) => ({
+      ...action,
+      onClick: () => runAction(action.label, `${config.node} / ${config.role}`)
+    }))
+  );
+
+  return {
+    ...config,
+    blockers: roleAllowed ? config.blockers : [...config.blockers, `当前角色 ${roleView.label} 仅可查看，不可执行 ${config.role} 任务。`],
+    actions: roleAllowed ? actions : []
+  };
 }
 
 function recognizeContainerCode(file) {
@@ -269,6 +348,7 @@ export function OutboundFlightHeroCard({ flight }) {
 }
 
 export function OutboundOverviewPanel({ flight, pmcBoards = [], receiptMap = {} }) {
+  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flight.flightNo);
   const summary = getOutboundSummary(flight);
   const flightContainers = pmcBoards.filter((item) => item.flightNo === flight.flightNo);
   const flightReceipts = Object.values(receiptMap).filter((item) => item.flightNo === flight.flightNo);
@@ -276,6 +356,8 @@ export function OutboundOverviewPanel({ flight, pmcBoards = [], receiptMap = {} 
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareOutboundTaskCardConfig('overview', flight.flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="航班概览">
         <Grid container spacing={1.5}>
           <Grid size={4}>
@@ -313,7 +395,30 @@ function outboundTabItems() {
     { key: 'receipt', label: t(language, 'receipt'), icon: InboxOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}/receipt` },
     { key: 'container', label: t(language, 'container'), icon: BarcodeOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}/pmc` },
     { key: 'loading', label: language === 'en' ? 'Aircraft' : '装机', icon: CarOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}/loading` }
-  ];
+  ].filter((item) => isMobileTabAllowed(getMobileRoleKey(readMobileSession()), 'outbound', item.key));
+}
+
+function useOutboundTaskContext(flightNo) {
+  const session = readMobileSession();
+  const roleKey = getMobileRoleKey(session);
+  const roleView = getMobileRoleView(roleKey);
+  const opsStorage = useMobileOpsStorage(`outbound-flight-${flightNo}`);
+
+  const runScopedAction = (label, taskLabel) => {
+    opsStorage.setState((prev) =>
+      recordMobileAction(
+        prev,
+        buildMobileQueueEntry(session, {
+          label,
+          taskLabel,
+          payloadSummary: `${flightNo} / ${taskLabel}`,
+          roleLabel: roleView.label
+        })
+      )
+    );
+  };
+
+  return { roleKey, roleView, runScopedAction, opsState: opsStorage.state, setOpsState: opsStorage.setState };
 }
 
 export function OutboundFlightAppShell({ flight, children, showHero = true }) {
@@ -324,6 +429,7 @@ export function OutboundFlightAppShell({ flight, children, showHero = true }) {
     <Box sx={{ pb: 11 }}>
       <Stack sx={{ gap: 2 }}>
         {showHero ? <OutboundFlightHeroCard flight={flight} /> : null}
+        <TaskOpsPanel scopeKey={`outbound-flight-${flight.flightNo}`} currentLabel={flight.flightNo} />
         {children}
       </Stack>
 
@@ -373,6 +479,7 @@ export function OutboundFlightAppShell({ flight, children, showHero = true }) {
 }
 
 export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
+  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -401,6 +508,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
     setActiveAwb(matched.awb);
     setScanValue(matched.awb);
     setReceiptCount(receiptMap[matched.awb]?.receivedPieces ? String(receiptMap[matched.awb].receivedPieces) : '');
+    runScopedAction('扫码', `出港收货 / ${matched.awb}`);
     setMessage(`提单 ${matched.awb} 已识别，请录入该提单的收货件数。`);
   };
 
@@ -420,6 +528,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
         status: '已收货'
       }
     }));
+    runScopedAction('确认', `收货件数 / ${matched.awb}`);
     setMessage(`提单 ${matched.awb} 收货件数已记录为 ${receiptCount}。`);
     setReceiptCount('');
   };
@@ -435,12 +544,15 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
         reviewStatus: '已复核'
       }
     }));
+    runScopedAction('确认', `重量复核 / ${reviewAwb}`);
     setReviewAwb('');
     setReviewWeight('');
   };
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareOutboundTaskCardConfig('receipt', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="收货扫描">
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
@@ -542,14 +654,24 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
 }
 
 export function ContainerListPanel({ flightNo, pmcBoards }) {
+  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightContainers = pmcBoards.filter((item) => item.flightNo === flightNo);
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title={mt('集装器')}>
         <Stack sx={{ gap: 2 }}>
-          <Button variant="contained" startIcon={<BarcodeOutlined />} onClick={() => navigate(`/mobile/outbound/${flightNo}/pmc/new`)}>
+          <Button
+            variant="contained"
+            startIcon={<BarcodeOutlined />}
+            onClick={() => {
+              runScopedAction('确认', `新建集装器 / ${flightNo}`);
+              navigate(`/mobile/outbound/${flightNo}/pmc/new`);
+            }}
+          >
             {mt('新建集装器')}
           </Button>
         </Stack>
@@ -586,6 +708,7 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
 }
 
 export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
+  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const [message, setMessage] = useState('输入集装器号码或拍照识别后，点击完成即可创建。');
   const [form, setForm] = useState({ boardCode: '', photoName: '' });
@@ -594,6 +717,8 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title={mt('新建集装器')}>
         <Stack sx={{ gap: 2 }}>
           <Button component="label" fullWidth variant="contained" startIcon={<CameraOutlined />}>
@@ -634,6 +759,7 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
             disabled={!canSubmit}
             onClick={() => {
               const normalizedCode = form.boardCode.trim().toUpperCase();
+              runScopedAction('确认', `集装器创建 / ${normalizedCode}`);
               setPmcBoards((prev) => [
                 {
                   boardCode: normalizedCode,
@@ -660,6 +786,7 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
 }
 
 export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPmcBoards }) {
+  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -669,7 +796,6 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
 
   const flightAwbs = getFlightAwbCatalog(flightNo);
   const container = pmcBoards.find((item) => item.flightNo === flightNo && item.boardCode === containerCode);
-  const selectedMeta = flightAwbs.find((item) => item.awb === entry.awb) || flightAwbs.find((item) => item.awb === activeAwb);
 
   useEffect(() => {
     scanInputRef.current?.focus();
@@ -681,6 +807,8 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title={mt('当前集装器')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="h5">{container.boardCode}</Typography>
@@ -739,6 +867,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
                   setMessage(`未找到提单 ${scanValue}。`);
                   return;
                 }
+                runScopedAction('扫码', `集装器扫描 / ${matched.awb}`);
                 setActiveAwb(matched.awb);
                 setEntry((prev) => ({
                   ...prev,
@@ -783,6 +912,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
             onClick={() => {
               const awbMeta = flightAwbs.find((item) => item.awb === entry.awb);
               const weight = awbMeta?.unitWeight ? (awbMeta.unitWeight * parseNumber(entry.pieces)).toFixed(1) : '0.0';
+              runScopedAction('追加提单', `集装器追加 / ${entry.awb}`);
               setPmcBoards((prev) =>
                 prev.map((container) =>
                   container.boardCode === containerCode
@@ -845,6 +975,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
 }
 
 export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
+  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
   const [activeContainerCode, setActiveContainerCode] = useState('');
   const [offloadBoxes, setOffloadBoxes] = useState('');
   const containers = pmcBoards.filter((item) => item.flightNo === flightNo);
@@ -853,6 +984,8 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareOutboundTaskCardConfig('loading', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title={mt('待装机集装器')}>
         <Stack sx={{ gap: 1.25 }}>
           {pendingContainers.length ? (
@@ -868,13 +1001,14 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                   <Button
                     size="small"
                     variant="contained"
-                    onClick={() =>
+                    onClick={() => {
+                      runScopedAction('完成', `出港装机 / ${item.boardCode}`);
                       setPmcBoards((prev) =>
                         prev.map((container) =>
                           container.boardCode === item.boardCode ? { ...container, status: '已装机', loadedAt: new Date().toISOString() } : container
                         )
-                      )
-                    }
+                      );
+                    }}
                   >
                     {mobileLanguage() === 'en' ? 'Load' : '装机'}
                   </Button>
@@ -915,7 +1049,8 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                   <Button
                     size="small"
                     variant="outlined"
-                    onClick={() =>
+                    onClick={() => {
+                      runScopedAction('确认', `拉货记录 / ${item.boardCode}`);
                       setPmcBoards((prev) =>
                         prev.map((container) =>
                           container.boardCode === item.boardCode
@@ -927,8 +1062,8 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                               }
                             : container
                         )
-                      )
-                    }
+                      );
+                    }}
                   >
                     记录拉货
                   </Button>

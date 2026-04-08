@@ -9,11 +9,13 @@ import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 
+import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { inboundFlights, inboundFlightWaybillDetails } from 'data/sinoport';
+import { inboundDocumentGates } from 'data/sinoport-adapters';
 
 function buildSummary(waybills) {
   return {
@@ -56,12 +58,18 @@ export default function StationInboundFlightDetailPage() {
         <PageHeader
           eyebrow="进港 / 航班 / 详情"
           title={`航班详情 / ${flight.flightNo}`}
-          description={`查看航班 ${flight.flightNo} 的基础信息，以及该航班下所有提单的当前节点、NOA、POD 和转运状态。`}
+          description={`查看航班 ${flight.flightNo} 的基础信息，以及该航班下所有提单、任务、文件门槛、NOA、POD 和转运状态。`}
           chips={[`来源：${flight.source}`, `ETA ${flight.eta}`, `ETD ${flight.etd}`, `优先级 ${flight.priority}`]}
           action={
             <Stack direction="row" sx={{ gap: 1 }}>
               <Button component={RouterLink} to="/station/inbound/flights/new" variant="contained">
                 新建航班
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                任务中心
               </Button>
               <Button component={RouterLink} to="/station/inbound/flights" variant="outlined">
                 返回航班列表
@@ -109,6 +117,10 @@ export default function StationInboundFlightDetailPage() {
             </Stack>
           </Stack>
         </MainCard>
+      </Grid>
+
+      <Grid size={{ xs: 12, lg: 8 }}>
+        <DocumentStatusCard title="当前文件门槛" items={inboundDocumentGates} />
       </Grid>
 
       <Grid size={{ xs: 12, lg: 8 }}>

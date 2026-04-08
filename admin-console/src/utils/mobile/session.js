@@ -21,4 +21,20 @@ export function clearMobileSession() {
   window.localStorage.removeItem(MOBILE_SESSION_KEY);
 }
 
+export function getMobileStationKey(session) {
+  return (session?.stationCode || session?.station || 'default').replace(/\s+/g, '-').toLowerCase();
+}
+
+export function getMobileRoleKey(session) {
+  return session?.roleKey || 'supervisor';
+}
+
+export function getMobileOpsStorageKey(session, scopeKey) {
+  return `sinoport-mobile-ops-${getMobileStationKey(session)}-${scopeKey}`;
+}
+
+export function getMobileFlowStorageKey(session, scopeKey) {
+  return `sinoport-mobile-flow-${getMobileStationKey(session)}-${scopeKey}`;
+}
+
 export { MOBILE_SESSION_KEY };

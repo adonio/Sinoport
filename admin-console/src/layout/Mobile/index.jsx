@@ -17,7 +17,16 @@ import { clearMobileSession, readMobileSession, writeMobileSession } from 'utils
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, translateRenderedText, writeMobileLanguage } from 'utils/mobile/i18n';
 
 function resolveShell(pathname) {
-  let match = pathname.match(/^\/mobile\/inbound\/([^/]+)\/breakdown$/);
+  let match = pathname.match(/^\/mobile\/pre-warehouse\/([^/]+)$/);
+  if (match) return { titleKey: 'pre_warehouse_task', subtitle: match[1], backPath: '/mobile/pre-warehouse' };
+
+  match = pathname.match(/^\/mobile\/headhaul\/([^/]+)$/);
+  if (match) return { titleKey: 'headhaul_task', subtitle: match[1], backPath: '/mobile/headhaul' };
+
+  match = pathname.match(/^\/mobile\/runtime\/([^/]+)$/);
+  if (match) return { titleKey: 'runtime_task', subtitle: match[1], backPath: '/mobile/runtime' };
+
+  match = pathname.match(/^\/mobile\/inbound\/([^/]+)\/breakdown$/);
   if (match) return { titleKey: 'counting', subtitle: match[1], backPath: '/mobile/inbound' };
 
   match = pathname.match(/^\/mobile\/inbound\/([^/]+)\/pallet\/new$/);
@@ -62,8 +71,32 @@ function resolveShell(pathname) {
   match = pathname.match(/^\/mobile\/outbound\/([^/]+)$/);
   if (match) return { titleKey: 'overview', subtitle: match[1], backPath: '/mobile/outbound' };
 
+  match = pathname.match(/^\/mobile\/export-ramp\/([^/]+)$/);
+  if (match) return { titleKey: 'export_ramp_task', subtitle: match[1], backPath: '/mobile/export-ramp' };
+
+  match = pathname.match(/^\/mobile\/destination-ramp\/([^/]+)$/);
+  if (match) return { titleKey: 'destination_ramp_task', subtitle: match[1], backPath: '/mobile/destination-ramp' };
+
+  match = pathname.match(/^\/mobile\/tailhaul\/([^/]+)$/);
+  if (match) return { titleKey: 'tailhaul_task', subtitle: match[1], backPath: '/mobile/tailhaul' };
+
+  match = pathname.match(/^\/mobile\/delivery\/([^/]+)$/);
+  if (match) return { titleKey: 'delivery_task', subtitle: match[1], backPath: '/mobile/delivery' };
+
   if (pathname === '/mobile/select') {
-    return { titleKey: 'choose_business', subtitleKey: 'business_pair', backPath: null };
+    return { titleKey: 'choose_node', subtitleKey: 'node_pair', backPath: null };
+  }
+
+  if (pathname === '/mobile/pre-warehouse') {
+    return { titleKey: 'pre_warehouse_batches', subtitleKey: 'select_task', backPath: '/mobile/select' };
+  }
+
+  if (pathname === '/mobile/headhaul') {
+    return { titleKey: 'headhaul_trips', subtitleKey: 'select_task', backPath: '/mobile/select' };
+  }
+
+  if (pathname === '/mobile/runtime') {
+    return { titleKey: 'runtime_flights', subtitleKey: 'select_task', backPath: '/mobile/select' };
   }
 
   if (pathname === '/mobile/inbound') {
@@ -72,6 +105,22 @@ function resolveShell(pathname) {
 
   if (pathname === '/mobile/outbound') {
     return { titleKey: 'outbound_flights', subtitleKey: 'select_flight', backPath: '/mobile/select' };
+  }
+
+  if (pathname === '/mobile/export-ramp') {
+    return { titleKey: 'export_ramp_flights', subtitleKey: 'select_task', backPath: '/mobile/select' };
+  }
+
+  if (pathname === '/mobile/destination-ramp') {
+    return { titleKey: 'destination_ramp_flights', subtitleKey: 'select_task', backPath: '/mobile/select' };
+  }
+
+  if (pathname === '/mobile/tailhaul') {
+    return { titleKey: 'tailhaul_trips', subtitleKey: 'select_task', backPath: '/mobile/select' };
+  }
+
+  if (pathname === '/mobile/delivery') {
+    return { titleKey: 'delivery_runs', subtitleKey: 'select_task', backPath: '/mobile/select' };
   }
 
   return { titleKey: 'pda_terminal', subtitle: '', backPath: '/mobile/select' };
@@ -156,6 +205,7 @@ export default function MobileLayout() {
               </Stack>
               <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
                 <TextField
+                  name="mobile-language"
                   select
                   size="small"
                   value={language}

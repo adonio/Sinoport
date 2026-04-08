@@ -6,6 +6,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
@@ -57,14 +58,14 @@ export default function StationInboundWaybillsPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                      <Button size="small" variant="outlined">
-                        查看提单
+                      <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`in-${item.awb}`)}`} size="small" variant="outlined">
+                        履约链路
                       </Button>
-                      <Button size="small" variant="outlined">
-                        更新状态
+                      <Button component={RouterLink} to="/station/tasks" size="small" variant="outlined">
+                        任务
                       </Button>
-                      <Button size="small" variant="contained">
-                        上传 POD
+                      <Button component={RouterLink} to="/station/documents/pod" size="small" variant="contained">
+                        POD
                       </Button>
                     </Stack>
                   </TableCell>

@@ -11,7 +11,6 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
-import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -28,10 +27,14 @@ import SearchOutlined from '@ant-design/icons/SearchOutlined';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import StatusChip from 'components/sinoport/StatusChip';
+import TaskCard from 'components/sinoport/mobile/TaskCard';
+import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import { inboundFlightWaybillDetails, inboundFlights } from 'data/sinoport';
+import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed, isMobileTabAllowed } from 'data/sinoport-adapters';
 import { useLocalStorage } from 'hooks/useLocalStorage';
-import { readMobileSession } from 'utils/mobile/session';
+import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage, t } from 'utils/mobile/i18n';
+import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
 export const defaultTask = {
   countedBoxes: 0,
@@ -59,7 +62,7 @@ function compactCode(value) {
 }
 
 export function stationKeyOf(session) {
-  return (session?.station || 'default').replace(/\s+/g, '-');
+  return getMobileStationKey(session);
 }
 
 function mobileLanguage() {
@@ -76,6 +79,92 @@ const HAOXUE_VEHICLES = [
   { plate: 'HX-TRK-318', model: '17.5m 挂车', driver: 'Hao Xue 03' },
   { plate: 'HX-TRK-426', model: '9.6m 冷链厢车', driver: 'Hao Xue 04' }
 ];
+
+function buildInboundTaskCardConfig(type, flightNo) {
+  const flight = getInboundFlight(flightNo);
+  const priority = flight?.priority || 'P2';
+
+  const configMap = {
+    overview: {
+      title: '进港任务总览',
+      node: '进港机场货站操作',
+      role: 'Inbound Supervisor',
+      status: '运行中',
+      sla: '落地后 12h',
+      description: '当前航班的拆板、理货、组托、装车和 NOA/POD 全部按统一任务卡组织。',
+      evidence: ['CBA / Manifest / Handling Plan', '任务状态回填', '关键节点时间戳'],
+      blockers: ['关键文件不齐时，只允许展示任务，不允许放行。'],
+      actions: [{ label: '查看任务池', variant: 'contained' }, { label: '上报异常' }]
+    },
+    counting: {
+      title: '拆板与理货任务',
+      node: '进港机场货站操作',
+      role: 'Check Worker',
+      status: '运行中',
+      sla: '理货节点 30 分钟初判',
+      description: `围绕航班 ${flightNo} 执行拆板和理货，扫码即加 1，并持续校验差异。`,
+      evidence: ['提单 / 箱号扫码记录', '差异备注', '理货完成确认'],
+      blockers: ['未完成理货不得发送 NOA。', '扫描到航班外提单时必须先确认是否纳入统计。'],
+      actions: [{ label: '扫码 +1', variant: 'contained' }, { label: '挂起' }, { label: '上报异常' }]
+    },
+    pallet: {
+      title: '组托任务',
+      node: '进港机场货站操作',
+      role: 'Pallet Builder',
+      status: '运行中',
+      sla: '理货完成后立即执行',
+      description: `围绕航班 ${flightNo} 组托，保持同票同托，为后续装车准备标准托盘。`,
+      evidence: ['托盘号', '箱数 / 重量', '托盘标签'],
+      blockers: ['不同 consignee 不得混托。'],
+      actions: [{ label: '新建托盘', variant: 'contained' }, { label: '打印标签' }]
+    },
+    loadingPlan: {
+      title: '装车计划任务',
+      node: '尾程卡车装车与运输',
+      role: 'Loading Coordinator',
+      status: '待处理',
+      sla: '车辆到场后 15 分钟内启动',
+      description: `为航班 ${flightNo} 录入车牌、司机、Collection Note 和复核信息，形成装车计划。`,
+      evidence: ['车牌', '司机', 'Collection Note', '叉车司机 / 核对员'],
+      blockers: ['未录入车牌、Collection Note、核对员时不得开始装车。'],
+      actions: [{ label: '开始装车', variant: 'contained' }, { label: '挂起' }]
+    },
+    loadingExecution: {
+      title: '装车执行任务',
+      node: '尾程卡车装车与运输',
+      role: 'Loading Worker',
+      status: '装车中',
+      sla: '装车完成后立即回填',
+      description: `把托盘或提单装入车辆，持续校验车牌、托盘数量和完成条件。`,
+      evidence: ['托盘绑定', '装车清单', '完成确认'],
+      blockers: ['缺车牌 / Collection Note / 复核信息时不得完成装车。'],
+      actions: [{ label: '录入托盘', variant: 'contained' }, { label: '完成装车', color: 'success' }]
+    }
+  };
+
+  return {
+    priority,
+    ...(configMap[type] || configMap.overview)
+  };
+}
+
+function roleAwareInboundTaskCardConfig(type, flightNo, roleKey, roleView, runAction) {
+  const config = buildInboundTaskCardConfig(type, flightNo);
+  const roleAllowed = isMobileRoleAllowed(roleKey, config.role);
+  const actions = filterMobileActionsByRole(
+    roleKey,
+    (config.actions || []).map((action) => ({
+      ...action,
+      onClick: () => runAction(action.label, `${config.node} / ${config.role}`)
+    }))
+  );
+
+  return {
+    ...config,
+    blockers: roleAllowed ? config.blockers : [...config.blockers, `当前角色 ${roleView.label} 仅可查看，不可执行 ${config.role} 任务。`],
+    actions: roleAllowed ? actions : []
+  };
+}
 
 const DEFAULT_LOADING_PLANS = [
   {
@@ -239,6 +328,29 @@ export function useInboundLoadingStorage() {
   };
 }
 
+function useInboundTaskContext(flightNo) {
+  const session = readMobileSession();
+  const roleKey = getMobileRoleKey(session);
+  const roleView = getMobileRoleView(roleKey);
+  const opsStorage = useMobileOpsStorage(`inbound-flight-${flightNo}`);
+
+  const runScopedAction = (label, taskLabel) => {
+    opsStorage.setState((prev) =>
+      recordMobileAction(
+        prev,
+        buildMobileQueueEntry(session, {
+          label,
+          taskLabel,
+          payloadSummary: `${flightNo} / ${taskLabel}`,
+          roleLabel: roleView.label
+        })
+      )
+    );
+  };
+
+  return { session, roleKey, roleView, opsState: opsStorage.state, runScopedAction, setOpsState: opsStorage.setState };
+}
+
 export function InboundFlightHeroCard({ flight, waybills, taskMap }) {
   const summary = getInboundSummary(waybills, taskMap);
   const awbList = waybills.map((item) => item.awb).join(' / ');
@@ -288,9 +400,12 @@ export function InboundFlightHeroCard({ flight, waybills, taskMap }) {
 
 export function InboundOverviewPanel({ flight, waybills, taskMap }) {
   const summary = getInboundSummary(waybills, taskMap);
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flight.flightNo);
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('overview', flight.flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title={mt('航班概览')}>
         <Grid container spacing={1.5}>
           <Grid size={6}>
@@ -355,25 +470,49 @@ export function InboundOverviewPanel({ flight, waybills, taskMap }) {
   );
 }
 
-function inboundTabItems() {
+function inboundTabItems(roleKey) {
   const language = mobileLanguage();
   return [
     { key: 'overview', label: t(language, 'overview'), icon: AppstoreOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}` },
     { key: 'counting', label: t(language, 'counting'), icon: BarcodeOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}/breakdown` },
     { key: 'pallet', label: t(language, 'pallet'), icon: InboxOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}/pallet` },
     { key: 'loading', label: t(language, 'loading'), icon: CarOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}/loading` }
-  ];
+  ].filter((item) => isMobileTabAllowed(roleKey, 'inbound', item.key));
 }
 
 export function InboundFlightAppShell({ flight, waybills, taskMap, children, showHero = true }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const session = readMobileSession();
+  const roleKey = getMobileRoleKey(session);
+  const roleView = getMobileRoleView(roleKey);
+  const opsStorage = useMobileOpsStorage(`inbound-flight-${flight.flightNo}`);
+
+  const runScopedAction = (label, taskLabel) => {
+    opsStorage.setState((prev) =>
+      recordMobileAction(
+        prev,
+        buildMobileQueueEntry(session, {
+          label,
+          taskLabel,
+          payloadSummary: `${flight.flightNo} / ${taskLabel}`,
+          roleLabel: roleView.label
+        })
+      )
+    );
+  };
 
   return (
     <Box sx={{ pb: 11 }}>
       <Stack sx={{ gap: 2 }}>
         {showHero ? <InboundFlightHeroCard flight={flight} waybills={waybills} taskMap={taskMap} /> : null}
-        {children}
+        <TaskOpsPanel scopeKey={`inbound-flight-${flight.flightNo}`} currentLabel={flight.flightNo} />
+        <MainCard>
+          <Typography variant="body2" color="text.secondary">
+            当前角色：{mt(roleView.label)}。底部导航和任务动作会按角色过滤。
+          </Typography>
+        </MainCard>
+        {typeof children === 'function' ? children({ roleKey, roleView, runScopedAction, opsState: opsStorage.state }) : children}
       </Stack>
 
       <Paper
@@ -392,7 +531,7 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
         }}
       >
         <Stack direction="row" sx={{ gap: 0.75 }}>
-          {inboundTabItems().map((item) => {
+          {inboundTabItems(roleKey).map((item) => {
             const active = location.pathname === item.pathOf(flight.flightNo);
             const Icon = item.icon;
 
@@ -422,6 +561,7 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
 }
 
 export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
   const scanInputRef = useRef(null);
   const flashTimerRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -596,6 +736,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
     setPendingWaybill(null);
     setExpandedAwb(waybill.awb);
     triggerScanFeedback(waybill.awb, outcome.nextCount, serial);
+    runScopedAction('扫码 +1', `拆板与理货 / ${waybill.awb}`);
     setMessage(
       serial
         ? `已纳入提单 ${waybill.awb}，自动加 1。当前为第 ${outcome.nextCount} 项，箱号 ${serial}。`
@@ -646,6 +787,8 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('counting', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="扫描提单">
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
@@ -874,10 +1017,12 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 }
 
 export function PalletPanel({ flightNo, pallets }) {
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightPallets = pallets.filter((item) => item.flightNo === flightNo);
 
   const printPalletLabel = (pallet) => {
+    runScopedAction('上传证据', `组托标签 / ${pallet.palletNo}`);
     const popup = window.open('', '_blank', 'width=420,height=620');
     if (!popup) return;
 
@@ -962,6 +1107,8 @@ export function PalletPanel({ flightNo, pallets }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="托盘操作">
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
@@ -1004,6 +1151,7 @@ export function PalletPanel({ flightNo, pallets }) {
 }
 
 export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onCompleted }) {
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
   const [message, setMessage] = useState('当前托盘已自动编号，扫码枪每扫一次就会为对应提单加 1 箱。');
@@ -1020,6 +1168,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
   }, [flightNo]);
 
   const appendWaybillToPallet = (matched) => {
+    runScopedAction('扫码', `组托追加 / ${matched.awb}`);
     setCurrentPallet((prev) => {
       const existing = prev.entries.find((entry) => entry.awb === matched.awb);
       const weightPerBox = matched.expectedBoxes ? matched.totalWeightKg / matched.expectedBoxes : 0;
@@ -1113,12 +1262,15 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
     };
 
     setPallets((prev) => [finalized, ...prev]);
+    runScopedAction('完成', `组托完成 / ${finalized.palletNo}`);
     setMessage(`托盘 ${finalized.palletNo} 已完成，共 ${totalBoxes} 箱。`);
     if (onCompleted) onCompleted(finalized);
   };
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="当前托盘">
         <Stack sx={{ gap: 2 }}>
           <Box sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.5 }}>
@@ -1252,17 +1404,29 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
 }
 
 export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightPlans = loadingPlans.filter((item) => item.flightNo === flightNo);
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="装车计划">
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
             先点击“开始装车”创建装车计划并录入车牌，再回到这里从预定装车计划中选择一条开始执行。
           </Typography>
-          <Button fullWidth size="large" variant="contained" startIcon={<PlusOutlined />} onClick={() => navigate(`/mobile/inbound/${flightNo}/loading/new`)}>
+          <Button
+            fullWidth
+            size="large"
+            variant="contained"
+            startIcon={<PlusOutlined />}
+            onClick={() => {
+              runScopedAction('确认', `装车前准备 / ${flightNo}`);
+              navigate(`/mobile/inbound/${flightNo}/loading/new`);
+            }}
+          >
             开始装车
           </Button>
         </Stack>
@@ -1288,6 +1452,7 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
                     variant="contained"
                     disabled={item.status === '已完成'}
                     onClick={() => {
+                      runScopedAction('确认', `装车计划启动 / ${item.id}`);
                       setLoadingPlans((prev) =>
                         prev.map((plan) => (plan.id === item.id ? { ...plan, status: '装车中' } : plan))
                       );
@@ -1309,6 +1474,7 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
 }
 
 export function LoadingPlanCreatePanel({ flightNo, onStart }) {
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
   const [form, setForm] = useState({
     truckPlate: '',
     driverName: '',
@@ -1323,6 +1489,8 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="装车前准备">
         <Grid container spacing={1.5}>
           <Grid size={12}>
@@ -1359,7 +1527,8 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
             size="large"
             variant="contained"
             disabled={!canStart}
-            onClick={() =>
+            onClick={() => {
+              runScopedAction('确认', `创建装车计划 / ${flightNo}`);
               onStart({
                 id: `LOAD-${String(Date.now()).slice(-8)}`,
                 flightNo,
@@ -1372,8 +1541,8 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
                 totalWeight: 0,
                 status: '计划',
                 createdAt: new Date().toISOString()
-              })
-            }
+              });
+            }}
           >
             保存装车计划
           </Button>
@@ -1384,6 +1553,7 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
 }
 
 export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, setLoadingPlans, onCompleted }) {
+  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
   const availablePallets = pallets.filter((item) => item.flightNo === flightNo && !item.loadedPlate);
   const [scanValue, setScanValue] = useState('');
   const [message, setMessage] = useState('开始扫描托盘号或提单号，系统会把对应托盘加入当前车辆。');
@@ -1423,12 +1593,15 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
           : item
       )
     );
+    runScopedAction('录入', `装车录入 / ${matched.palletNo}`);
     setScanValue(matched.palletNo);
     setMessage(`已将 ${matched.palletNo} 加入车辆 ${plan.truckPlate}。`);
   };
 
   return (
     <Stack sx={{ gap: 2 }}>
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingExecution', flightNo, roleKey, roleView, runScopedAction)} />
+
       <MainCard title="当前装车计划">
         <Stack sx={{ gap: 1.25 }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
@@ -1545,6 +1718,7 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
             variant="contained"
             disabled={!linkedPallets.length}
             onClick={() => {
+              runScopedAction('完成装车', `装车完成 / ${plan.id}`);
               setPallets((prev) =>
                 prev.map((item) =>
                   linkedPallets.some((linked) => linked.palletNo === item.palletNo)

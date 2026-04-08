@@ -2,9 +2,14 @@
 
 ## 1. 文档信息
 
-- 文档版本：`v0.1`
-- 更新时间：`2026-04-06`
-- 文档范围：平台管理后台、货站后台、进港管理、出港管理
+- 文档版本：`v0.3`
+- 更新时间：`2026-04-08`
+- 文档类型：客户评审版
+- 线上演示域名：[https://sinoport.co/](https://sinoport.co/)
+- 文档目的：
+  - 与当前已完成原型保持同步
+  - 作为客户评审与提修改意见的依据
+  - 为下一阶段开发冻结菜单、页面、流程和字段范围
 - 关联材料：
   - [business-model-summary.md](/Users/lijun/Downloads/Sinoport/docs/business-model-summary.md)
   - [product-architecture.md](/Users/lijun/Downloads/Sinoport/docs/product-architecture.md)
@@ -13,674 +18,614 @@
   - `SE913FFM报文2026.04.01.docx`
   - `436-10358585-主单套打模板.xlsx`
 
-## 2. 产品背景
+## 2. 本版文档说明
 
-Sinoport 的产品定位不是传统货运工具，也不是脱离现场的通用 SaaS，而是 `Promise-Driven Fulfillment` 的履约控制系统。系统的目标不是简单记录流程，而是把跨境航空货运网络中的关键节点做成可见、可控、可追责的状态机。
+本文件不是纯规划稿，而是基于当前已经完成的前端原型整理的评审版 PRD。文档中的菜单、页面、模块拆分、单证对象和流程表达，已与当前实现对齐。
 
-在一期产品中，平台需要同时覆盖两层后台：
+本版新增要求：
 
-- 平台管理后台：负责网络治理、站点治理、规则治理、接口治理。
-- 货站后台：负责站内执行控制，把进港、出港、二次转运、NOA、POD 等动作结构化管理。
+1. 每个核心模块都附带线上演示链接，默认基于统一域名 [https://sinoport.co/](https://sinoport.co/)。
+2. 链接均对应当前前端 demo，可直接用于客户评审、演示和反馈。
+3. 当前链接只覆盖前端 demo，不代表真实后端、真实权限、真实文件和真实接口已上线。
 
-平台管理方先在平台侧新增货站，配置站点基础信息、能力范围、控制层级、角色与规则；每一个货站随后进入自己的租户后台，在本货站范围内独立处理进港与出港业务。
+本版的主要用途是：
 
-## 3. 产品目标
+1. 让客户确认后台信息架构是否合理。
+2. 让客户确认进港、出港、提单、航班、Manifest、NOA、POD 等模块是否满足业务理解。
+3. 在客户反馈后，进入下一阶段开发和后端对接。
 
-### 3.1 业务目标
+## 3. 产品背景
+
+Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS，而是 `Promise-Driven Fulfillment` 的履约控制系统。系统目标不是简单记录流程，而是把跨境航空货运网络中的关键节点做成可见、可控、可追责的状态机。
+
+一期产品覆盖两层后台：
+
+- 平台管理后台：负责货站接入、网络治理、规则治理、审计治理。
+- 货站后台：负责站内进港、出港、理货、提单、NOA、POD、Manifest 和异常处理。
+
+## 4. 当前交付形态
+
+### 4.1 已完成形态
+
+- 企业官网静态站：[https://sinoport.co/](https://sinoport.co/)
+- 平台管理后台桌面端原型：[https://sinoport.co/platform/operations](https://sinoport.co/platform/operations)
+- 货站后台桌面端原型：[https://sinoport.co/station/dashboard](https://sinoport.co/station/dashboard)
+- 货站移动端作业原型：[https://sinoport.co/mobile/login](https://sinoport.co/mobile/login)
+
+### 4.2 当前技术形态
+
+- 桌面端后台基于 `Mantis` 管理后台模板实现
+- 当前交付为前端原型与静态交互页
+- 当前使用样例数据、样例单证、样例状态，不是生产真实数据
+
+### 4.3 当前尚未进入本版范围
+
+- 后端持久化
+- 真实权限系统
+- 真实文件上传与存储
+- 航班/车队/邮件/短信/API 对接
+- 客户门户与外部查询
+- 财务结算、合同、发票、经营分析
+
+## 5. 产品目标
+
+### 5.1 业务目标
 
 - 建立一个可扩展的多货站网络后台，支持不同机场货站接入 Sinoport 网络。
 - 统一管理进港与出港航班、货物、状态、单证与异常。
 - 让货物从预报、收货、装载、飞走，到落地、拆板、理货、NOA、交付的全过程可追踪。
 - 形成以 `Flight / AWB / ULD / Truck / POD / Event` 为主键的统一控制链路。
 
-### 3.2 一期 KPI
+### 5.2 本轮原型目标
 
-- 关键节点状态更新可见率 `>= 95%`
-- 进港 `12` 小时内完成率可统计、可追责
-- 装载信息与实际舱单一致率 `>= 99%`
-- `NOA` 发送及时率可统计
-- `POD` 闭环率可统计
-- 二次转运记录留痕率 `100%`
+- 先把菜单结构和页面边界做清楚
+- 先把进港/出港/提单/航班/Manifest 的对象关系讲清楚
+- 先让客户确认各模块是否符合业务操作方式
 
-## 4. 产品范围
+## 6. 用户角色
 
-### 4.1 In Scope
-
-- 平台管理方新增、编辑、启停货站
-- 平台管理方进入指定货站后台查看或管理
-- 货站维度的进港航班维护
-- 货站维度的出港航班维护
-- 货站维度的进港货物状态管理
-- 货站维度的出港货物预报、接收、主单、装载、飞走、装载信息、Manifest 管理
-- `FFM / UWS / Manifest / 主单 / NOA / POD` 文件管理
-- 站内异常、二次转运、审计日志
-
-### 4.2 Out of Scope
-
-- 财务结算、合同计费、发票处理
-- 客户门户与外部客户自助查询
-- 最后一公里派送调度优化
-- 可信数据层落链能力的正式商用
-
-## 5. 用户角色
-
-| 角色 | 所属后台 | 核心职责 |
+| 角色 | 所属后台 | 当前关注点 |
 | --- | --- | --- |
-| 平台超级管理员 | 平台管理后台 | 新增货站、配置规则、分配账号、查看全网数据 |
-| 平台运营管理员 | 平台管理后台 | 维护航线、主数据、服务等级、异常字典、接口状态 |
-| 货站管理员 | 货站后台 | 维护本站进出港航班与作业规则，监督异常闭环 |
-| 进港操作员 | 货站后台 | 卸机、入库、拆板、理货、NOA、交付、POD |
-| 出港操作员 | 货站后台 | 预报、收货、主单处理、装载、飞走、Manifest |
-| 复核/主管 | 货站后台 | 节点复核、异常审批、二次转运确认、放行控制 |
-| 审计/只读用户 | 平台/货站 | 查看记录、导出数据、追溯日志 |
+| 平台超级管理员 | 平台管理后台 | 新增货站、配置站点、查看网络 |
+| 平台运营管理员 | 平台管理后台 | 维护航线、规则、审计记录 |
+| 货站管理员 | 货站后台 | 查看本站看板、监督进出港操作 |
+| 进港操作员 | 货站后台 | 航班、提单、理货、NOA、二次转运 |
+| 出港操作员 | 货站后台 | 航班、提单、预报、收货、装载、Manifest |
+| 主管/复核岗 | 货站后台 | 异常、POD、转运、状态放行 |
 
-## 6. 系统架构与导航关系
+## 7. 当前信息架构
 
-### 6.1 平台与货站关系
+本节为当前已经实现的菜单结构，客户评审应以此为准。
 
-1. 平台管理方在平台后台创建货站。
-2. 平台配置货站基础资料、控制层级、服务范围、默认角色、接口配置。
-3. 平台为货站分配账号与权限。
-4. 货站管理员登录后进入本货站后台，只能查看和操作本货站数据。
-5. 平台管理员可通过“进入货站系统”能力切入指定货站的后台视图，用于治理、巡检和支持。
+### 7.1 平台管理后台
 
-### 6.2 一级导航建议
+当前一级菜单：
 
-| 后台 | 一级导航 |
+- 运行态势中心
+- 货站与资源管理
+- 航线网络与链路配置
+- 规则与指令引擎
+- 主数据与接口治理
+- 审计与可信留痕
+- 平台级报表
+
+当前线上入口：
+
+| 模块 | 线上链接 |
 | --- | --- |
-| 平台管理后台 | 网络总览、货站管理、航线网络、主数据治理、规则中心、接口治理、审计中心 |
-| 货站后台 | 首页看板、进港管理、出港管理、文件中心、异常中心、报表中心、系统设置 |
+| 运行态势中心 | [https://sinoport.co/platform/operations](https://sinoport.co/platform/operations) |
+| 货站与资源管理 | [https://sinoport.co/platform/stations](https://sinoport.co/platform/stations) |
+| 站点能力矩阵 | [https://sinoport.co/platform/stations/capabilities](https://sinoport.co/platform/stations/capabilities) |
+| 班组映射 | [https://sinoport.co/platform/stations/teams](https://sinoport.co/platform/stations/teams) |
+| 区位映射 | [https://sinoport.co/platform/stations/zones](https://sinoport.co/platform/stations/zones) |
+| 设备映射 | [https://sinoport.co/platform/stations/devices](https://sinoport.co/platform/stations/devices) |
+| 航线网络 | [https://sinoport.co/platform/network](https://sinoport.co/platform/network) |
+| 链路模板 | [https://sinoport.co/platform/network/lanes](https://sinoport.co/platform/network/lanes) |
+| 标准场景 | [https://sinoport.co/platform/network/scenarios](https://sinoport.co/platform/network/scenarios) |
+| 规则与指令引擎 | [https://sinoport.co/platform/rules](https://sinoport.co/platform/rules) |
+| 主数据与接口治理 | [https://sinoport.co/platform/master-data](https://sinoport.co/platform/master-data) |
+| 同步看板 | [https://sinoport.co/platform/master-data/sync](https://sinoport.co/platform/master-data/sync) |
+| 导入任务 | [https://sinoport.co/platform/master-data/jobs](https://sinoport.co/platform/master-data/jobs) |
+| 对象关系 | [https://sinoport.co/platform/master-data/relationships](https://sinoport.co/platform/master-data/relationships) |
+| 审计中心 | [https://sinoport.co/platform/audit](https://sinoport.co/platform/audit) |
+| 审计事件明细 | [https://sinoport.co/platform/audit/events](https://sinoport.co/platform/audit/events) |
+| 可信留痕占位 | [https://sinoport.co/platform/audit/trust](https://sinoport.co/platform/audit/trust) |
+| 平台报表 | [https://sinoport.co/platform/reports](https://sinoport.co/platform/reports) |
+| 站点对比报表 | [https://sinoport.co/platform/reports/stations](https://sinoport.co/platform/reports/stations) |
 
-## 7. 核心业务对象
+说明：
 
-| 对象 | 主键 | 用途 | 典型来源 |
-| --- | --- | --- | --- |
-| Station | `Station ID / Airport Code` | 货站主实体 | 平台后台创建 |
-| Flight | `Flight ID / Flight No / Flight Date` | 航班主实体 | 人工维护、接口导入 |
-| Shipment | `Shipment ID` | 货件聚合对象 | 业务系统映射 |
-| AWB / HAWB | `AWB No / HAWB No` | 单票货物识别 | `FFM`、主单、Manifest |
-| ULD / PMC | `ULD ID / PMC ID` | 板位/集装器识别 | `FFM`、UWS、Manifest |
-| Truck | `Truck ID / Plate No` | 二次转运或交付车辆 | 人工录入、车队接口 |
-| UWS | `UWS ID` | 装载清单对象 | Excel 导入/系统生成 |
-| FFM | `FFM Message ID` | 预报报文对象 | 文档导入/接口接收 |
-| Manifest | `Manifest ID` | 航班舱单对象 | PDF/系统生成/接口交换 |
-| NOA | `NOA ID` | 到货通知对象 | 系统触发/人工发送 |
-| POD | `POD ID` | 交付凭证对象 | 文件上传/接口回传 |
-| Event | `Event ID` | 关键动作事件 | 系统自动生成 |
-| Exception | `Exception ID` | 异常与责任归因 | 人工录入/系统判定 |
+- 当前平台侧默认入口已切换为“运行态势中心”。
+- 平台端已经从早期 `货站管理 / 航线网络 / 规则中心 / 审计中心` 扩展成完整的 v1.0 demo 菜单结构。
 
-## 8. 节点状态机设计
+### 7.2 货站后台
 
-PRD 以节点状态机为先，页面只是状态机的呈现方式。每个状态必须定义录入人、录入字段、进入条件、阻塞条件、异常类型和审计留痕。
+当前一级菜单：
 
-### 8.1 进港航班状态机
+- 货站看板
+- 进港管理
+- 出港管理
+- 提单与履约链路
+- 单证与指令中心
+- 作业指令中心
+- 资源管理
+- 异常中心
+- 货站报表
 
-| 状态 | 说明 | 必填字段 | 进入下一状态条件 |
-| --- | --- | --- | --- |
-| 已计划 | 已创建进港航班 | 航班号、日期、始发港、目的港、预计到港时间 | 航班实际落地 |
-| 已落地 | 航班到达本站 | 实际落地时间、机位 | 开始卸机 |
-| 卸机中 | 正在卸机 | 开始卸机时间、操作人 | 卸机完成 |
-| 已入货站 | 货物进入货站 | 入货站时间、接收人、初始件重 | 进入拆板/理货 |
-| 拆板中 | 正在拆板 | ULD/PMC、开始时间 | 完成拆板 |
-| 理货完成 | 已逐票理货 | AWB、件数、重量、差异结果 | 完成 NOA 或转运安排 |
-| NOA 已发送 | 已向收货方发送到货通知 | 发送时间、发送对象、发送渠道 | 开始交付或转运 |
-| 交付中 | 正在提货/转运/交接 | 司机、车牌、交接人、出库时间 | 完成交付或转运 |
-| 已完成 | 交付闭环完成 | POD、签收时间、签收人 | 归档 |
+当前二级菜单：
 
-### 8.2 进港货物状态机
+| 一级菜单 | 当前二级菜单 |
+| --- | --- |
+| 进港管理 | 看板、航班管理、手机理货、提单管理 |
+| 出港管理 | 看板、航班管理、提单管理 |
+| 资源管理 | 班组、区位、设备、车辆 |
+| 单证与指令中心 | 文件中心、NOA、POD |
+| 货站报表 | KPI 总览、班次报表 |
 
-| 状态 | 说明 | 必填字段 | 硬门槛 |
-| --- | --- | --- | --- |
-| 运达 | 货物随航班到站 | 航班号、到站时间 | 无 |
-| 已卸机 | 货物从机上卸下 | 卸机时间、操作人 | 未卸机不得入站 |
-| 已入货站 | 货物进入货站 | 入站时间、收货区域 | 未入站不得拆板 |
-| 拆板理货中 | 逐箱核对 | ULD/PMC、AWB、件数、重量 | 未理货不得发送 NOA |
-| 已理货 | 理货完成 | 理货结果、异常原因 | 未理货不得交付 |
-| 二次转运中 | 需要卡车转运 | 转运单号、车牌、司机、出发时间 | 无转运记录不得放行 |
-| 已发送 NOA | 已通知收货方 | NOA 编号、通知对象 | 未发送不得进入预约提货 |
-| 已交付 | 货物已交付给收货方或下一段承运方 | 交付时间、交付人、接收人 | 无 `POD` 不得关闭 |
-| 已关闭 | 全流程归档 | POD、附件、关闭时间 | 无 |
+当前线上入口：
 
-### 8.3 出港航班状态机
+| 模块 | 线上链接 |
+| --- | --- |
+| 货站看板 | [https://sinoport.co/station/dashboard](https://sinoport.co/station/dashboard) |
+| 进港管理看板 | [https://sinoport.co/station/inbound](https://sinoport.co/station/inbound) |
+| 进港航班管理 | [https://sinoport.co/station/inbound/flights](https://sinoport.co/station/inbound/flights) |
+| 进港新建航班 | [https://sinoport.co/station/inbound/flights/new](https://sinoport.co/station/inbound/flights/new) |
+| 进港航班详情样例 | [https://sinoport.co/station/inbound/flights/SE803](https://sinoport.co/station/inbound/flights/SE803) |
+| 进港提单管理 | [https://sinoport.co/station/inbound/waybills](https://sinoport.co/station/inbound/waybills) |
+| 手机理货入口 | [https://sinoport.co/station/inbound/mobile](https://sinoport.co/station/inbound/mobile) |
+| 出港管理看板 | [https://sinoport.co/station/outbound](https://sinoport.co/station/outbound) |
+| 出港航班管理 | [https://sinoport.co/station/outbound/flights](https://sinoport.co/station/outbound/flights) |
+| 出港提单管理 | [https://sinoport.co/station/outbound/waybills](https://sinoport.co/station/outbound/waybills) |
+| 提单与履约链路 | [https://sinoport.co/station/shipments](https://sinoport.co/station/shipments) |
+| 提单详情样例 | [https://sinoport.co/station/shipments/in-436-10358585](https://sinoport.co/station/shipments/in-436-10358585) |
+| 单证与指令中心 | [https://sinoport.co/station/documents](https://sinoport.co/station/documents) |
+| NOA 动作页 | [https://sinoport.co/station/documents/noa](https://sinoport.co/station/documents/noa) |
+| POD 动作页 | [https://sinoport.co/station/documents/pod](https://sinoport.co/station/documents/pod) |
+| 作业指令中心 | [https://sinoport.co/station/tasks](https://sinoport.co/station/tasks) |
+| 资源管理 | [https://sinoport.co/station/resources](https://sinoport.co/station/resources) |
+| 班组资源 | [https://sinoport.co/station/resources/teams](https://sinoport.co/station/resources/teams) |
+| 区位资源 | [https://sinoport.co/station/resources/zones](https://sinoport.co/station/resources/zones) |
+| 设备资源 | [https://sinoport.co/station/resources/devices](https://sinoport.co/station/resources/devices) |
+| 车辆资源 | [https://sinoport.co/station/resources/vehicles](https://sinoport.co/station/resources/vehicles) |
+| 异常中心 | [https://sinoport.co/station/exceptions](https://sinoport.co/station/exceptions) |
+| 异常详情样例 | [https://sinoport.co/station/exceptions/EXP-0408-001](https://sinoport.co/station/exceptions/EXP-0408-001) |
+| 货站报表 | [https://sinoport.co/station/reports](https://sinoport.co/station/reports) |
+| 班次报表 | [https://sinoport.co/station/reports/shift](https://sinoport.co/station/reports/shift) |
 
-| 状态 | 说明 | 必填字段 | 进入下一状态条件 |
-| --- | --- | --- | --- |
-| 已计划 | 已维护出港航班 | 航班号、日期、起运港、目的港、预计起飞时间 | 有预报货物 |
-| 预报中 | 已接收货物预报 | `FFM`、AWB、目的港、预报件重 | 开始收货 |
-| 收货中 | 货物到站接收 | 收货时间、件重、仓位 | 主单完成 |
-| 待装载 | 单证已完成，等待配载 | 主单、配载计划、优先级 | 装载完成 |
-| 已装载 | 货物已装上 ULD/飞机 | `UWS`、ULD/PMC、装载时间 | 飞机起飞 |
-| 已飞走 | 航班已离港 | 实际起飞时间、起飞确认人 | Manifest 归档/到港回传 |
-| 已归档 | 本航班资料归档完成 | Manifest、装载信息、异常说明 | 无 |
+说明：
 
-### 8.4 出港货物状态机
+- 进港管理和出港管理均保留一级“看板”页。
+- 在一级看板基础上，再细分二级菜单以承接具体操作。
 
-| 状态 | 说明 | 必填字段 | 硬门槛 |
-| --- | --- | --- | --- |
-| 已预报 | 已收到出港预报 | `FFM`、AWB、件数、重量、目的港 | 无预报不得进入配载计划 |
-| 已接收 | 货物已入站 | 接收时间、收货件重、异常差异 | 未接收不得生成主单 |
-| 主单完成 | 主单资料齐备 | 发货人、收货人、航段、件重体、品名 | 未完成主单不得装载 |
-| 已装载 | 已完成装板/装机 | ULD/PMC、装载时间、操作人 | 无装载信息不得飞走 |
-| 已飞走 | 航班离港 | 实际起飞时间 | 无 Manifest 不得归档 |
-| 目的港已回传 | 目的港已确认到货数量 | 到货件数、到货重量、差异说明 | 无 |
-| 已关闭 | 全流程归档 | Manifest、差异结论、附件 | 无 |
+## 8. 核心业务对象
 
-## 9. 平台管理后台需求
+| 对象 | 主键 | 当前用途 |
+| --- | --- | --- |
+| Station | `Station ID / Airport Code` | 货站台账与站点接入 |
+| Flight | `Flight ID / Flight No / Flight Date` | 进港/出港航班主实体 |
+| AWB / HAWB | `AWB No / HAWB No` | 提单管理与货物识别 |
+| ULD / PMC | `ULD / PMC ID` | 装载、拆板、舱单关联 |
+| Truck | `Truck ID / Plate No` | 二次转运与交付车辆 |
+| FFM | `FFM Message ID` | 出港货物预报 |
+| UWS | `UWS ID` | 装载信息 |
+| Manifest | `Manifest ID` | 舱单交换与目的港对账 |
+| NOA | `NOA ID` | 到货通知 |
+| POD | `POD ID` | 签收与交付闭环 |
+| Exception | `Exception ID` | 异常归因与处理 |
 
-### 9.1 模块一：网络总览
+## 9. 当前流程口径
 
-**目标**
+### 9.1 进港主状态链
 
-展示当前接入网络的货站数量、机场覆盖、控制层级、开通状态、航线分布与核心 KPI。
+- 运达
+- 已卸机
+- 已入货站
+- 拆板理货中
+- `NOA` 已发送
+- 已交付
 
-**核心功能**
+说明：
 
-- 展示按区域和机场分组的货站地图/列表
-- 展示站点状态：试点中、已上线、暂停、关闭
-- 展示控制层级：`L1 / L2 / L3`
-- 展示接入能力：进港、出港、卡车、NOA、POD、接口
-- 展示全网 KPI：准时率、异常率、POD 闭环率、接口在线率
+- 当前桌面端原型顶部 KPI 卡片展示前 `5` 个状态。
+- `已交付` 保留在业务流程与下方数据中，但不在顶部 KPI 卡片中展示。
 
-### 9.2 模块二：货站管理
+### 9.2 出港主状态链
 
-**目标**
+- 已预报
+- 已接收
+- 主单完成
+- 已装载
+- 已飞走
+- Manifest / 目的港回传
 
-平台方可以新增不同机场货站，并从平台后台直接进入该货站系统。
+## 10. 平台管理后台 PRD
 
-**核心字段**
+### 10.1 货站管理
 
-- 货站名称
-- 货站编码
-- 机场三字码 / 四字码
-- 所在国家、城市、区域
-- 服务范围：进港、出港、二次转运、NOA、POD
-- 控制层级：`L1 / L2 / L3`
-- 默认服务等级：`P1 / P2 / P3`
-- 联系人、联系方式
-- 站点状态
-- 上线日期
+当前已实现内容：
 
-**核心功能**
+- 货站台账列表
+- 货站编码、区域、控制层级、阶段、Owner 展示
+- “进入货站系统”按钮
+- 站点能力、班组、区位、设备子页面
 
-- 新增、编辑、停用货站
-- 为货站创建租户空间
-- 为货站分配管理员账号
-- 配置站点默认规则和异常字典
-- 提供“进入货站系统”入口
+当前线上入口：
 
-### 9.3 模块三：航线与网络配置
+- 总览：[https://sinoport.co/platform/stations](https://sinoport.co/platform/stations)
+- 能力矩阵：[https://sinoport.co/platform/stations/capabilities](https://sinoport.co/platform/stations/capabilities)
+- 班组映射：[https://sinoport.co/platform/stations/teams](https://sinoport.co/platform/stations/teams)
+- 区位映射：[https://sinoport.co/platform/stations/zones](https://sinoport.co/platform/stations/zones)
+- 设备映射：[https://sinoport.co/platform/stations/devices](https://sinoport.co/platform/stations/devices)
 
-**核心功能**
+当前客户需确认：
 
-- 维护始发港、目的港、经停港
-- 维护固定航线与临时包机航线
-- 绑定航线到可服务货站
-- 维护默认站点协作关系
-- 为航班模板预置站点责任边界
+- 平台侧新增货站的必填字段是否足够
+- 平台是否需要维护更多站点属性
+- 平台是否需要批量导入货站
 
-### 9.4 模块四：主数据治理
+### 10.2 航线网络
 
-**核心功能**
+当前已实现内容：
 
-- 统一维护 `Flight / AWB / ULD / Truck / POD / Event` 编码规则
-- 维护货站、航线、异常字典、服务等级字典
-- 维护文件类型字典：`FFM / UWS / Manifest / MAWB / NOA / POD`
-- 配置主数据唯一性校验规则
+- 主链路矩阵
+- 业务模式
+- 参与站点
+- 承诺口径
+- 关键事件字段
+- 站点网络准备度视图
+- 链路模板页
+- 标准场景页
 
-### 9.5 模块五：规则中心
+当前线上入口：
 
-**核心功能**
+- 总览：[https://sinoport.co/platform/network](https://sinoport.co/platform/network)
+- 链路模板：[https://sinoport.co/platform/network/lanes](https://sinoport.co/platform/network/lanes)
+- 标准场景：[https://sinoport.co/platform/network/scenarios](https://sinoport.co/platform/network/scenarios)
 
-- 维护各站点进港与出港节点状态机
-- 维护硬门槛规则
-- 维护服务等级优先级
-- 维护异常分类与责任归因
-- 维护 `NOA`、`POD`、二次转运的必填规则
+当前客户需确认：
 
-**一期硬门槛示例**
+- 当前链路表达是否满足业务沟通
+- 是否需要增加更多中转链路
+- 是否需要展示更多 KPI
 
-- 进港未理货完成不得发送 `NOA`
-- 进港无转运记录不得执行二次卡车转运
-- 进港无 `POD` 不得关闭交付
-- 出港未完成主单不得装载
-- 出港无 `UWS` 不得标记已装载
-- 出港无 Manifest 不得标记航班归档
+### 10.3 规则中心
 
-### 9.6 模块六：接口治理
+当前已实现内容：
 
-**核心功能**
+- 服务等级 `P1 / P2 / P3`
+- 硬门槛规则 `HG-01` 到 `HG-08`
+- 异常字典
+- 接口治理状态表
+- 任务生成规则
+- 证据要求
+- 标准场景编排
 
-- 管理 `ERP`、供应链系统、航班状态、卡车、`POD` 接口
-- 查看接口在线状态、失败率、最近同步时间
-- 支持文件导入方式和 API 方式并存
-- 记录每次导入的文件版本、导入人、导入结果
+当前线上入口：
 
-### 9.7 模块七：审计中心
+- [https://sinoport.co/platform/rules](https://sinoport.co/platform/rules)
 
-**核心功能**
+当前客户需确认：
 
-- 记录关键主数据变更
-- 记录状态变更前后值
-- 记录审批人与操作人
-- 记录文件上传、替换、删除、导出行为
-- 预留 `Event ID / Event Hash / Signature Ref` 字段
+- 硬门槛规则是否符合实际 SOP
+- 异常分类是否足够覆盖实际业务
+- 接口治理是否需要单独成模块
 
-## 10. 货站后台需求总览
+### 10.4 审计中心
 
-### 10.1 首页看板
+当前已实现内容：
 
-货站首页需要首先回答“本站今天有哪些航班、哪些货物、哪些异常、哪些节点阻塞”。
+- 操作时间
+- 操作人
+- 动作
+- 对象
+- 结果
+- 备注
+- 审计事件明细
+- 变更前后值展示
+- Event Hash / Signature / Notarization 可信字段占位
 
-**首页区块建议**
+当前线上入口：
 
-- 今日进港航班卡片
-- 今日出港航班卡片
-- 进港待处理任务
-- 出港待处理任务
-- 异常告警区
+- 审计中心：[https://sinoport.co/platform/audit](https://sinoport.co/platform/audit)
+- 审计事件明细：[https://sinoport.co/platform/audit/events](https://sinoport.co/platform/audit/events)
+- 可信留痕占位：[https://sinoport.co/platform/audit/trust](https://sinoport.co/platform/audit/trust)
+
+当前客户需确认：
+
+- 审计字段是否足够
+- 是否需要审批流、变更前后值、导出日志
+
+## 11. 货站后台 PRD
+
+### 11.1 货站看板
+
+当前已实现内容：
+
+- 今日进港航班
+- 今日出港航班
+- 二次转运待办
+- 站内执行原则
+- 头部 KPI 卡片
+- 当前阻断与待处理任务摘要
+
+当前线上入口：
+
+- [https://sinoport.co/station/dashboard](https://sinoport.co/station/dashboard)
+
+当前客户需确认：
+
+- 货站首页最重要的 `4-6` 个指标是什么
+- 看板是否需要增加“异常待处理”或“待签收”区块
+
+## 12. 进港管理 PRD
+
+### 12.1 进港管理 / 看板
+
+当前已实现内容：
+
+- 进港航班看板
+- 货物状态流
 - `NOA` 待发送列表
-- `POD` 待上传列表
-- 二次转运待确认列表
+- 二次转运记录
 
-### 10.2 一级导航建议
+当前线上入口：
 
-| 一级菜单 | 二级菜单 |
-| --- | --- |
-| 进港管理 | 进港航班、进港货物、NOA 管理、交付与 POD、二次转运 |
-| 出港管理 | 出港航班、货物预报、货物接收、主单管理、装载作业、飞走确认、装载信息、Manifest |
-| 文件中心 | FFM、UWS、Manifest、主单、NOA、POD |
-| 异常中心 | 进港异常、出港异常、转运异常、单证异常 |
-| 报表中心 | 进港报表、出港报表、KPI 报表 |
+- [https://sinoport.co/station/inbound](https://sinoport.co/station/inbound)
 
-## 11. 进港管理需求
+当前客户需确认：
 
-### 11.1 进港航班维护
+- 进港看板是否还需要“待上传 POD”区块
+- 状态流节点是否要继续细分
 
-**展示板块**
+### 12.2 进港管理 / 航班管理
 
-- `进港管理 > 进港航班列表`
-- `进港管理 > 进港航班详情`
+当前已实现内容：
 
-**核心功能**
+- 顶部按状态排布的 KPI 卡片
+- 每张 KPI 卡片展示 `当前数 / 总数`
+- 卡片内部保留进度条
+- 进港航班操作台
+- 每个航班的操作按钮：查看、理货、NOA、交付
 
-- 新增、编辑、取消进港航班
-- 维护航班计划时间与实际时间
-- 关联航班下的所有进港货物
-- 维护航班状态：已计划、已落地、卸机中、已入货站、已完成
-- 支持按航班导入舱单或货物明细
+当前线上入口：
 
-### 11.2 进港货物信息维护
+- 总览：[https://sinoport.co/station/inbound/flights](https://sinoport.co/station/inbound/flights)
+- 航班详情样例：[https://sinoport.co/station/inbound/flights/SE803](https://sinoport.co/station/inbound/flights/SE803)
 
-**展示板块**
+当前客户需确认：
 
-- `进港管理 > 进港货物列表`
-- `进港航班详情 > 货物清单 Tab`
+- 顶部 KPI 卡片应展示哪些状态
+- 每个航班还需要哪些操作按钮
+- 航班列表字段是否足够
 
-**核心功能**
+### 12.3 进港管理 / 新建航班
 
-- 记录每个航班带进来的货物信息
-- 支持按 `AWB / HAWB / ULD / 目的港 / 优先级` 查询
-- 维护件数、重量、板位、品名、优先级
-- 标记异常件、短少件、破损件、错分件
-- 支持批量导入与批量更新
+当前已实现内容：
 
-### 11.3 货物状态管理
+- 新建航班表单原型
+- 字段：航班号、来源、ETA、ETD
+- 创建前的实时预览
 
-**展示板块**
+当前线上入口：
 
-- `进港管理 > 货物状态`
-- `进港货物详情 > 状态时间轴`
+- [https://sinoport.co/station/inbound/flights/new](https://sinoport.co/station/inbound/flights/new)
 
-**核心功能**
+当前客户需确认：
 
-- 记录货物状态：运达、卸机、进入货站、拆板理货、发送 `NOA`、完成交付
-- 记录每个状态的时间、操作人、证据文件
-- 提供状态时间轴和状态切换按钮
-- 提供硬门槛校验和错误提示
+- 是否需要加入航线、站点、机型、到货类型等字段
+- 新建航班是否需要审批
 
-### 11.4 二次转运记录
+### 12.4 进港管理 / 航班详情
 
-**展示板块**
+当前已实现内容：
 
-- `进港管理 > 二次转运`
-- `进港货物详情 > 转运记录 Tab`
+- 航班基础信息
+- 提单总数、待发 `NOA`、待补 `POD` 等 KPI
+- 该航班下所有提单状态总览
 
-**核心功能**
+当前线上入口：
 
-- 记录二次卡车转运的发起、承运、到达、签收
-- 维护转运单号、车牌、司机、联系方式、出发时间、到达时间
-- 支持上传转运交接文件
-- 支持关联到原始进港货物和后续目的站
+- [https://sinoport.co/station/inbound/flights/SE803](https://sinoport.co/station/inbound/flights/SE803)
 
-### 11.5 文件管理
+当前客户需确认：
 
-**展示板块**
+- 航班详情是否还需要二次转运明细
+- 是否需要操作日志与时间轴
 
-- `文件中心 > POD`
-- `进港货物详情 > 附件 Tab`
+### 12.5 进港管理 / 手机理货
 
-**核心功能**
+当前已实现内容：
 
-- 管理 `POD`、签收单、照片、异常证明等文件
-- 支持上传、替换、版本管理、预览、下载
-- 支持按 `AWB / Flight / Truck / POD ID` 检索
-- `POD` 必须与交付状态和签收时间绑定
+- 桌面端已提供进入“手机理货”页面的入口
+- 已实现独立移动端作业原型，覆盖：
+  - 登录
+  - 选择执行节点
+  - 进港航班列表
+  - 进港航班详情
+  - 条码扫描与点货
+  - 托盘管理
+  - 装车与装车计划
+  - 角色切换
+  - 离线补传队列
 
-### 11.6 NOA 管理
+当前线上入口：
 
-**展示板块**
+- 登录：[https://sinoport.co/mobile/login](https://sinoport.co/mobile/login)
+- 节点选择：[https://sinoport.co/mobile/select](https://sinoport.co/mobile/select)
+- 进港航班列表：[https://sinoport.co/mobile/inbound](https://sinoport.co/mobile/inbound)
+- 进港航班详情样例：[https://sinoport.co/mobile/inbound/SE803](https://sinoport.co/mobile/inbound/SE803)
+- 拆板理货样例：[https://sinoport.co/mobile/inbound/SE803/breakdown](https://sinoport.co/mobile/inbound/SE803/breakdown)
 
-- `进港管理 > NOA 管理`
-- `进港货物详情 > NOA Tab`
+当前客户需确认：
 
-**核心功能**
+- 手机理货是否作为一期正式范围
+- 现场是否以扫码为主，还是人工点数为主
+- 托盘、装车计划、装车执行是否符合一线流程
 
-- 生成并发送到货通知
-- 记录通知对象、通知渠道、发送结果、发送时间
-- 支持重发和发送失败重试
-- 支持与交付预约联动
+### 12.6 进港管理 / 提单管理
 
-## 12. 出港管理需求
+当前已实现内容：
 
-出港模块必须把“预报、接收、主单、装载、飞走、装载信息、Manifest”分别落在清晰的页面板块中，而不是混在一张表里。
+- 按 `AWB` 展示提单台账
+- 字段：所属航班、收货方、件数、重量、当前节点、`NOA`、`POD`
+- 操作按钮：查看提单、更新状态、回连履约链路与单证
 
-### 12.1 出港模块与展示板块映射
+当前线上入口：
 
-| 模块 | 展示板块 | 核心说明 | 典型单证/数据 |
-| --- | --- | --- | --- |
-| 货物预报 | `出港管理 > 货物预报`、`出港航班详情 > 预报 Tab` | 接收货物预报，形成待收货清单 | `FFM` |
-| 货物接收 | `出港管理 > 货物接收`、`出港航班详情 > 收货 Tab` | 记录到站收货、件重差异、异常 | 收货记录 |
-| 货物主单 | `出港管理 > 主单管理`、`出港航班详情 > 主单 Tab` | 维护主单信息、打印模板、版本控制 | 主单模板 |
-| 货物装载 | `出港管理 > 装载作业`、`出港航班详情 > 装载 Tab` | 记录装板、配载、装机动作 | 装载作业单 |
-| 货物飞走 | `出港管理 > 飞走确认`、`出港航班详情 > 飞走 Tab` | 标记航班起飞，锁定本次出港批次 | 航班实际起飞信息 |
-| 货物装载信息 | `出港管理 > 装载信息`、`出港航班详情 > UWS Tab` | 维护 AWB 对应 ULD、件数、重量、舱位 | `UWS` |
-| Manifest | `出港管理 > Manifest`、`出港航班详情 > Manifest Tab` | 管理舱单导入、导出、交换、目的港对账 | Manifest |
+- [https://sinoport.co/station/inbound/waybills](https://sinoport.co/station/inbound/waybills)
 
-### 12.2 模块一：货物预报
+当前客户需确认：
 
-**目标**
+- 提单台账字段是否足够
+- 是否需要支持按 `ULD / Truck / Destination` 筛选
 
-在货物到站前先建立出港预测视图，为收货、主单、装载做好准备。
+## 13. 出港管理 PRD
 
-**核心功能**
+### 13.1 出港管理 / 看板
 
-- 支持导入 `FFM` 报文
-- 自动解析 `AWB`、目的港、件数、重量、货描、`ULD/PMC`
-- 自动建立预报货物记录
-- 支持预报版本覆盖与差异比较
-- 支持预报缺失、重复 `AWB`、目的港异常校验
+当前已实现内容：
 
-**样本映射**
-
-`SE913FFM报文2026.04.01.docx` 中已体现以下字段：
-
-- 航班号、航班日期、始发站
-- `AWB`
-- 目的站
-- 件数
-- 重量
-- 货描
-- `ULD / PMC`
-
-### 12.3 模块二：货物接收
-
-**目标**
-
-把实际到站货物与预报货物核对，形成真实收货结果。
-
-**核心功能**
-
-- 按 `AWB` 扫描或录入收货
-- 记录实际件数、实际重量、收货时间、收货仓位
-- 自动比对预报差异
-- 标记短少、超收、破损、标签错误等异常
-- 支持批量收货和批量异常登记
-
-### 12.4 模块三：货物主单
-
-**目标**
-
-把出港货物的主单资料结构化，支持审核、打印、回溯。
-
-**核心功能**
-
-- 新建和编辑主单
-- 维护发货人、收货人、通知人、航段、计费、品名、件重体
-- 支持主单模板打印
-- 支持主单版本管理
-- 支持主单与航班、货物、Manifest 关联
-
-**样本映射**
-
-`436-10358585-主单套打模板.xlsx` 已体现：
-
-- 主单号
-- 发货人
-- 收货人
-- 通知人
-- 起运港/目的港
-- 航班号与日期
-- 件数、重量、申报品名
-
-### 12.5 模块四：货物装载
-
-**目标**
-
-记录货物从待装载到已装机的全过程。
-
-**核心功能**
-
-- 按航班生成装载任务
-- 按 `AWB` 或 `ULD` 执行装载
-- 记录装载时间、装载人、装载位置
-- 支持拆单、多 `ULD` 分配、优先级装载
-- 发现未完成主单或未收货的货物时禁止装载
-
-### 12.6 模块五：货物飞走
-
-**目标**
-
-在航班实际起飞后，锁定该批货物的出港结果。
-
-**核心功能**
-
-- 记录实际起飞时间
-- 记录航班飞走确认人
-- 自动把已装载货物切换为“已飞走”
-- 自动冻结本航班装载数据，避免随意修改
-- 支持飞走后补录异常说明
-
-### 12.7 模块六：货物装载信息
-
-**目标**
-
-用结构化方式管理装载明细，让 `AWB`、`ULD`、件数、重量、舱位一一对应。
-
-**核心功能**
-
-- 导入和导出 `UWS`
-- 维护 `AWB -> ULD -> PCS -> Gross Weight -> POD Position -> Destination`
-- 支持校验装载总数与预报总数、收货总数是否一致
-- 支持按 `ULD` 查看本板装载明细
-- 支持装载差异报告
-
-**样本映射**
-
-`SE913 01APR UWS.xlsx` 已体现以下字段：
-
-- `AWB NO.`
-- `ULD NO.`
-- `PCS`
-- `GROSS WEIGHT`
-- `Priority`
-- `POD`
-- `Destination`
-
-### 12.8 模块七：Manifest
-
-**目标**
-
-把 Manifest 作为出港与到港之间的核心数据交换对象，支持本港出港统计与目的港回传对账。
-
-**展示板块**
-
-- `出港管理 > Manifest 列表`
-- `出港航班详情 > Manifest Tab`
-- `Manifest 详情 > 出港数据面板`
-- `Manifest 详情 > 目的港回传对账面板`
-
-**核心功能**
-
-- 导入、生成、导出 Manifest
-- 展示本航班出港货物数量、总件数、总重量、板位结构
-- 展示目的港回传的到货数量、到货件数、到货重量
-- 自动比对出港数据与到货数据差异
-- 记录 Manifest 版本、交换时间、交换对象、交换结果
-
-**样本映射**
-
-`SE600 MANIFEST 01APR.pdf` 已体现以下字段：
-
-- 航班号
-- 航班日期
-- 始发港 / 卸货港
-- `ULD / PMC`
-- `Air Waybill`
-- `No. of Pieces`
-- `Nature of Goods`
-- `Gross Weight`
-- `Origin / Destination`
-- 小计与总计
-
-**Manifest 页面必须重点展示的两类信息**
-
-- 出港货物的具体数量
-- 到达目的港的货物数量
-
-## 13. 文件中心需求
-
-### 13.1 文件类型
-
-- `FFM`
-- `UWS`
-- Manifest
+- 头部 KPI 卡片
+- 出港航班总览
+- `FFM` 预报
+- 货物接收
 - 主单
-- `NOA`
-- `POD`
-- 异常证明文件
-- 转运交接文件
+- 装载 / `UWS`
+- Manifest
+- 机坪放行阻断与飞走前门槛
 
-### 13.2 通用能力
+当前线上入口：
 
-- 文件上传、下载、预览、版本管理
-- 文件与 `Flight / AWB / ULD / Truck / POD` 关联
-- OCR/解析预留
-- 导入结果校验与错误提示
-- 文件导入日志
+- [https://sinoport.co/station/outbound](https://sinoport.co/station/outbound)
 
-## 14. 异常中心需求
+说明：
 
-### 14.1 异常分类
+- 当前出港看板已经把“预报、接收、主单、装载、Manifest”拆成多个区块展示。
 
-- 数量异常
-- 重量异常
-- 板位异常
-- 标签异常
-- 单证异常
-- 时效异常
-- 装载异常
-- 转运异常
-- 签收异常
+当前客户需确认：
 
-### 14.2 核心能力
+- 这些区块的优先顺序是否符合操作习惯
+- 是否需要把“飞走确认”拆成独立区域
 
-- 异常创建、分派、升级、关闭
-- 责任归因：货站、航班、车队、客户、合作方
-- 绑定证据文件
-- 记录处理时长与处理结果
-- 支持按航班、`AWB`、站点、日期检索
+### 13.2 出港管理 / 航班管理
 
-## 15. 报表与 KPI
+当前已实现内容：
 
-### 15.1 平台级报表
+- 出港航班操作台
+- 航班级指标卡片
+- 每个航班的操作按钮：预报、收货、装载、飞走
 
-- 货站上线数量
-- 区域覆盖情况
-- 各站点进港/出港航班数
-- 全网异常率
-- 全网 `POD` 闭环率
-- 接口在线率
+当前线上入口：
 
-### 15.2 货站级报表
+- [https://sinoport.co/station/outbound/flights](https://sinoport.co/station/outbound/flights)
 
-- 进港 `12` 小时完成率
-- 进港 `NOA` 及时率
-- 进港交付完成率
-- 二次转运准时率
-- 出港预报准确率
-- 出港收货差异率
-- 出港装载准确率
-- Manifest 对账一致率
+当前客户需确认：
 
-## 16. 权限与审计要求
+- 航班级页面是否需要增加舱位、机型、航段信息
+- 操作按钮是否要改成审批流
 
-### 16.1 权限要求
+### 13.3 出港管理 / 提单管理
 
-- 平台管理员可管理全部货站
-- 货站管理员只可管理本货站
-- 进港与出港操作权限可拆分
-- 文件删除、状态回退、异常关闭必须受控
-- 审计用户只读不可改
+当前已实现内容：
 
-### 16.2 审计要求
+- 按提单维度展示预报、收货、主单、装载、Manifest 状态
+- 操作按钮：查看提单、打印主单、更新装载
 
-- 所有状态变更记录操作人、时间、前后值
-- 所有文件导入记录导入人、时间、结果
-- 所有关键动作保留日志：主单修改、Manifest 替换、POD 上传、飞走确认
-- 预留 `Event Hash` 字段
+当前线上入口：
 
-## 17. 非功能需求
+- [https://sinoport.co/station/outbound/waybills](https://sinoport.co/station/outbound/waybills)
 
-- 支持多货站租户隔离
-- 单航班导入 `FFM / UWS / Manifest` 的处理时间不高于 `30` 秒
-- 关键页面支持按 `AWB / Flight / ULD` 快速检索
-- 附件支持常见 Office/PDF/图片格式
-- 核心操作需要具备失败回滚或错误提示
-- 页面需适配桌面端后台使用场景
+当前客户需确认：
 
-## 18. MVP 建议
+- 提单页是否需要支持批量打印
+- 是否需要增加目的港回传对账状态
 
-### 18.1 阶段一
+## 14. 文件中心 PRD
 
-- 完成平台管理后台的货站创建、货站配置、进入货站系统
-- 以 `MME` 为样板站，完成货站后台的进港基础流程
-- 完成 `NOA / POD / 二次转运` 基础能力
+当前已实现内容：
 
-### 18.2 阶段二
+- 文件中心列表页
+- 类型：`FFM / UWS / Manifest / MAWB / POD`
+- 展示文件名、关联对象、版本、更新时间、状态
+- 预览、生效版本、替换、回退、对象绑定
+- `NOA` 动作页
+- `POD` 补签与归档动作页
 
-- 完成出港 `FFM -> 收货 -> 主单 -> 装载 -> 飞走 -> UWS -> Manifest` 闭环
-- 完成 Manifest 与目的港回传对账
+当前线上入口：
 
-### 18.3 阶段三
+- 文件中心：[https://sinoport.co/station/documents](https://sinoport.co/station/documents)
+- `NOA`：[https://sinoport.co/station/documents/noa](https://sinoport.co/station/documents/noa)
+- `POD`：[https://sinoport.co/station/documents/pod](https://sinoport.co/station/documents/pod)
 
-- 完成接口治理、审计增强、规则中心增强
-- 复制到更多货站
+当前客户需确认：
 
-## 19. 验收标准
+- 是否需要 `NOA` 文件单独展示
+- 是否还需要下载、导出等更深的文件动作
 
-- 平台管理员可以新增一个新货站，并成功进入该货站后台
-- 货站管理员可以维护本站进港航班和出港航班
-- 进港货物可以完整记录从运达到交付的状态流
-- 二次转运可以独立留痕并与货物绑定
-- `POD` 可以上传、查询并与交付状态绑定
-- 出港可以完成从 `FFM` 导入到 Manifest 归档的全流程
-- Manifest 页面可以同时展示出港货物数量和目的港到货数量
-- 所有关键状态变化都有审计日志
+## 15. 异常中心 PRD
 
-## 20. 待确认问题
+当前已实现内容：
 
-- 目的港到货数量由哪个系统或哪个货站回传，采用文件导入还是接口模式。
-- `NOA` 的发送渠道是否需要系统直发邮件/短信，还是仅记录人工发送结果。
-- 主单打印模板是否按航司区分版本。
-- 二次转运是否需要与车队 GPS 或调度系统打通。
-- 平台管理员进入货站系统时，是只读巡检还是可代操作。
+- 异常 KPI 卡片
+- 异常案例表
+- 字段：异常编号、类型、对象、Owner、SLA、状态
+- 异常详情页
+- 阻断任务、命中门槛、恢复动作、关联文件、关联对象跳转
+
+当前线上入口：
+
+- 异常中心：[https://sinoport.co/station/exceptions](https://sinoport.co/station/exceptions)
+- 异常详情样例：[https://sinoport.co/station/exceptions/EXP-0408-001](https://sinoport.co/station/exceptions/EXP-0408-001)
+
+当前客户需确认：
+
+- 是否需要异常关闭动作
+- 是否需要责任归因字段更细化
+
+## 16. 单证样本与当前页面对应关系
+
+| 样本 | 当前对应模块 | 当前用途 |
+| --- | --- | --- |
+| `SE913FFM报文2026.04.01.docx` | 出港看板 / 提单管理 | 货物预报 |
+| `SE913 01APR UWS.xlsx` | 出港看板 | 装载信息 |
+| `SE600 MANIFEST 01APR.pdf` | 出港看板 / Manifest | 舱单展示 |
+| `436-10358585-主单套打模板.xlsx` | 出港看板 / 提单管理 | 主单信息 |
+
+## 17. 当前未实现但仍在规划中的模块
+
+以下内容仍属于后续开发范围，当前前端 demo 只做表达，不做真实系统实现：
+
+- 真实文件上传、真实下载与对象存储
+- 真实权限与审批
+- 真实 API / 数据库对接
+- 真实通知通道
+- 真实审计入库与可信写入
+- 报表导出与数据沉淀
+- 客户门户与外部查询
+
+## 18. 需要客户重点确认的问题
+
+请客户重点围绕以下问题反馈：
+
+1. 平台管理后台的菜单结构是否合理，是否还需要“平台总览”。
+2. 货站后台是否接受“一级看板 + 二级操作菜单”的结构。
+3. 进港管理中，是否保留“手机理货”为一期范围。
+4. 进港航班管理、提单管理的字段和操作按钮是否符合现场使用习惯。
+5. 出港页面中，`FFM / 主单 / UWS / Manifest` 的拆分方式是否合理。
+6. Manifest 页面是否需要更强的目的港对账表达。
+7. 文件中心和异常中心是否需要更多动作能力，而不是只看列表。
+
+## 19. 下一阶段开发建议
+
+如果客户确认本版 PRD，可按以下顺序进入下一阶段：
+
+1. 冻结菜单结构与页面边界
+2. 冻结航班、提单、Manifest、NOA、POD 的字段字典
+3. 定义状态流转规则和权限矩阵
+4. 接入真实接口或先接本地 mock API
+5. 再进入后端开发、联调和验收
+
+补充说明：
+
+- 本版客户评审可直接结合上文中的线上链接完成页面核对。
+- 若客户反馈基于页面而非文档描述，可直接引用对应链接定位问题。

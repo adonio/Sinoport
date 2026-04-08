@@ -4,13 +4,13 @@ export const workspaceData = [
     title: '平台管理后台',
     image: 'bag.svg',
     label: 'Platform',
-    path: '/platform/stations'
+    path: '/platform/operations'
   },
   {
     id: 2,
     title: '货站后台',
     image: 'global.svg',
     label: 'Station',
-    path: '/station/inbound/flights'
+    path: '/station/dashboard'
   }
 ];

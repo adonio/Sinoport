@@ -6,6 +6,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
@@ -26,8 +27,8 @@ export default function StationOutboundFlightsPage() {
         <PageHeader
           eyebrow="Outbound / Flights"
           title="出港管理 / 航班管理"
-          description="按航班管理预报、收货、装载、飞走与 Manifest 归档，逐航班执行关键节点动作。"
-          chips={['Forecast', 'Receipt', 'Loading', 'Manifest']}
+          description="按航班管理预报、收货、装载、飞走与 Manifest 归档，并为文件放行、任务分派和对象回连提供统一入口。"
+          chips={['Forecast', 'Receipt', 'Loading', 'Manifest', 'Task Entry', 'Gate Control']}
         />
       </Grid>
 
@@ -64,14 +65,14 @@ export default function StationOutboundFlightsPage() {
                   <TableCell>{item.cargo}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                      <Button size="small" variant="outlined">
-                        预报
+                      <Button size="small" variant="outlined" component={RouterLink} to="/station/documents">
+                        单证
                       </Button>
-                      <Button size="small" variant="outlined">
-                        收货
+                      <Button size="small" variant="outlined" component={RouterLink} to="/station/tasks">
+                        任务
                       </Button>
-                      <Button size="small" variant="outlined">
-                        装载
+                      <Button size="small" variant="outlined" component={RouterLink} to="/station/shipments">
+                        链路
                       </Button>
                       <Button size="small" variant="contained">
                         飞走

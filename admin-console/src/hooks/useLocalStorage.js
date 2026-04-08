@@ -21,11 +21,33 @@ export function useLocalStorage(key, defaultValue) {
   // Sync to localStorage whenever state changes
   useEffect(() => {
     try {
-      localStorage.setItem(key, JSON.stringify(state));
+      const serialized = JSON.stringify(state);
+      localStorage.setItem(key, serialized);
+      window.dispatchEvent(new CustomEvent('local-storage', { detail: { key, value: serialized } }));
     } catch (err) {
       console.warn(`Error setting localStorage key “${key}”:`, err);
     }
   }, [key, state]);
+
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.type === 'storage' && event.key && event.key !== key) return;
+      if (event.type === 'local-storage' && event.detail?.key !== key) return;
+
+      const nextValue =
+        event.type === 'local-storage' && typeof event.detail?.value === 'string' ? JSON.parse(event.detail.value) : readValue();
+
+      setState((prev) => (JSON.stringify(prev) === JSON.stringify(nextValue) ? prev : nextValue));
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('local-storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('local-storage', handleStorageChange);
+    };
+  }, [key]);
 
   // Update single field
   const setField = useCallback((key, value) => {
@@ -38,7 +60,9 @@ export function useLocalStorage(key, defaultValue) {
   // Reset to defaults
   const resetState = useCallback(() => {
     setState(defaultValue);
-    localStorage.setItem(key, JSON.stringify(defaultValue));
+    const serialized = JSON.stringify(defaultValue);
+    localStorage.setItem(key, serialized);
+    window.dispatchEvent(new CustomEvent('local-storage', { detail: { key, value: serialized } }));
   }, [defaultValue, key]);
 
   return { state, setState, setField, resetState };

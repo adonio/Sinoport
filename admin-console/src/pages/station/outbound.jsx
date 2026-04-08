@@ -7,11 +7,16 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 
+import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
+import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
+import LifecycleStepList from 'components/sinoport/LifecycleStepList';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
+import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import { ffmForecastRows, manifestRows, manifestSummary, masterAwbRows, outboundFlights, receiptRows, uwsRows } from 'data/sinoport';
+import { outboundDocumentGates, outboundLifecycleRows, stationBlockerQueue } from 'data/sinoport-adapters';
 
 export default function StationOutboundPage() {
   return (
@@ -20,8 +25,8 @@ export default function StationOutboundPage() {
         <PageHeader
           eyebrow="Outbound Ops"
           title="出港管理"
-          description="出港后台按 PRD 拆成货物预报、货物接收、主单、装载、飞走、装载信息和 Manifest 七个板块，避免把全部动作混进一张表。"
-          chips={['FFM', 'Receipt', 'MAWB', 'Loading', 'Departed', 'UWS', 'Manifest']}
+          description="出港后台按 PRD 拆成预报、接收、主单、装载、飞走、UWS 和 Manifest 板块，并补齐文件放行和任务阻断表达。"
+          chips={['FFM', 'Receipt', 'MAWB', 'Loading', 'Airborne', 'UWS', 'Manifest', 'Gate Control']}
         />
       </Grid>
 
@@ -34,9 +39,9 @@ export default function StationOutboundPage() {
         <Grid key={item.title} size={{ xs: 12, sm: 6, lg: 3 }}>
           <MetricCard {...item} />
         </Grid>
-      ))}
+        ))}
 
-      <Grid size={12}>
+      <Grid size={{ xs: 12, lg: 7 }}>
         <MainCard title="出港航班总览">
           <Table size="small">
             <TableHead>
@@ -68,6 +73,16 @@ export default function StationOutboundPage() {
             </TableBody>
           </Table>
         </MainCard>
+      </Grid>
+
+      <Grid size={{ xs: 12, lg: 5 }}>
+        <MainCard title="出港状态链">
+          <LifecycleStepList steps={outboundLifecycleRows} />
+        </MainCard>
+      </Grid>
+
+      <Grid size={12}>
+        <BlockingReasonAlert title="当前出港阻断" reasons={stationBlockerQueue.map((item) => item.title)} />
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
@@ -187,6 +202,10 @@ export default function StationOutboundPage() {
       </Grid>
 
       <Grid size={12}>
+        <DocumentStatusCard title="出港文件放行" items={outboundDocumentGates} />
+      </Grid>
+
+      <Grid size={12}>
         <MainCard title="7. Manifest">
           <Table size="small">
             <TableHead>
@@ -215,6 +234,26 @@ export default function StationOutboundPage() {
             </TableBody>
           </Table>
         </MainCard>
+      </Grid>
+
+      <Grid size={12}>
+        <TaskQueueCard
+          title="出港任务提示"
+          items={[
+            {
+              id: 'OUT-001',
+              title: 'SE913 Manifest 最终版待冻结',
+              description: 'Manifest 仍为待生成状态，不能进入飞走归档。',
+              status: '待处理'
+            },
+            {
+              id: 'OUT-002',
+              title: '装机复核待完成',
+              description: '缺少 Loaded 照片与独立复核签名。',
+              status: '警戒'
+            }
+          ]}
+        />
       </Grid>
     </Grid>
   );

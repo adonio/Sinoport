@@ -1,17 +1,19 @@
 import Grid from '@mui/material/Grid';
-import LinearProgress from '@mui/material/LinearProgress';
-import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
-import Typography from '@mui/material/Typography';
 
+import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
+import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
+import LifecycleStepList from 'components/sinoport/LifecycleStepList';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { inboundCargoLifecycle, inboundFlights, noaQueue, transferRecords } from 'data/sinoport';
+import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { inboundFlights } from 'data/sinoport';
+import { inboundDocumentGates, inboundLifecycleRows, stationBlockerQueue, stationReviewQueue, stationTransferRows } from 'data/sinoport-adapters';
 
 export default function StationInboundPage() {
   return (
@@ -20,8 +22,8 @@ export default function StationInboundPage() {
         <PageHeader
           eyebrow="Inbound Ops"
           title="进港管理"
-          description="覆盖进港航班维护、货物理货、NOA 发送、二次转运和交付闭环，重点围绕货物状态机执行。"
-          chips={['Flight Board', 'Cargo Status', 'NOA Queue', 'Transfer Records', 'POD Closure']}
+          description="覆盖进港航班、地面履约状态、节点任务、文件放行、NOA 与交付闭环，重点围绕对象与状态机执行。"
+          chips={['Flight Board', 'Ground Fulfillment', 'Task Queue', 'NOA Gate', 'Transfer', 'POD Closure']}
         />
       </Grid>
 
@@ -55,59 +57,24 @@ export default function StationInboundPage() {
       </Grid>
 
       <Grid size={{ xs: 12, lg: 5 }}>
-        <MainCard title="货物状态流">
-          <Stack sx={{ gap: 2 }}>
-            {inboundCargoLifecycle.map((item, index) => {
-              const progress = Math.max(15, 100 - index * 12);
-              return (
-                <Stack key={item.label} sx={{ gap: 0.75 }}>
-                  <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography variant="subtitle2">{item.label}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {item.count} 票
-                    </Typography>
-                  </Stack>
-                  <LinearProgress variant="determinate" value={progress} />
-                  <Typography variant="caption" color="text.secondary">
-                    {item.note}
-                  </Typography>
-                </Stack>
-              );
-            })}
-          </Stack>
+        <MainCard title="地面履约状态">
+          <LifecycleStepList steps={inboundLifecycleRows.map((item) => ({ ...item, metric: `${item.count} 票` }))} />
         </MainCard>
       </Grid>
 
-      <Grid size={{ xs: 12, lg: 6 }}>
-        <MainCard title="NOA 待发送列表">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>AWB</TableCell>
-                <TableCell>收货方</TableCell>
-                <TableCell>渠道</TableCell>
-                <TableCell>目标时间</TableCell>
-                <TableCell>状态</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {noaQueue.map((item) => (
-                <TableRow key={item.awb} hover>
-                  <TableCell>{item.awb}</TableCell>
-                  <TableCell>{item.consignee}</TableCell>
-                  <TableCell>{item.channel}</TableCell>
-                  <TableCell>{item.eta}</TableCell>
-                  <TableCell>
-                    <StatusChip label={item.status} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </MainCard>
+      <Grid size={12}>
+        <BlockingReasonAlert title="当前进港阻断" reasons={stationBlockerQueue.map((item) => item.title)} />
       </Grid>
 
       <Grid size={{ xs: 12, lg: 6 }}>
+        <TaskQueueCard title="待复核 / 待发送 NOA" items={stationReviewQueue} />
+      </Grid>
+
+      <Grid size={{ xs: 12, lg: 6 }}>
+        <DocumentStatusCard title="进港文件放行" items={inboundDocumentGates} />
+      </Grid>
+
+      <Grid size={12}>
         <MainCard title="二次转运记录">
           <Table size="small">
             <TableHead>
@@ -120,7 +87,7 @@ export default function StationInboundPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {transferRecords.map((item) => (
+              {stationTransferRows.map((item) => (
                 <TableRow key={item.transferId} hover>
                   <TableCell>{item.transferId}</TableCell>
                   <TableCell>{item.awb}</TableCell>

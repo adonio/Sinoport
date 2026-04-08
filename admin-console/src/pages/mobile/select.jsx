@@ -8,29 +8,20 @@ import Typography from '@mui/material/Typography';
 import RightOutlined from '@ant-design/icons/RightOutlined';
 
 import MainCard from 'components/MainCard';
+import { mobileNodeOptions } from 'data/sinoport-adapters';
 import { readMobileSession, writeMobileSession } from 'utils/mobile/session';
-import { t } from 'utils/mobile/i18n';
+import { localizeMobileText, t } from 'utils/mobile/i18n';
 
 export default function MobileSelectPage() {
   const navigate = useNavigate();
   const session = readMobileSession();
   const language = session?.language || 'zh';
-  const businessOptions = [
-    {
-      key: '进港',
-      title: t(language, 'inbound'),
-      description: t(language, 'business_desc_inbound'),
-      path: '/mobile/inbound',
-      enterLabel: t(language, 'enter_inbound')
-    },
-    {
-      key: '出港',
-      title: t(language, 'outbound'),
-      description: t(language, 'business_desc_outbound'),
-      path: '/mobile/outbound',
-      enterLabel: t(language, 'enter_outbound')
-    }
-  ];
+  const nodeOptions = mobileNodeOptions.map((item) => ({
+    ...item,
+    title: localizeMobileText(language, item.title),
+    description: localizeMobileText(language, item.description),
+    enterLabel: t(language, 'open_node')
+  }));
 
   return (
     <Stack sx={{ gap: 2.5 }}>
@@ -39,7 +30,7 @@ export default function MobileSelectPage() {
           {t(language, 'login_success')}
         </Typography>
         <Typography variant="h4" sx={{ mt: 0.5 }}>
-          {t(language, 'select_business_title')}
+          {t(language, 'select_node_title')}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {session?.station} · {session?.operator}
@@ -47,12 +38,12 @@ export default function MobileSelectPage() {
       </MainCard>
 
       <Grid container spacing={2}>
-        {businessOptions.map((option) => (
+        {nodeOptions.map((option) => (
           <Grid key={option.key} size={12}>
             <MainCard
               sx={{ cursor: 'pointer', '&:hover': { borderColor: 'primary.main', boxShadow: 2 } }}
               onClick={() => {
-                writeMobileSession({ ...session, businessType: option.key });
+                writeMobileSession({ ...session, selectedNode: option.key });
                 navigate(option.path);
               }}
             >

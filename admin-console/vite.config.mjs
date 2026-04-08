@@ -33,6 +33,10 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react(), jsconfigPaths()],
 
+    build: {
+      chunkSizeWarningLimit: 1500
+    },
+
     optimizeDeps: {
       include: ['@mui/material/Tooltip', 'react', 'react-dom', 'react-router-dom']
     }
