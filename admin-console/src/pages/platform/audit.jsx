@@ -30,6 +30,9 @@ export default function PlatformAuditPage() {
               <Button component={RouterLink} to="/platform/audit/trust" variant="outlined">
                 可信占位
               </Button>
+              <Button component={RouterLink} to="/platform/master-data" variant="outlined">
+                主数据与接口治理
+              </Button>
             </Stack>
           }
         />

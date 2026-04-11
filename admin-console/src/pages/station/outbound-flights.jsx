@@ -29,6 +29,19 @@ export default function StationOutboundFlightsPage() {
           title="出港管理 / 航班管理"
           description="按航班管理预报、收货、装载、飞走与 Manifest 归档，并为文件放行、任务分派和对象回连提供统一入口。"
           chips={['Forecast', 'Receipt', 'Loading', 'Manifest', 'Task Entry', 'Gate Control']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button size="small" variant="outlined" component={RouterLink} to="/station/outbound/waybills">
+                提单管理
+              </Button>
+              <Button size="small" variant="outlined" component={RouterLink} to="/station/documents">
+                单证中心
+              </Button>
+              <Button size="small" variant="outlined" component={RouterLink} to="/station/tasks">
+                作业任务
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

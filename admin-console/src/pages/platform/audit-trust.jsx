@@ -1,3 +1,4 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -11,12 +12,28 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { trustTraceRows } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformAuditTrustPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
-        <PageHeader eyebrow="Trust Placeholders" title="可信留痕占位" description="第二批只做前端占位，展示 Event ID / Hash / Signature / Notarization 等未来可信字段。" chips={['Event ID', 'Hash', 'Signature Ref']} />
+        <PageHeader
+          eyebrow="Trust Placeholders"
+          title="可信留痕占位"
+          description="第二批只做前端占位，展示 Event ID / Hash / Signature / Notarization 等未来可信字段。"
+          chips={['Event ID', 'Hash', 'Signature Ref']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/audit" variant="outlined">
+                返回审计总览
+              </Button>
+              <Button component={RouterLink} to="/platform/master-data/relationships" variant="outlined">
+                对象关系
+              </Button>
+            </Stack>
+          }
+        />
       </Grid>
       <Grid size={12}>
         <MainCard title="可信写入说明">

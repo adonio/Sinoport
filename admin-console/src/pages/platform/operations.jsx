@@ -1,10 +1,13 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
+import { Link as RouterLink } from 'react-router-dom';
 
 import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
 import MainCard from 'components/MainCard';
@@ -23,6 +26,22 @@ export default function PlatformOperationsPage() {
           title="运行态势中心"
           description="平台侧以链路健康、站点风险、接口告警、待审批动作和关键事件为主视角，统一观察全网履约运行态势。"
           chips={['Network Health', 'Blocked Lanes', 'Pending Actions', 'Integration Alerts', 'Audit Feed']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/stations" variant="outlined">
+                货站与资源管理
+              </Button>
+              <Button component={RouterLink} to="/platform/rules" variant="outlined">
+                规则与指令引擎
+              </Button>
+              <Button component={RouterLink} to="/platform/master-data" variant="outlined">
+                主数据与接口治理
+              </Button>
+              <Button component={RouterLink} to="/platform/reports" variant="outlined">
+                平台报表
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

@@ -22,6 +22,19 @@ export default function StationOutboundWaybillsPage() {
           title="出港管理 / 提单管理"
           description="按提单维度管理出港货物，查看预报、收货、主单、装载和 Manifest 状态，并逐票执行操作。"
           chips={['AWB', 'MAWB', 'UWS', 'Manifest']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/outbound/flights" variant="outlined">
+                航班管理
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                作业任务
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

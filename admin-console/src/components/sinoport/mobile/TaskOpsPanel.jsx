@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
@@ -18,7 +19,7 @@ function queueSummary(queue = []) {
   };
 }
 
-export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onRecover }) {
+export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onRecover, contextChips = [], quickLinks = [] }) {
   const { session, state, setState } = useMobileOpsStorage(scopeKey);
   const previousModeRef = useRef(state.deviceMode);
   const summary = queueSummary(state.queue);
@@ -38,7 +39,7 @@ export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onReco
     }));
 
   return (
-    <MainCard title="异常、挂起与补传">
+    <MainCard title="通用动作层">
       <Stack sx={{ gap: 1.5 }}>
         <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
           <Chip label={`站点 ${session?.stationCode || session?.station || 'N/A'}`} size="small" color="secondary" variant="light" />
@@ -52,6 +53,30 @@ export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onReco
         <Typography variant="body2" color="text.secondary">
           当前对象：{currentLabel}
         </Typography>
+
+        {contextChips.length ? (
+          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+            {contextChips.map((item) => (
+              <Chip key={item} size="small" label={item} variant="outlined" />
+            ))}
+          </Stack>
+        ) : null}
+
+        {quickLinks.length ? (
+          <Fragment>
+            <Divider />
+            <Stack sx={{ gap: 1 }}>
+              <Typography variant="subtitle2">快捷入口</Typography>
+              <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                {quickLinks.map((item) => (
+                  <Button key={item.label} size="small" variant={item.variant || 'outlined'} onClick={item.onClick}>
+                    {item.label}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
+          </Fragment>
+        ) : null}
 
         <Typography variant="caption" color="text.secondary">
           最近异常：{state.latestIssue || '暂无异常记录'}
@@ -143,8 +168,10 @@ export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onReco
 }
 
 TaskOpsPanel.propTypes = {
+  contextChips: PropTypes.array,
   currentLabel: PropTypes.string.isRequired,
   onRecover: PropTypes.func,
   onSuspend: PropTypes.func,
+  quickLinks: PropTypes.array,
   scopeKey: PropTypes.string.isRequired
 };

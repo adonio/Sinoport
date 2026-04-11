@@ -22,9 +22,14 @@ export default function PlatformReportsPage() {
           description="展示平台层 KPI、链路 SLA、接口稳定性、异常分布和站点准备度。"
           chips={['Platform KPI', 'Lane SLA', 'Integration Stability', 'Station Readiness']}
           action={
-            <Button component={RouterLink} to="/platform/reports/stations" variant="outlined">
-              站点对比
-            </Button>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/reports/stations" variant="outlined">
+                站点对比
+              </Button>
+              <Button component={RouterLink} to="/platform/operations" variant="outlined">
+                运行态势中心
+              </Button>
+            </Stack>
           }
         />
       </Grid>

@@ -136,6 +136,7 @@ export default function StationInboundFlightDetailPage() {
                 <TableCell>NOA</TableCell>
                 <TableCell>POD</TableCell>
                 <TableCell>转运状态</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -153,6 +154,22 @@ export default function StationInboundFlightDetailPage() {
                     <StatusChip label={item.podStatus} />
                   </TableCell>
                   <TableCell>{item.transferStatus}</TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`in-${item.awb}`)}`} size="small" variant="outlined">
+                        履约链路
+                      </Button>
+                      <Button component={RouterLink} to="/station/documents/noa" size="small" variant="outlined">
+                        NOA
+                      </Button>
+                      <Button component={RouterLink} to="/station/tasks" size="small" variant="outlined">
+                        任务
+                      </Button>
+                      <Button component={RouterLink} to="/station/exceptions" size="small" variant="outlined">
+                        异常
+                      </Button>
+                    </Stack>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

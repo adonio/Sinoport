@@ -44,17 +44,32 @@ function getVersionLabel(versions, versionId) {
   return versions.find((item) => item.versionId === versionId)?.version || versions.at(-1)?.version || '-';
 }
 
+function buildActivityEntry(id, title, description, status, bindingTargets = []) {
+  return {
+    id,
+    title,
+    description,
+    status,
+    actions: bindingTargets.slice(0, 3).map((item) => ({
+      label: item.label,
+      to: item.to,
+      variant: 'outlined'
+    }))
+  };
+}
+
 export default function StationDocumentsPage() {
   const [selectedDocumentId, setSelectedDocumentId] = useState(stationDocumentRows[0]?.documentId || '');
   const [activeVersionByDoc, setActiveVersionByDoc] = useState(buildInitialVersionState);
   const [previewVersionId, setPreviewVersionId] = useState('');
   const [activityLog, setActivityLog] = useState([
-    {
-      id: 'DOC-ACT-001',
-      title: 'Manifest 最终版待冻结',
-      description: 'SE913 当前仍命中 HG-01，需冻结最终版后才能解除机坪放行阻断。',
-      status: '警戒'
-    }
+    buildActivityEntry(
+      'DOC-ACT-001',
+      'Manifest 最终版待冻结',
+      'SE913 当前仍命中 HG-01，需冻结最终版后才能解除机坪放行阻断。',
+      '警戒',
+      stationDocumentRows.find((item) => item.documentId === 'DOC-MANIFEST-SE913')?.bindingTargets || []
+    )
   ]);
 
   const selectedDocument = getStationDocument(selectedDocumentId);
@@ -98,12 +113,7 @@ export default function StationDocumentsPage() {
 
   function pushActivity(title, description, status) {
     setActivityLog((prev) => [
-      {
-        id: `DOC-ACT-${Date.now()}`,
-        title,
-        description,
-        status
-      },
+      buildActivityEntry(`DOC-ACT-${Date.now()}`, title, description, status, selectedDocument.bindingTargets),
       ...prev
     ].slice(0, 6));
   }
@@ -158,6 +168,9 @@ export default function StationDocumentsPage() {
           chips={['Versioning', 'Preview', 'Rollback', 'Gate Control', 'Object Binding']}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/shipments" variant="outlined">
+                提单与履约链路
+              </Button>
               <Button component={RouterLink} to="/station/tasks" variant="outlined">
                 查看作业任务
               </Button>
@@ -218,9 +231,13 @@ export default function StationDocumentsPage() {
                     <StatusChip label={item.status} />
                   </TableCell>
                   <TableCell align="right">
-                    <Button component={RouterLink} to={item.bindingTargets[0]?.to || '/station/shipments'} size="small" variant="outlined">
-                      关联对象
-                    </Button>
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      {item.bindingTargets.slice(0, 3).map((target) => (
+                        <Button key={`${item.documentId}-${target.label}`} component={RouterLink} to={target.to} size="small" variant="outlined">
+                          {target.label}
+                        </Button>
+                      ))}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}

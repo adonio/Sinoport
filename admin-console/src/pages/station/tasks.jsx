@@ -16,6 +16,7 @@ import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import {
+  exceptionDetailRows,
   getGateEvaluationsForTask,
   getHardGatePolicy,
   inboundDocumentGates,
@@ -27,6 +28,18 @@ import {
   stationTaskSummary
 } from 'data/sinoport-adapters';
 
+function getTaskDocumentPath(task) {
+  if (task.title.includes('POD')) return '/station/documents/pod';
+  if (task.title.includes('NOA')) return '/station/documents/noa';
+  return '/station/documents';
+}
+
+function getTaskExceptionPath(task) {
+  return exceptionDetailRows.find((item) => item.objectTo === task.objectTo || item.gateId === task.gateIds[0])?.id
+    ? `/station/exceptions/${exceptionDetailRows.find((item) => item.objectTo === task.objectTo || item.gateId === task.gateIds[0]).id}`
+    : '/station/exceptions';
+}
+
 export default function StationTasksPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
@@ -37,9 +50,23 @@ export default function StationTasksPage() {
           description="货站端以任务为第一视角管理站内执行，展示任务池、待复核、待升级、阻断原因和标准场景编排。"
           chips={['Task Pool', 'Assignment', 'Escalation', 'Blockers', 'Scenario Timeline']}
           action={
-            <Button component={RouterLink} to="/station/documents" variant="outlined">
-              查看单证门槛
-            </Button>
+            <Grid container spacing={1} sx={{ width: 'auto' }}>
+              <Grid>
+                <Button component={RouterLink} to="/station/documents" variant="outlined">
+                  单证与指令中心
+                </Button>
+              </Grid>
+              <Grid>
+                <Button component={RouterLink} to="/station/shipments" variant="outlined">
+                  提单与履约链路
+                </Button>
+              </Grid>
+              <Grid>
+                <Button component={RouterLink} to="/station/exceptions" variant="outlined">
+                  异常中心
+                </Button>
+              </Grid>
+            </Grid>
           }
         />
       </Grid>
@@ -86,9 +113,23 @@ export default function StationTasksPage() {
                   <TableCell>{item.gateIds.join(', ')}</TableCell>
                   <TableCell>{item.blocker}</TableCell>
                   <TableCell align="right">
-                    <Button component={RouterLink} to={item.objectTo} size="small" variant="outlined">
-                      对象详情
-                    </Button>
+                    <Grid container spacing={1} sx={{ width: 'auto', justifyContent: 'flex-end' }}>
+                      <Grid>
+                        <Button component={RouterLink} to={item.objectTo} size="small" variant="outlined">
+                          对象详情
+                        </Button>
+                      </Grid>
+                      <Grid>
+                        <Button component={RouterLink} to={getTaskDocumentPath(item)} size="small" variant="outlined">
+                          单证
+                        </Button>
+                      </Grid>
+                      <Grid>
+                        <Button component={RouterLink} to={getTaskExceptionPath(item)} size="small" variant="outlined">
+                          异常
+                        </Button>
+                      </Grid>
+                    </Grid>
                   </TableCell>
                 </TableRow>
               ))}
@@ -103,14 +144,22 @@ export default function StationTasksPage() {
           items={[
             ...stationReviewQueue.map((item) => ({
               ...item,
-              meta: `${getHardGatePolicy(item.gateId)?.releaseRole || '需独立复核或主管确认'} · ${item.description}`
+              meta: `${getHardGatePolicy(item.gateId)?.releaseRole || '需独立复核或主管确认'} · ${item.description}`,
+              actions: [
+                { label: '单证中心', to: '/station/documents', variant: 'outlined' },
+                { label: '履约链路', to: '/station/shipments', variant: 'outlined' }
+              ]
             })),
             {
               id: 'ESC-0408-001',
               title: 'HG-08 · SE913 机坪放行已超时',
               description: 'Manifest 未冻结导致 Loaded 确认延迟，建议升级到 Export Supervisor。',
               meta: getHardGatePolicy('HG-08')?.recovery,
-              status: '待升级'
+              status: '待升级',
+              actions: [
+                { label: '异常中心', to: '/station/exceptions', variant: 'outlined' },
+                { label: '单证中心', to: '/station/documents', variant: 'outlined' }
+              ]
             }
           ]}
         />
@@ -139,7 +188,12 @@ export default function StationTasksPage() {
               title: `${item.title} · ${evaluation.gateId}`,
               description: evaluation.blockingReason,
               meta: `恢复动作：${evaluation.recoveryAction} · 放行角色：${evaluation.releaseRole}`,
-              status: evaluation.status
+              status: evaluation.status,
+              actions: [
+                { label: '对象详情', to: item.objectTo, variant: 'outlined' },
+                { label: '单证中心', to: '/station/documents', variant: 'outlined' },
+                { label: '异常中心', to: '/station/exceptions', variant: 'outlined' }
+              ]
             }))
           )}
         />

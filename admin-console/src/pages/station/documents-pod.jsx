@@ -118,6 +118,19 @@ export default function StationDocumentsPodPage() {
           title="POD 通知与补签"
           description="展示双签阻断、补签后状态变化和归档前校验。当前页统一从 HG-06 读取阻断逻辑。"
           chips={['Double Sign', 'Gate Check', 'Archive']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                作业指令中心
+              </Button>
+              <Button component={RouterLink} to="/station/shipments" variant="outlined">
+                履约链路
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 
@@ -168,6 +181,9 @@ export default function StationDocumentsPodPage() {
               </Stack>
               <Button component={RouterLink} to={selectedRow.objectTo} variant="outlined">
                 查看履约对象
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                查看任务
               </Button>
             </Stack>
 

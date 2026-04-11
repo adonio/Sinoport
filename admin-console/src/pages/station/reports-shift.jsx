@@ -1,4 +1,6 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -8,12 +10,28 @@ import TableRow from '@mui/material/TableRow';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import { shiftReportRows } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function StationReportsShiftPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
-        <PageHeader eyebrow="Shift Reports" title="班次粒度报表" description="按班次 / 班组展示第二批主营演示链路中的日报、周报 demo。" chips={['Shift', 'Team', 'Daily/Weekly']} />
+        <PageHeader
+          eyebrow="Shift Reports"
+          title="班次粒度报表"
+          description="按班次 / 班组展示第二批主营演示链路中的日报、周报 demo。"
+          chips={['Shift', 'Team', 'Daily/Weekly']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/reports" variant="outlined">
+                返回报表总览
+              </Button>
+              <Button component={RouterLink} to="/station/dashboard" variant="outlined">
+                货站看板
+              </Button>
+            </Stack>
+          }
+        />
       </Grid>
       <Grid size={12}>
         <MainCard title="班次报表">

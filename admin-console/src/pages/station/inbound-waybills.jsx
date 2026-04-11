@@ -22,6 +22,19 @@ export default function StationInboundWaybillsPage() {
           title="进港管理 / 提单管理"
           description="按提单维度管理进港货物，查看每票货当前节点、NOA 与 POD 状态，并执行逐票操作。"
           chips={['AWB Level Ops', 'NOA', 'POD', 'Transfer']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/inbound/flights" variant="outlined">
+                航班管理
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                作业任务
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

@@ -1,9 +1,12 @@
 import Grid from '@mui/material/Grid';
+import Button from '@mui/material/Button';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Stack from '@mui/material/Stack';
+import { Link as RouterLink } from 'react-router-dom';
 
 import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
 import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
@@ -24,6 +27,19 @@ export default function StationInboundPage() {
           title="进港管理"
           description="覆盖进港航班、地面履约状态、节点任务、文件放行、NOA 与交付闭环，重点围绕对象与状态机执行。"
           chips={['Flight Board', 'Ground Fulfillment', 'Task Queue', 'NOA Gate', 'Transfer', 'POD Closure']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/inbound/flights" variant="outlined">
+                航班管理
+              </Button>
+              <Button component={RouterLink} to="/station/inbound/waybills" variant="outlined">
+                提单管理
+              </Button>
+              <Button component={RouterLink} to="/station/inbound/mobile" variant="outlined">
+                PDA 作业终端
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

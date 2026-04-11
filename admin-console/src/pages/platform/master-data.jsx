@@ -33,6 +33,9 @@ export default function PlatformMasterDataPage() {
               <Button component={RouterLink} to="/platform/master-data/relationships" variant="outlined">
                 对象关系
               </Button>
+              <Button component={RouterLink} to="/platform/audit" variant="outlined">
+                审计与可信留痕
+              </Button>
             </Stack>
           }
         />

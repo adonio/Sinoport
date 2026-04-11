@@ -1,9 +1,12 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import { Link as RouterLink } from 'react-router-dom';
 
 import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
 import MainCard from 'components/MainCard';
@@ -23,6 +26,22 @@ export default function StationDashboardPage() {
           title="货站后台总览"
           description="货站首页优先展示今天的航班、阻塞节点、NOA/POD 队列、待复核任务和二次转运动作，而不是传统 ERP 菜单。"
           chips={['Inbound', 'Outbound', 'Blockers', 'Review', 'NOA', 'POD', 'Transfer']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/inbound" variant="outlined">
+                进港管理
+              </Button>
+              <Button component={RouterLink} to="/station/outbound" variant="outlined">
+                出港管理
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                作业指令中心
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证与指令中心
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 
@@ -46,6 +65,7 @@ export default function StationDashboardPage() {
                 <TableCell>当前节点</TableCell>
                 <TableCell>优先级</TableCell>
                 <TableCell>货量</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -56,6 +76,11 @@ export default function StationDashboardPage() {
                   <TableCell>{item.step}</TableCell>
                   <TableCell>{item.priority}</TableCell>
                   <TableCell>{item.cargo}</TableCell>
+                  <TableCell align="right">
+                    <Button component={RouterLink} to="/station/inbound/flights" size="small" variant="text">
+                      进入
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -73,6 +98,7 @@ export default function StationDashboardPage() {
                 <TableCell>状态</TableCell>
                 <TableCell>Manifest</TableCell>
                 <TableCell>货量</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -85,6 +111,11 @@ export default function StationDashboardPage() {
                   </TableCell>
                   <TableCell>{item.manifest}</TableCell>
                   <TableCell>{item.cargo}</TableCell>
+                  <TableCell align="right">
+                    <Button component={RouterLink} to="/station/outbound/flights" size="small" variant="text">
+                      进入
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

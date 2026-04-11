@@ -48,6 +48,12 @@ const station = {
           url: '/station/inbound/flights'
         },
         {
+          id: 'station-inbound-waybills',
+          title: '提单管理',
+          type: 'item',
+          url: '/station/inbound/waybills'
+        },
+        {
           id: 'station-inbound-mobile',
           title: 'PDA 作业终端',
           type: 'item',
@@ -73,6 +79,12 @@ const station = {
           title: '航班管理',
           type: 'item',
           url: '/station/outbound/flights'
+        },
+        {
+          id: 'station-outbound-waybills',
+          title: '提单管理',
+          type: 'item',
+          url: '/station/outbound/waybills'
         }
       ]
     },

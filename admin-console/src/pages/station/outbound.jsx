@@ -1,4 +1,5 @@
 import Grid from '@mui/material/Grid';
+import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -6,6 +7,7 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
+import { Link as RouterLink } from 'react-router-dom';
 
 import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
 import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
@@ -27,6 +29,19 @@ export default function StationOutboundPage() {
           title="出港管理"
           description="出港后台按 PRD 拆成预报、接收、主单、装载、飞走、UWS 和 Manifest 板块，并补齐文件放行和任务阻断表达。"
           chips={['FFM', 'Receipt', 'MAWB', 'Loading', 'Airborne', 'UWS', 'Manifest', 'Gate Control']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/outbound/flights" variant="outlined">
+                航班管理
+              </Button>
+              <Button component={RouterLink} to="/station/outbound/waybills" variant="outlined">
+                提单管理
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证与指令中心
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

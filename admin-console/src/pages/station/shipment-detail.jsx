@@ -1,5 +1,6 @@
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -21,6 +22,22 @@ import {
   inboundDocumentGates,
   outboundDocumentGates
 } from 'data/sinoport-adapters';
+
+function getRelationshipActions(target, shipmentId) {
+  if (target === 'Task') {
+    return [{ label: '任务中心', to: '/station/tasks' }];
+  }
+  if (target === 'Document') {
+    return [{ label: '单证中心', to: '/station/documents' }];
+  }
+  if (target === 'Exception') {
+    return [{ label: '异常中心', to: '/station/exceptions' }];
+  }
+  if (target.includes('->')) {
+    return [{ label: '航线网络', to: '/platform/network' }];
+  }
+  return [{ label: '当前对象', to: `/station/shipments/${shipmentId}` }];
+}
 
 export default function ShipmentDetailPage() {
   const { shipmentId } = useParams();
@@ -108,8 +125,12 @@ export default function ShipmentDetailPage() {
           items={detail.tasks.map((item) => ({
             title: item.title,
             description: `${item.owner} · 截止 ${item.due}`,
-            meta: `${item.gateIds?.join(', ') || '无 Gate'} · ${item.jumpTo ? `跳转 ${item.jumpTo} · ` : ''}证据要求：${item.evidence}`,
-            status: item.status
+            meta: `${item.gateIds?.join(', ') || '无 Gate'} · 证据要求：${item.evidence}`,
+            status: item.status,
+            actions: [
+              { label: '任务中心', to: item.jumpTo || '/station/tasks', variant: 'outlined' },
+              { label: '单证中心', to: '/station/documents', variant: 'outlined' }
+            ]
           }))}
         />
       </Grid>
@@ -125,6 +146,7 @@ export default function ShipmentDetailPage() {
                 <TableCell>状态</TableCell>
                 <TableCell>关联任务</TableCell>
                 <TableCell>说明</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -138,6 +160,16 @@ export default function ShipmentDetailPage() {
                   </TableCell>
                   <TableCell>{item.linkedTask}</TableCell>
                   <TableCell>{item.note}</TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      <Button component={RouterLink} to="/station/documents" size="small" variant="outlined">
+                        单证
+                      </Button>
+                      <Button component={RouterLink} to="/station/tasks" size="small" variant="outlined">
+                        任务
+                      </Button>
+                    </Stack>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -158,6 +190,7 @@ export default function ShipmentDetailPage() {
                 <TableCell>Relation</TableCell>
                 <TableCell>Target</TableCell>
                 <TableCell>说明</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -167,6 +200,15 @@ export default function ShipmentDetailPage() {
                   <TableCell>{item.relation}</TableCell>
                   <TableCell>{item.target}</TableCell>
                   <TableCell>{item.note}</TableCell>
+                  <TableCell align="right">
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      {getRelationshipActions(item.target, detail.id).map((action) => (
+                        <Button key={`${item.target}-${action.label}`} component={RouterLink} to={action.to} size="small" variant="outlined">
+                          {action.label}
+                        </Button>
+                      ))}
+                    </Stack>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -181,8 +223,12 @@ export default function ShipmentDetailPage() {
           items={detail.exceptions.map((item) => ({
             id: item.id,
             title: `${item.id} · ${item.type} · ${item.gateId || '无 Gate'}`,
-            description: `${item.note}${item.jumpTo ? ` · 跳转 ${item.jumpTo}` : ''}`,
-            status: item.status
+            description: item.note,
+            status: item.status,
+            actions: [
+              { label: '异常中心', to: item.jumpTo || '/station/exceptions', variant: 'outlined' },
+              { label: '单证中心', to: '/station/documents', variant: 'outlined' }
+            ]
           }))}
         />
       </Grid>

@@ -424,12 +424,37 @@ function useOutboundTaskContext(flightNo) {
 export function OutboundFlightAppShell({ flight, children, showHero = true }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const session = readMobileSession();
+  const roleKey = getMobileRoleKey(session);
+  const roleView = getMobileRoleView(roleKey);
 
   return (
     <Box sx={{ pb: 11 }}>
       <Stack sx={{ gap: 2 }}>
         {showHero ? <OutboundFlightHeroCard flight={flight} /> : null}
-        <TaskOpsPanel scopeKey={`outbound-flight-${flight.flightNo}`} currentLabel={flight.flightNo} />
+        <TaskOpsPanel
+          scopeKey={`outbound-flight-${flight.flightNo}`}
+          currentLabel={flight.flightNo}
+          contextChips={[`角色 ${mt(roleView.label)}`, `当前阶段 ${flight.stage}`, `Manifest ${flight.manifest}`]}
+          quickLinks={[
+            { label: '节点选择', onClick: () => navigate('/mobile/select') },
+            { label: '航班列表', onClick: () => navigate('/mobile/outbound') }
+          ]}
+        />
+        <MainCard title="快捷任务入口">
+          <Stack sx={{ gap: 1.25 }}>
+            <Typography variant="body2" color="text.secondary">
+              当前角色：{mt(roleView.label)}。点击下方按钮可直接进入当前角色最常用的出港任务。
+            </Typography>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              {outboundTabItems().map((item) => (
+                <Button key={item.key} size="small" variant={item.key === 'overview' ? 'outlined' : 'contained'} onClick={() => navigate(item.pathOf(flight.flightNo))}>
+                  {item.label}
+                </Button>
+              ))}
+            </Stack>
+          </Stack>
+        </MainCard>
         {children}
       </Stack>
 

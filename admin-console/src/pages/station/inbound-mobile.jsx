@@ -8,6 +8,7 @@ import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
@@ -292,6 +293,19 @@ export default function StationInboundMobilePage() {
           title="PDA 作业终端 / 进港理货"
           description="当前阶段以纯前端 demo 方式演示 PDA 现场理货，通过扫码、手输、差异校验和挂起恢复表达统一任务流。"
           chips={['扫码', '理货', 'PDA Task', '暂时缺货', '继续点货']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/inbound/flights" variant="outlined">
+                航班管理
+              </Button>
+              <Button component={RouterLink} to="/station/inbound/waybills" variant="outlined">
+                提单管理
+              </Button>
+              <Button component={RouterLink} to="/mobile/select" variant="outlined">
+                节点选择
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

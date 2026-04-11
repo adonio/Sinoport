@@ -111,6 +111,19 @@ export default function StationDocumentsNoaPage() {
           title="NOA 通知动作"
           description="展示发送前门槛检查、失败重试和人工补发。当前页统一从 HG 门槛定义读取阻断原因与恢复动作。"
           chips={['Gate Check', 'Retry', 'Manual Send']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                作业指令中心
+              </Button>
+              <Button component={RouterLink} to="/station/shipments" variant="outlined">
+                履约链路
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 
@@ -163,6 +176,9 @@ export default function StationDocumentsNoaPage() {
               </Stack>
               <Button component={RouterLink} to={selectedRow.objectTo} variant="outlined">
                 查看履约对象
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                查看任务
               </Button>
             </Stack>
 

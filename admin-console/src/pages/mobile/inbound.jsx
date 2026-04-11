@@ -2,21 +2,35 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
 import RightOutlined from '@ant-design/icons/RightOutlined';
+import BarcodeOutlined from '@ant-design/icons/BarcodeOutlined';
+import CarOutlined from '@ant-design/icons/CarOutlined';
+import InboxOutlined from '@ant-design/icons/InboxOutlined';
 
 import MainCard from 'components/MainCard';
 import StatusChip from 'components/sinoport/StatusChip';
 import { inboundFlights } from 'data/sinoport';
-import { readMobileSession, writeMobileSession } from 'utils/mobile/session';
+import { getMobileRoleKey, readMobileSession, writeMobileSession } from 'utils/mobile/session';
 import { t } from 'utils/mobile/i18n';
+import { getMobileRoleView, isMobileTabAllowed } from 'data/sinoport-adapters';
 
 export default function MobileInboundPage() {
   const navigate = useNavigate();
   const session = readMobileSession();
   const language = session?.language || 'zh';
+  const roleKey = getMobileRoleKey(session);
+  const roleView = getMobileRoleView(roleKey);
+
+  const taskEntries = [
+    { key: 'counting', label: t(language, 'counting'), pathOf: (flightNo) => `/mobile/inbound/${flightNo}/breakdown`, icon: BarcodeOutlined },
+    { key: 'pallet', label: t(language, 'pallet'), pathOf: (flightNo) => `/mobile/inbound/${flightNo}/pallet`, icon: InboxOutlined },
+    { key: 'loading', label: t(language, 'loading'), pathOf: (flightNo) => `/mobile/inbound/${flightNo}/loading`, icon: CarOutlined },
+    { key: 'overview', label: t(language, 'overview'), pathOf: (flightNo) => `/mobile/inbound/${flightNo}`, icon: RightOutlined }
+  ].filter((item) => isMobileTabAllowed(roleKey, 'inbound', item.key));
 
   useEffect(() => {
     const current = readMobileSession();
@@ -60,13 +74,24 @@ export default function MobileInboundPage() {
               {t(language, 'current_step')}：{flight.step} · {t(language, 'priority')} {flight.priority} · {flight.cargo}
             </Typography>
 
-            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle2" color="primary.main">
-                {t(language, 'enter_flight_operation')}
-              </Typography>
-              <Box sx={{ color: 'primary.main', display: 'flex', alignItems: 'center' }}>
-                <RightOutlined />
-              </Box>
+            <Typography variant="caption" color="text.secondary">
+              当前角色：{roleView.label}
+            </Typography>
+
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              {taskEntries.map((entry, index) => (
+                <Button
+                  key={`${flight.flightNo}-${entry.key}`}
+                  size="small"
+                  variant={index === 0 ? 'contained' : 'outlined'}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate(entry.pathOf(flight.flightNo));
+                  }}
+                >
+                  {index === 0 ? `进入${entry.label}` : entry.label}
+                </Button>
+              ))}
             </Stack>
           </Stack>
         </MainCard>

@@ -1,4 +1,6 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -9,12 +11,28 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { platformStationTeamRows } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformStationsTeamsPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
-        <PageHeader eyebrow="Team Mapping" title="站点班组映射" description="平台侧查看各站点班组、班次、工人数和链路映射关系。" chips={['Team Mapping', 'Workers', 'Shift']} />
+        <PageHeader
+          eyebrow="Team Mapping"
+          title="站点班组映射"
+          description="平台侧查看各站点班组、班次、工人数和链路映射关系。"
+          chips={['Team Mapping', 'Workers', 'Shift']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/stations" variant="outlined">
+                返回站点总览
+              </Button>
+              <Button component={RouterLink} to="/platform/stations/zones" variant="outlined">
+                区位映射
+              </Button>
+            </Stack>
+          }
+        />
       </Grid>
       <Grid size={12}>
         <MainCard title="站点班组映射">

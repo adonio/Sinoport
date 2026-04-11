@@ -1,6 +1,8 @@
 import PropTypes from 'prop-types';
+import { Link as RouterLink } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
@@ -30,6 +32,21 @@ export default function TaskQueueCard({ title, items, emptyText = '暂无数据�
                   {item.meta}
                 </Typography>
               ) : null}
+              {item.actions?.length ? (
+                <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 1.25 }}>
+                  {item.actions.map((action) => (
+                    <Button
+                      key={`${item.id || item.title}-${action.label}`}
+                      component={action.to ? RouterLink : 'button'}
+                      to={action.to}
+                      size="small"
+                      variant={action.variant || 'outlined'}
+                    >
+                      {action.label}
+                    </Button>
+                  ))}
+                </Stack>
+              ) : null}
             </Box>
           ))
         ) : (
@@ -47,6 +64,13 @@ TaskQueueCard.propTypes = {
       description: PropTypes.string,
       id: PropTypes.string,
       meta: PropTypes.string,
+      actions: PropTypes.arrayOf(
+        PropTypes.shape({
+          label: PropTypes.string.isRequired,
+          to: PropTypes.string,
+          variant: PropTypes.string
+        })
+      ),
       status: PropTypes.string,
       title: PropTypes.string.isRequired
     })

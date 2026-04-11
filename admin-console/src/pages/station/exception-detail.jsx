@@ -34,9 +34,20 @@ export default function StationExceptionDetailPage() {
           description="异常详情页固定展示异常摘要、阻断任务、门槛规则、恢复动作和关联对象跳转。"
           chips={[item.type, item.object, item.sla]}
           action={
-            <Button component={RouterLink} to="/station/exceptions" variant="outlined">
-              返回异常中心
-            </Button>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to={item.objectTo} variant="outlined">
+                关联对象
+              </Button>
+              <Button component={RouterLink} to={item.jumpTo} variant="outlined">
+                当前动作
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+              <Button component={RouterLink} to="/station/exceptions" variant="outlined">
+                返回异常中心
+              </Button>
+            </Stack>
           }
         />
       </Grid>
@@ -65,14 +76,22 @@ export default function StationExceptionDetailPage() {
               title: `阻断任务：${item.blockedTask}`,
               description: `命中规则：${item.gateId} / ${item.requiredGate}`,
               meta: `阻断结果：${gatePolicy?.blocker}`,
-              status: item.status
+              status: item.status,
+              actions: [
+                { label: '作业指令中心', to: '/station/tasks', variant: 'outlined' },
+                { label: '关联对象', to: item.objectTo, variant: 'outlined' }
+              ]
             },
             {
               id: `${item.id}-2`,
               title: `恢复动作：${item.recoveryAction}`,
-              description: `跳转 ${item.jumpTo}`,
+              description: '按恢复动作补齐文件、任务或签收后解除阻断。',
               meta: `放行角色：${gatePolicy?.releaseRole}`,
-              status: '待处理'
+              status: '待处理',
+              actions: [
+                { label: '执行恢复动作', to: item.jumpTo, variant: 'contained' },
+                { label: '打开单证中心', to: '/station/documents', variant: 'outlined' }
+              ]
             }
           ]}
         />

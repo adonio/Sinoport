@@ -1,5 +1,6 @@
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -11,7 +12,12 @@ import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { shipmentRows } from 'data/sinoport-adapters';
+import { exceptionDetailRows, shipmentRows } from 'data/sinoport-adapters';
+
+function getShipmentExceptionPath(shipmentId) {
+  const matched = exceptionDetailRows.find((item) => item.objectTo === `/station/shipments/${shipmentId}`);
+  return matched ? `/station/exceptions/${matched.id}` : '/station/exceptions';
+}
 
 export default function StationShipmentsPage() {
   const metrics = [
@@ -77,9 +83,20 @@ export default function StationShipmentsPage() {
                   </TableCell>
                   <TableCell>{item.blocker}</TableCell>
                   <TableCell align="right">
-                    <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(item.id)}`} size="small" variant="contained">
-                      查看链路
-                    </Button>
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(item.id)}`} size="small" variant="contained">
+                        查看链路
+                      </Button>
+                      <Button component={RouterLink} to="/station/documents" size="small" variant="outlined">
+                        单证
+                      </Button>
+                      <Button component={RouterLink} to="/station/tasks" size="small" variant="outlined">
+                        任务
+                      </Button>
+                      <Button component={RouterLink} to={getShipmentExceptionPath(item.id)} size="small" variant="outlined">
+                        异常
+                      </Button>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}

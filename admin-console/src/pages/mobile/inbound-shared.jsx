@@ -506,7 +506,29 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
     <Box sx={{ pb: 11 }}>
       <Stack sx={{ gap: 2 }}>
         {showHero ? <InboundFlightHeroCard flight={flight} waybills={waybills} taskMap={taskMap} /> : null}
-        <TaskOpsPanel scopeKey={`inbound-flight-${flight.flightNo}`} currentLabel={flight.flightNo} />
+        <TaskOpsPanel
+          scopeKey={`inbound-flight-${flight.flightNo}`}
+          currentLabel={flight.flightNo}
+          contextChips={[`角色 ${mt(roleView.label)}`, `优先级 ${flight.priority}`, `当前节点 ${mt(flight.step)}`]}
+          quickLinks={[
+            { label: '节点选择', onClick: () => navigate('/mobile/select') },
+            { label: '航班列表', onClick: () => navigate('/mobile/inbound') }
+          ]}
+        />
+        <MainCard title="快捷任务入口">
+          <Stack sx={{ gap: 1.25 }}>
+            <Typography variant="body2" color="text.secondary">
+              当前角色：{mt(roleView.label)}。点击下方按钮可直接进入当前角色最常用的进港任务。
+            </Typography>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              {inboundTabItems(roleKey).map((item) => (
+                <Button key={item.key} size="small" variant={item.key === 'overview' ? 'outlined' : 'contained'} onClick={() => navigate(item.pathOf(flight.flightNo))}>
+                  {item.label}
+                </Button>
+              ))}
+            </Stack>
+          </Stack>
+        </MainCard>
         <MainCard>
           <Typography variant="body2" color="text.secondary">
             当前角色：{mt(roleView.label)}。底部导航和任务动作会按角色过滤。

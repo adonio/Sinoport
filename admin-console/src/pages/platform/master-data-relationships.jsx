@@ -1,9 +1,12 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
@@ -18,6 +21,19 @@ export default function PlatformMasterDataRelationshipsPage() {
           title="对象关系总览"
           description="统一展示 Flight、AWB、ULD/PMC、Truck、POD、Event 之间的核心关系，作为第三批的对象追溯基线。"
           chips={['Flight', 'Shipment/AWB', 'ULD/PMC', 'Truck', 'POD', 'Event']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/master-data" variant="outlined">
+                主数据治理
+              </Button>
+              <Button component={RouterLink} to="/platform/rules" variant="outlined">
+                规则引擎
+              </Button>
+              <Button component={RouterLink} to="/platform/audit/trust" variant="outlined">
+                可信留痕
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
       <Grid size={12}>

@@ -1312,7 +1312,7 @@ export const nonFunctionalDemoRows = [
   { category: '稳定性', target: '关键状态写入具备幂等与重试', currentDemo: '接口看板与导入任务页已表达重试和兜底', note: '只做前端动作与日志表达，不接真实后端重试。' },
   { category: '离线能力', target: 'PDA 断网缓存与恢复同步', currentDemo: 'TaskOpsPanel 已支持 offline / queued / synced / failed', note: '仅使用本地队列模拟补传。' },
   { category: '安全', target: '角色与站点范围隔离', currentDemo: '桌面端权限矩阵 + 移动端 Demo 角色切换', note: '不做真实鉴权或 token。' },
-  { category: '文件存储', target: '版本化、不可覆盖原件、可追溯下载', currentDemo: '文件中心已表达版本、生效、回退、预览', note: '不连接真实对象存储。' },
+  { category: '文件存储', target: '版本化、不可覆盖原件、可追溯下载', currentDemo: '单证与指令中心已表达版本、生效、回退、预览', note: '不连接真实对象存储。' },
   { category: '兼容性', target: '桌面浏览器 + Android 手持终端', currentDemo: '桌面后台与移动端壳层均已提供 demo 页面', note: '当前以响应式和浏览器调试表达兼容性。' }
 ];
 

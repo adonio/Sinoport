@@ -11,12 +11,28 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { integrationSyncActionRows, integrationSyncRows } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformMasterDataSyncPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
-        <PageHeader eyebrow="Sync Status" title="接口同步看板" description="第二批展示 FFM / UWS / Manifest / POD / Flight / Last-mile 的模拟同步状态。" chips={['FFM', 'UWS', 'Manifest', 'POD', 'Flight', 'Last-mile']} />
+        <PageHeader
+          eyebrow="Sync Status"
+          title="接口同步看板"
+          description="第二批展示 FFM / UWS / Manifest / POD / Flight / Last-mile 的模拟同步状态。"
+          chips={['FFM', 'UWS', 'Manifest', 'POD', 'Flight', 'Last-mile']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/master-data/jobs" variant="outlined">
+                导入任务
+              </Button>
+              <Button component={RouterLink} to="/platform/audit" variant="outlined">
+                审计与可信留痕
+              </Button>
+            </Stack>
+          }
+        />
       </Grid>
       <Grid size={12}>
         <MainCard title="同步状态">

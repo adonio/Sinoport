@@ -1,4 +1,6 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -9,12 +11,28 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { resourceZones } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function StationResourcesZonesPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
-        <PageHeader eyebrow="Zones" title="区位与 Dock" description="查看站内 Zone / Dock 类型和状态，作为第二批放行与任务分配基线。" chips={['Zone', 'Dock', 'Type']} />
+        <PageHeader
+          eyebrow="Zones"
+          title="区位与 Dock"
+          description="查看站内 Zone / Dock 类型和状态，作为第二批放行与任务分配基线。"
+          chips={['Zone', 'Dock', 'Type']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/resources" variant="outlined">
+                返回资源总览
+              </Button>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                作业任务
+              </Button>
+            </Stack>
+          }
+        />
       </Grid>
       <Grid size={12}>
         <MainCard title="区位与 Dock">

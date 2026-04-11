@@ -1,5 +1,6 @@
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -26,9 +27,17 @@ export default function StationExceptionsPage() {
           description="所有数量、单证、转运和签收问题都必须结构化记录，并明确阻断任务、门槛规则和恢复动作，不允许只保留聊天截图或口头结论。"
           chips={['Structured Classification', 'Ownership', 'Blocked Tasks', 'Recovery Actions']}
           action={
-            <Button component={RouterLink} to="/station/tasks" variant="outlined">
-              查看任务池
-            </Button>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/tasks" variant="outlined">
+                查看任务池
+              </Button>
+              <Button component={RouterLink} to="/station/shipments" variant="outlined">
+                履约链路
+              </Button>
+              <Button component={RouterLink} to="/station/documents" variant="outlined">
+                单证中心
+              </Button>
+            </Stack>
           }
         />
       </Grid>
@@ -51,7 +60,12 @@ export default function StationExceptionsPage() {
             title: `${item.id} · ${item.type}`,
             description: item.recoveryAction,
             meta: `阻断任务：${item.blockedTask}`,
-            status: item.status
+            status: item.status,
+            actions: [
+              { label: '异常详情', to: `/station/exceptions/${item.id}`, variant: 'outlined' },
+              { label: '关联对象', to: item.objectTo, variant: 'outlined' },
+              { label: '当前动作', to: item.jumpTo, variant: 'outlined' }
+            ]
           }))}
         />
       </Grid>
@@ -86,9 +100,17 @@ export default function StationExceptionsPage() {
                     <StatusChip label={item.status} />
                   </TableCell>
                   <TableCell align="right">
-                    <Button component={RouterLink} to={item.jumpTo} size="small" variant="outlined">
-                      查看
-                    </Button>
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      <Button component={RouterLink} to={`/station/exceptions/${item.id}`} size="small" variant="outlined">
+                        详情
+                      </Button>
+                      <Button component={RouterLink} to={item.objectTo} size="small" variant="outlined">
+                        对象
+                      </Button>
+                      <Button component={RouterLink} to={item.jumpTo} size="small" variant="outlined">
+                        动作
+                      </Button>
+                    </Stack>
                   </TableCell>
                 </TableRow>
               ))}

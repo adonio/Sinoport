@@ -1,5 +1,7 @@
 # Sinoport 平台管理后台与货站后台 PRD
 
+> 历史文档说明：本文件为 `v0.3` 客户评审稿，已被 [Sinoport_OS_PRD_v1.0_开发版.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_PRD_v1.0_开发版.md) 替代，仅保留作历史评审记录，不作为当前开发依据。
+
 ## 1. 文档信息
 
 - 文档版本：`v0.3`
@@ -127,7 +129,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 | 同步看板 | [https://sinoport.co/platform/master-data/sync](https://sinoport.co/platform/master-data/sync) |
 | 导入任务 | [https://sinoport.co/platform/master-data/jobs](https://sinoport.co/platform/master-data/jobs) |
 | 对象关系 | [https://sinoport.co/platform/master-data/relationships](https://sinoport.co/platform/master-data/relationships) |
-| 审计中心 | [https://sinoport.co/platform/audit](https://sinoport.co/platform/audit) |
+| 审计与可信留痕 | [https://sinoport.co/platform/audit](https://sinoport.co/platform/audit) |
 | 审计事件明细 | [https://sinoport.co/platform/audit/events](https://sinoport.co/platform/audit/events) |
 | 可信留痕占位 | [https://sinoport.co/platform/audit/trust](https://sinoport.co/platform/audit/trust) |
 | 平台报表 | [https://sinoport.co/platform/reports](https://sinoport.co/platform/reports) |
@@ -136,7 +138,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 说明：
 
 - 当前平台侧默认入口已切换为“运行态势中心”。
-- 平台端已经从早期 `货站管理 / 航线网络 / 规则中心 / 审计中心` 扩展成完整的 v1.0 demo 菜单结构。
+- 平台端已经从早期 `货站管理 / 航线网络 / 规则中心 / 审计中心` 扩展成完整的 v1.0 demo 菜单结构，当前正式口径分别为 `货站与资源管理 / 航线网络与链路配置 / 规则与指令引擎 / 审计与可信留痕`。
 
 ### 7.2 货站后台
 
@@ -156,10 +158,10 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 | 一级菜单 | 当前二级菜单 |
 | --- | --- |
-| 进港管理 | 看板、航班管理、手机理货、提单管理 |
-| 出港管理 | 看板、航班管理、提单管理 |
+| 进港管理 | 总览、航班管理、PDA 作业终端、提单管理 |
+| 出港管理 | 总览、航班管理、提单管理 |
 | 资源管理 | 班组、区位、设备、车辆 |
-| 单证与指令中心 | 文件中心、NOA、POD |
+| 单证与指令中心 | 单证总览、NOA、POD |
 | 货站报表 | KPI 总览、班次报表 |
 
 当前线上入口：
@@ -172,7 +174,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 | 进港新建航班 | [https://sinoport.co/station/inbound/flights/new](https://sinoport.co/station/inbound/flights/new) |
 | 进港航班详情样例 | [https://sinoport.co/station/inbound/flights/SE803](https://sinoport.co/station/inbound/flights/SE803) |
 | 进港提单管理 | [https://sinoport.co/station/inbound/waybills](https://sinoport.co/station/inbound/waybills) |
-| 手机理货入口 | [https://sinoport.co/station/inbound/mobile](https://sinoport.co/station/inbound/mobile) |
+| PDA 作业终端入口 | [https://sinoport.co/station/inbound/mobile](https://sinoport.co/station/inbound/mobile) |
 | 出港管理看板 | [https://sinoport.co/station/outbound](https://sinoport.co/station/outbound) |
 | 出港航班管理 | [https://sinoport.co/station/outbound/flights](https://sinoport.co/station/outbound/flights) |
 | 出港提单管理 | [https://sinoport.co/station/outbound/waybills](https://sinoport.co/station/outbound/waybills) |
@@ -310,7 +312,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 - 异常分类是否足够覆盖实际业务
 - 接口治理是否需要单独成模块
 
-### 10.4 审计中心
+### 10.4 审计与可信留痕
 
 当前已实现内容：
 
@@ -326,7 +328,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 当前线上入口：
 
-- 审计中心：[https://sinoport.co/platform/audit](https://sinoport.co/platform/audit)
+- 审计与可信留痕：[https://sinoport.co/platform/audit](https://sinoport.co/platform/audit)
 - 审计事件明细：[https://sinoport.co/platform/audit/events](https://sinoport.co/platform/audit/events)
 - 可信留痕占位：[https://sinoport.co/platform/audit/trust](https://sinoport.co/platform/audit/trust)
 
@@ -374,7 +376,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 当前客户需确认：
 
-- 进港看板是否还需要“待上传 POD”区块
+- 进港总览是否还需要“待上传 POD”区块
 - 状态流节点是否要继续细分
 
 ### 12.2 进港管理 / 航班管理
@@ -432,11 +434,11 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 - 航班详情是否还需要二次转运明细
 - 是否需要操作日志与时间轴
 
-### 12.5 进港管理 / 手机理货
+### 12.5 进港管理 / PDA 作业终端
 
 当前已实现内容：
 
-- 桌面端已提供进入“手机理货”页面的入口
+- 桌面端已提供进入“PDA 作业终端”页面的入口
 - 已实现独立移动端作业原型，覆盖：
   - 登录
   - 选择执行节点
@@ -458,7 +460,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 当前客户需确认：
 
-- 手机理货是否作为一期正式范围
+- PDA 作业终端是否作为一期正式范围
 - 现场是否以扫码为主，还是人工点数为主
 - 托盘、装车计划、装车执行是否符合一线流程
 
@@ -481,7 +483,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 ## 13. 出港管理 PRD
 
-### 13.1 出港管理 / 看板
+### 13.1 出港管理 / 总览
 
 当前已实现内容：
 
@@ -500,7 +502,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 说明：
 
-- 当前出港看板已经把“预报、接收、主单、装载、Manifest”拆成多个区块展示。
+- 当前出港总览已经把“预报、接收、主单、装载、Manifest”拆成多个区块展示。
 
 当前客户需确认：
 
@@ -540,11 +542,11 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 - 提单页是否需要支持批量打印
 - 是否需要增加目的港回传对账状态
 
-## 14. 文件中心 PRD
+## 14. 单证与指令中心 PRD
 
 当前已实现内容：
 
-- 文件中心列表页
+- 单证总览列表页
 - 类型：`FFM / UWS / Manifest / MAWB / POD`
 - 展示文件名、关联对象、版本、更新时间、状态
 - 预览、生效版本、替换、回退、对象绑定
@@ -553,7 +555,7 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 当前线上入口：
 
-- 文件中心：[https://sinoport.co/station/documents](https://sinoport.co/station/documents)
+- 单证与指令中心：[https://sinoport.co/station/documents](https://sinoport.co/station/documents)
 - `NOA`：[https://sinoport.co/station/documents/noa](https://sinoport.co/station/documents/noa)
 - `POD`：[https://sinoport.co/station/documents/pod](https://sinoport.co/station/documents/pod)
 
@@ -586,10 +588,10 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 | 样本 | 当前对应模块 | 当前用途 |
 | --- | --- | --- |
-| `SE913FFM报文2026.04.01.docx` | 出港看板 / 提单管理 | 货物预报 |
-| `SE913 01APR UWS.xlsx` | 出港看板 | 装载信息 |
-| `SE600 MANIFEST 01APR.pdf` | 出港看板 / Manifest | 舱单展示 |
-| `436-10358585-主单套打模板.xlsx` | 出港看板 / 提单管理 | 主单信息 |
+| `SE913FFM报文2026.04.01.docx` | 出港总览 / 提单管理 | 货物预报 |
+| `SE913 01APR UWS.xlsx` | 出港总览 | 装载信息 |
+| `SE600 MANIFEST 01APR.pdf` | 出港总览 / Manifest | 舱单展示 |
+| `436-10358585-主单套打模板.xlsx` | 出港总览 / 提单管理 | 主单信息 |
 
 ## 17. 当前未实现但仍在规划中的模块
 
@@ -609,11 +611,11 @@ Sinoport 的定位不是传统货运工具，也不是脱离现场的通用 SaaS
 
 1. 平台管理后台的菜单结构是否合理，是否还需要“平台总览”。
 2. 货站后台是否接受“一级看板 + 二级操作菜单”的结构。
-3. 进港管理中，是否保留“手机理货”为一期范围。
+3. 进港管理中，是否保留“PDA 作业终端”为一期范围。
 4. 进港航班管理、提单管理的字段和操作按钮是否符合现场使用习惯。
 5. 出港页面中，`FFM / 主单 / UWS / Manifest` 的拆分方式是否合理。
 6. Manifest 页面是否需要更强的目的港对账表达。
-7. 文件中心和异常中心是否需要更多动作能力，而不是只看列表。
+7. 单证与指令中心和异常中心是否需要更多动作能力，而不是只看列表。
 
 ## 19. 下一阶段开发建议
 

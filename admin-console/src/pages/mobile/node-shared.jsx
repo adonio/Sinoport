@@ -201,6 +201,11 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
       <TaskOpsPanel
         scopeKey={`node-${flowKey}-${itemId}`}
         currentLabel={detail.title}
+        contextChips={[`节点 ${detail.node}`, `角色 ${roleView.label}`, `SLA ${detail.sla}`]}
+        quickLinks={[
+          { label: '返回列表', variant: 'outlined', onClick: () => navigate(backPath) },
+          { label: '节点选择', variant: 'outlined', onClick: () => navigate('/mobile/select') }
+        ]}
         onSuspend={() => setCurrentState((prev) => ({ ...prev, status: '暂时挂起', note: `${detail.title} 已挂起。` }))}
         onRecover={() => setCurrentState((prev) => ({ ...prev, status: detail.status, note: `${detail.title} 已恢复。` }))}
       />

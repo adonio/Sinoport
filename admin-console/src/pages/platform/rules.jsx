@@ -1,6 +1,7 @@
 import Accordion from '@mui/material/Accordion';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import AccordionSummary from '@mui/material/AccordionSummary';
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -12,6 +13,7 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
+import { Link as RouterLink } from 'react-router-dom';
 
 import DownOutlined from '@ant-design/icons/DownOutlined';
 
@@ -30,6 +32,19 @@ export default function PlatformRulesPage() {
           title="规则与指令引擎"
           description="规则与指令引擎统一维护服务等级、硬门槛、任务生成规则、证据要求和标准场景编排，确保平台与货站遵循同一状态机逻辑。"
           chips={['P1/P2/P3', 'Hard Gates', 'Task Templates', 'Evidence Policy', 'Scenario Timeline']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/network/scenarios" variant="outlined">
+                标准场景
+              </Button>
+              <Button component={RouterLink} to="/platform/master-data/relationships" variant="outlined">
+                对象关系
+              </Button>
+              <Button component={RouterLink} to="/platform/audit" variant="outlined">
+                审计与可信留痕
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

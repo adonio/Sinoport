@@ -47,9 +47,17 @@ export default function StationInboundFlightCreatePage() {
           description="创建新的进港航班记录，录入航班号、来源，以及最基础的 ETA / ETD 信息。"
           chips={['ETA', 'ETD', '航班号', '来源']}
           action={
-            <Button component={RouterLink} to="/station/inbound/flights" variant="outlined">
-              返回航班列表
-            </Button>
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/station/inbound/flights" variant="outlined">
+                航班列表
+              </Button>
+              <Button component={RouterLink} to="/station/inbound/waybills" variant="outlined">
+                提单管理
+              </Button>
+              <Button component={RouterLink} to="/station/inbound/mobile" variant="outlined">
+                PDA 作业终端
+              </Button>
+            </Stack>
           }
         />
       </Grid>

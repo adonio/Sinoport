@@ -1,4 +1,6 @@
+import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -9,6 +11,7 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { platformStationCapabilityRows } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformStationsCapabilitiesPage() {
   return (
@@ -19,6 +22,16 @@ export default function PlatformStationsCapabilitiesPage() {
           title="货站能力矩阵"
           description="以站点能力、SLA、控制深度和当前风险为主视角展示平台侧的货站能力矩阵。"
           chips={['Capabilities', 'SLA', 'Control Level', 'Readiness']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/stations" variant="outlined">
+                返回站点总览
+              </Button>
+              <Button component={RouterLink} to="/platform/stations/teams" variant="outlined">
+                班组映射
+              </Button>
+            </Stack>
+          }
         />
       </Grid>
 

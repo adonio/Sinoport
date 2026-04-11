@@ -11,12 +11,28 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { importJobRows } from 'data/sinoport-adapters';
+import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformMasterDataJobsPage() {
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
-        <PageHeader eyebrow="Import Jobs" title="导入任务日志" description="展示第二批接口导入、解析失败、重试和人工补录的模拟任务日志。" chips={['Import Jobs', 'Retry', 'Fallback']} />
+        <PageHeader
+          eyebrow="Import Jobs"
+          title="导入任务日志"
+          description="展示第二批接口导入、解析失败、重试和人工补录的模拟任务日志。"
+          chips={['Import Jobs', 'Retry', 'Fallback']}
+          action={
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to="/platform/master-data/sync" variant="outlined">
+                同步看板
+              </Button>
+              <Button component={RouterLink} to="/platform/audit/events" variant="outlined">
+                审计事件
+              </Button>
+            </Stack>
+          }
+        />
       </Grid>
       <Grid size={12}>
         <MainCard title="导入日志">

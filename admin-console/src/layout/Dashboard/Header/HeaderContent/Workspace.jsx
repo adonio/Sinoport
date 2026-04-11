@@ -12,7 +12,7 @@ import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // project imports
 import Transitions from 'components/@extended/Transitions';
@@ -41,10 +41,16 @@ export default function Workspace() {
   const downSM = useMediaQuery((theme) => theme.breakpoints.down('sm'));
   const downMD = useMediaQuery((theme) => theme.breakpoints.down('md'));
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const anchorRef = useRef(null);
   const [open, setOpen] = useState(false);
-  const [workspace, setWorkspace] = useState(workspaceData[0]);
+  const workspace =
+    workspaceData.find((item) => {
+      if (item.path?.startsWith('/platform')) return pathname.startsWith('/platform');
+      if (item.path?.startsWith('/station')) return pathname.startsWith('/station');
+      return pathname === item.path;
+    }) || workspaceData[0];
 
   const handleToggle = () => {
     setOpen((prevOpen) => !prevOpen);
@@ -58,7 +64,6 @@ export default function Workspace() {
   };
 
   const onWorkspaceChange = (newValue) => {
-    setWorkspace(newValue);
     setOpen(false);
     if (newValue.path) navigate(newValue.path);
   };
