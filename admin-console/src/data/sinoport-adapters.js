@@ -1167,6 +1167,42 @@ export function getStationDocument(documentId) {
   return stationDocumentRows.find((item) => item.documentId === documentId) || stationDocumentRows[0];
 }
 
+export const stationCapabilityColumns = [
+  { key: 'preWarehouse', label: '前置仓', note: '支持前置仓收货、建单与出仓交接。' },
+  { key: 'outboundTerminal', label: '出港货站', note: '支持收货、理货、组板与站内放行。' },
+  { key: 'outboundRamp', label: '出港机坪', note: '支持机坪转运、Loaded 确认与飞走前控制。' },
+  { key: 'inboundHandling', label: '进港货站', note: '支持拆板、理货、NOA 与二次转运。' },
+  { key: 'tailhaulDelivery', label: '尾程交付', note: '支持装车、发车、签收与交付闭环。' },
+  { key: 'documentFlow', label: '单证链', note: '支持文件版本、门槛校验与动作留痕。' }
+];
+
+const capabilityStatusPatterns = [
+  {
+    preWarehouse: 'yes',
+    outboundTerminal: 'yes',
+    outboundRamp: 'building',
+    inboundHandling: 'yes',
+    tailhaulDelivery: 'yes',
+    documentFlow: 'yes'
+  },
+  {
+    preWarehouse: 'no',
+    outboundTerminal: 'building',
+    outboundRamp: 'no',
+    inboundHandling: 'yes',
+    tailhaulDelivery: 'building',
+    documentFlow: 'yes'
+  },
+  {
+    preWarehouse: 'yes',
+    outboundTerminal: 'yes',
+    outboundRamp: 'yes',
+    inboundHandling: 'building',
+    tailhaulDelivery: 'no',
+    documentFlow: 'building'
+  }
+];
+
 export const platformStationCapabilityRows = stationCatalog.map((station, index) => ({
   code: station.code,
   name: station.name,
@@ -1174,7 +1210,7 @@ export const platformStationCapabilityRows = stationCatalog.map((station, index)
   control: station.control,
   phase: station.phase,
   promise: index % 2 === 0 ? '48-72h' : '72-96h',
-  capabilities: index % 2 === 0 ? '收货、组板、NOA、POD' : '进港 handling、对账、转运',
+  capabilityMatrix: capabilityStatusPatterns[index % capabilityStatusPatterns.length],
   risk: index % 3 === 0 ? '待确认异常字典' : index % 3 === 1 ? '设备映射不完整' : '站点 SLA 待冻结'
 }));
 
@@ -1328,6 +1364,86 @@ export const stationVehicleRows = [
   { tripId: 'TRIP-URC-002', plate: 'URC-TRK-205', driver: 'L. Wang', collectionNote: 'CN-URC-002', stage: '在途', status: '运行中' },
   { tripId: 'TRIP-MME-018', plate: 'MME-6271', driver: 'J. Kramer', collectionNote: 'CN-MME-018', stage: '待签收', status: '警戒' }
 ];
+
+export const OFFICE_TRIP_STORAGE_KEY = 'sinoport-office-trip-plans-v1';
+
+export const DEFAULT_OFFICE_TRIP_PLANS = [
+  {
+    tripId: 'TRIP-URC-001',
+    flowKey: 'headhaul',
+    route: 'URC -> 出港货站',
+    plate: 'URC-TRK-101',
+    driver: 'H. Zhao',
+    collectionNote: 'CN-URC-001',
+    stage: '待发车',
+    status: '待处理',
+    priority: 'P1',
+    sla: '收货完成后 20 分钟',
+    awbs: ['436-10358585', '436-10359044', '436-10359218'],
+    pallets: [],
+    officePlan: '后台已锁定发车窗口 18:20，CMR 已生成。',
+    pdaExec: '司机到场确认、发车、到站交接'
+  },
+  {
+    tripId: 'TRIP-URC-002',
+    flowKey: 'headhaul',
+    route: 'URC -> 出港货站',
+    plate: 'URC-TRK-205',
+    driver: 'L. Wang',
+    collectionNote: 'CN-URC-002',
+    stage: '在途',
+    status: '运行中',
+    priority: 'P2',
+    sla: '在途回传每 30 分钟',
+    awbs: ['436-10359301', '436-10359512'],
+    pallets: [],
+    officePlan: '后台已下发到站窗口 19:30。',
+    pdaExec: '在途回传、到站交接'
+  },
+  {
+    tripId: 'TAIL-001',
+    flowKey: 'tailhaul',
+    route: 'MME -> Delivery',
+    plate: 'MME-6271',
+    driver: 'J. Kramer',
+    collectionNote: 'CN-MME-018',
+    stage: '待发车',
+    status: '待处理',
+    priority: 'P1',
+    sla: '车辆到场后 15 分钟',
+    awbs: ['436-10358585'],
+    pallets: ['SE803-PLT-1101', 'SE803-PLT-1102', 'SE803-PLT-1103'],
+    officePlan: '后台已预排 Delivery 窗口与签收要求。',
+    pdaExec: '装车复核、发车、签收回传'
+  },
+  {
+    tripId: 'TAIL-002',
+    flowKey: 'tailhaul',
+    route: 'MME -> Delivery',
+    plate: 'MME-5198',
+    driver: 'L. Chen',
+    collectionNote: 'CN-MME-014',
+    stage: '在途',
+    status: '运行中',
+    priority: 'P2',
+    sla: '在途回传每 20 分钟',
+    awbs: ['436-10357944'],
+    pallets: ['SE803-PLT-1008', 'SE803-PLT-1009'],
+    officePlan: '后台已确认交付窗口与交接文件要求。',
+    pdaExec: '在途回传、补交接文件、交付'
+  }
+];
+
+export function readOfficeTripPlans() {
+  if (typeof window === 'undefined') return DEFAULT_OFFICE_TRIP_PLANS;
+
+  try {
+    const raw = window.localStorage.getItem(OFFICE_TRIP_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : DEFAULT_OFFICE_TRIP_PLANS;
+  } catch {
+    return DEFAULT_OFFICE_TRIP_PLANS;
+  }
+}
 
 export const stationReportCards = [
   { title: '12 小时完成率', value: '91%', helper: '按样板链路统计从落地到交付的闭环效率', chip: '12H', color: 'primary' },
@@ -1493,37 +1609,24 @@ export const roleTaskViews = {
   }
 };
 
-function inferRoleActionType(label) {
-  if (label.includes('扫码') || label.includes('录入') || label.includes('追加')) return 'scan';
-  if (label.includes('签')) return 'sign';
-  if (label.includes('上传')) return 'upload-evidence';
-  if (label.includes('挂起')) return 'suspend';
-  if (label.includes('异常')) return 'exception';
-  if (label.includes('完成') || label.includes('关闭') || label.includes('归档')) return 'complete';
-  return 'confirm';
-}
-
 export function getMobileRoleView(roleKey) {
   return roleTaskViews[roleKey] || roleTaskViews.supervisor;
 }
 
 export function isMobileRoleAllowed(roleKey, taskRole) {
-  return getMobileRoleView(roleKey).taskRoles.includes(taskRole);
+  return true;
 }
 
 export function isMobileTabAllowed(roleKey, domain, tabKey) {
-  const roleView = getMobileRoleView(roleKey);
-  const visibleTabs = domain === 'inbound' ? roleView.inboundTabs : roleView.outboundTabs;
-  return visibleTabs.includes(tabKey);
+  return true;
 }
 
 export function isMobileFlowAllowed(roleKey, flowKey) {
-  return getMobileRoleView(roleKey).flowKeys.includes(flowKey);
+  return true;
 }
 
 export function filterMobileActionsByRole(roleKey, actions = []) {
-  const allowedTypes = getMobileRoleView(roleKey).actionTypes;
-  return actions.filter((action) => allowedTypes.includes(inferRoleActionType(action.label)));
+  return actions;
 }
 
 export const mobileNodeOptions = [
@@ -1667,7 +1770,13 @@ const mobileFlowCatalog = {
           { label: '车牌', value: 'URC-TRK-101' },
           { label: '司机', value: 'H. Zhao' },
           { label: 'CMR', value: 'CMR-URC-001' },
+          { label: '预报提单数', value: '3 票' },
           { label: '当前状态', value: '待发车' }
+        ],
+        forecastWaybills: [
+          { awb: '436-10358585', consignee: 'SMDG LOGISTICS', pieces: '50', weight: '700 kg' },
+          { awb: '436-10359044', consignee: 'MME FASHION HUB', pieces: '68', weight: '1,028 kg' },
+          { awb: '436-10359218', consignee: 'MME ACCESSORY BV', pieces: '42', weight: '756 kg' }
         ],
         records: ['Collection Note 已完成', '司机到场', '出发后进入在途']
       },
@@ -1686,7 +1795,12 @@ const mobileFlowCatalog = {
           { label: '车牌', value: 'URC-TRK-205' },
           { label: '司机', value: 'L. Wang' },
           { label: 'CMR', value: 'CMR-URC-002' },
+          { label: '预报提单数', value: '2 票' },
           { label: '当前状态', value: '在途' }
+        ],
+        forecastWaybills: [
+          { awb: '436-10359301', consignee: 'MME ECOM DC', pieces: '36', weight: '612 kg' },
+          { awb: '436-10359512', consignee: 'MST TEXTILE BV', pieces: '64', weight: '960 kg' }
         ],
         records: ['已发车 35 分钟', '预计 20 分钟后到站']
       }
@@ -1717,6 +1831,12 @@ const mobileFlowCatalog = {
           { label: 'Manifest', value: '待冻结' },
           { label: 'UWS', value: '已接收' }
         ],
+        positionOptions: ['11L', '11R', '13L', '13R', '14P', '15C'],
+        uldAssignments: [
+          { uld: 'ULD91001', pieces: '31 箱', weight: '2,180.5 kg', destination: 'MST', position: '' },
+          { uld: 'ULD91002', pieces: '14 箱', weight: '840.2 kg', destination: 'MST', position: '13L' },
+          { uld: 'PMC81793YD', pieces: '12 箱', weight: '904.0 kg', destination: 'MST', position: '' }
+        ],
         records: ['待上传 Loaded 照片', '待独立复核签名']
       },
       URO913: {
@@ -1735,6 +1855,11 @@ const mobileFlowCatalog = {
           { label: 'ETD', value: '01:20' },
           { label: 'Manifest', value: '待回传' },
           { label: 'UWS', value: '运行中' }
+        ],
+        positionOptions: ['21L', '21R', '22P'],
+        uldAssignments: [
+          { uld: 'ULD93001', pieces: '18 箱', weight: '1,050.0 kg', destination: 'LGG', position: '21L' },
+          { uld: 'ULD93002', pieces: '10 箱', weight: '620.0 kg', destination: 'LGG', position: '' }
         ],
         records: ['已完成 2 个 ULD 绑定', '剩余 1 个 ULD 待复核']
       }
@@ -1765,6 +1890,23 @@ const mobileFlowCatalog = {
           { label: '链路', value: 'URC -> MME / MST' },
           { label: '当前口径', value: '只读确认 + 异常上报' }
         ],
+        flightInfoRows: [
+          { label: '航班号', value: 'SE913' },
+          { label: '方向', value: '出港' },
+          { label: 'Runtime', value: 'Airborne' },
+          { label: '航线', value: 'URC -> MME / MST' },
+          { label: 'ETD', value: '23:00' },
+          { label: '机型', value: 'B747-400F' },
+          { label: '当前阶段', value: '装载中' },
+          { label: '货量', value: '26 AWB / 1,396 pcs / 24,452 kg' },
+          { label: 'Manifest', value: '待生成' },
+          { label: 'UWS', value: '已接收' }
+        ],
+        flightDocuments: [
+          { title: 'FFM', description: 'SE913-FFM-08APR.docx', status: '运行中', meta: '18:22 已完成结构化导入' },
+          { title: 'UWS', description: 'SE913-UWS-08APR.xlsx', status: '运行中', meta: '18:34 已接收，可用于 Loaded 对账' },
+          { title: 'Manifest', description: 'SE913-MANIFEST-08APR.pdf', status: '待生成', meta: '最终版未冻结，仍阻断机坪放行' }
+        ],
         records: ['起飞时间待确认', '异常则升级到 Platform Ops']
       },
       SE803: {
@@ -1783,6 +1925,22 @@ const mobileFlowCatalog = {
           { label: 'Runtime', value: 'Landed' },
           { label: '链路', value: 'Flight -> MME' },
           { label: '当前口径', value: '只读确认 + 异常上报' }
+        ],
+        flightInfoRows: [
+          { label: '航班号', value: 'SE803' },
+          { label: '方向', value: '进港' },
+          { label: 'Runtime', value: 'Landed' },
+          { label: '来源', value: 'MING PAO CANADA' },
+          { label: '目的站', value: 'MME' },
+          { label: 'ETA', value: '19:05' },
+          { label: 'ETD', value: '17:40' },
+          { label: '机型', value: 'B767-300F' },
+          { label: '当前阶段', value: '拆板中' },
+          { label: '货量', value: '214 pcs / 3,860 kg' }
+        ],
+        flightDocuments: [
+          { title: 'CBA', description: 'SE803-CBA-v2.pdf', status: '警戒', meta: '最终版待上传，拆板任务仅可预排' },
+          { title: 'Manifest', description: 'SE803 MANIFEST 08APR.pdf', status: '运行中', meta: '已生效，可继续目的站准备' }
         ],
         records: ['Landed 后允许进入目的站准备', '异常则阻断后续节点']
       }
@@ -1813,6 +1971,20 @@ const mobileFlowCatalog = {
           { label: '机坪状态', value: '待放行' },
           { label: '目标站点', value: 'MME' }
         ],
+        unloadTasks: [
+          {
+            position: '11L',
+            uld: 'PMC70018R7',
+            cargo: '436-10358585 / 436-10354363',
+            requirement: '先拆网并复核板号，再按 MME inbound belt-01 顺序卸载。'
+          },
+          {
+            position: '13R',
+            uld: 'PMC54062R7',
+            cargo: '436-10359018',
+            requirement: '优先转入异常复核区，卸载完成后立即回填到港时间。'
+          }
+        ],
         records: ['落地已确认', '机坪交接待完成']
       },
       SE681: {
@@ -1831,6 +2003,14 @@ const mobileFlowCatalog = {
           { label: 'ETA', value: '19:20' },
           { label: '机坪状态', value: '已接机' },
           { label: '目标站点', value: 'MME' }
+        ],
+        unloadTasks: [
+          {
+            position: '12L',
+            uld: 'ULD68101',
+            cargo: '436-10360018 / 436-10360027',
+            requirement: '按 12L 机位先卸高优货，再回收空板并提交交接记录。'
+          }
         ],
         records: ['接机已完成', '待填写放行人']
       }
@@ -1935,15 +2115,58 @@ const mobileFlowCatalog = {
 };
 
 export function getMobileNodeFlow(flowKey) {
+  if (flowKey === 'headhaul' || flowKey === 'tailhaul') {
+    const officePlans = readOfficeTripPlans().filter((item) => item.flowKey === flowKey);
+
+    return {
+      listTitle: flowKey === 'headhaul' ? '头程卡车 Trip' : '尾程装车 Trip',
+      detailTitle: flowKey === 'headhaul' ? '头程卡车任务' : '尾程装车与运输任务',
+      list: officePlans.map((item) => ({
+        id: item.tripId,
+        title: item.tripId,
+        subtitle: `${item.route} / 车牌 ${item.plate}`,
+        status: item.stage,
+        priority: item.priority
+      })),
+      details: Object.fromEntries(
+        officePlans.map((item) => [
+          item.tripId,
+          {
+            title: item.tripId,
+            node: flowKey === 'headhaul' ? '头程卡车运输' : '尾程卡车装车与运输',
+            role: 'Loading Coordinator',
+            status: item.stage,
+            priority: item.priority,
+            sla: item.sla,
+            description: flowKey === 'headhaul' ? '按后台预排 Trip 执行头程发车与到站交接。' : '按后台预排 Trip 执行尾程装车、发车与交付。',
+            evidence: ['司机 / 车牌', 'Collection Note', '交接记录'],
+            blockers: ['后台未排好 Trip、车牌、司机、Collection Note 时不得开始执行。'],
+            actions: flowKey === 'headhaul'
+              ? [{ label: '确认 CMR', variant: 'contained' }, { label: '发车' }, { label: '到站交接' }]
+              : [{ label: '完成装车复核', variant: 'contained' }, { label: '发车' }, { label: '补交接文件' }],
+            summaryRows: [
+              { label: '车牌', value: item.plate },
+              { label: '司机', value: item.driver },
+              { label: 'Collection Note', value: item.collectionNote },
+              { label: '预排货物', value: `${item.awbs.length} 票 / ${item.pallets.length} 托盘` }
+            ],
+            forecastWaybills: item.awbs.map((awb) => ({ awb, consignee: 'Office Planned', pieces: '-', weight: '-' })),
+            records: [item.officePlan, item.pdaExec]
+          }
+        ])
+      )
+    };
+  }
+
   return mobileFlowCatalog[flowKey];
 }
 
 export function getMobileNodeItems(flowKey) {
-  return mobileFlowCatalog[flowKey]?.list || [];
+  return getMobileNodeFlow(flowKey)?.list || [];
 }
 
 export function getMobileNodeDetail(flowKey, itemId) {
-  const flow = mobileFlowCatalog[flowKey];
+  const flow = getMobileNodeFlow(flowKey);
   return flow?.details?.[itemId] || null;
 }
 

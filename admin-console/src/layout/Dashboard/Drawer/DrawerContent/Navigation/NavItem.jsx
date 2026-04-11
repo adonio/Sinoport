@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import { Link, useLocation, matchPath } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 // material-ui
 import { useColorScheme } from '@mui/material/styles';
@@ -22,6 +22,7 @@ import { FormattedMessage } from 'react-intl';
 import { MenuOrientation, ThemeMode, NavActionType } from 'config';
 import useConfig from 'hooks/useConfig';
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
+import { isActiveMenuItem } from 'utils/menuMatch';
 
 // ==============================|| NAVIGATION - LIST ITEM ||============================== //
 
@@ -59,7 +60,7 @@ export default function NavItem({ item, level, isParents = false, setSelectedID 
   );
 
   const { pathname } = useLocation();
-  const isSelected = !!matchPath({ path: item?.link ? item.link : item.url, end: item?.matchPrefix ? false : true }, pathname);
+  const isSelected = isActiveMenuItem(item, pathname);
 
   const textColor = colorScheme === ThemeMode.DARK ? 'grey.400' : 'text.primary';
   const iconSelectedColor = colorScheme === ThemeMode.DARK && drawerOpen ? 'text.primary' : 'primary.main';

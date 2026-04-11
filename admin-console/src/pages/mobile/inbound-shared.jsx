@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import JsBarcode from 'jsbarcode';
 
 import Box from '@mui/material/Box';
@@ -11,15 +11,12 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import LinearProgress from '@mui/material/LinearProgress';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import BarcodeOutlined from '@ant-design/icons/BarcodeOutlined';
-import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
 import CarOutlined from '@ant-design/icons/CarOutlined';
-import InboxOutlined from '@ant-design/icons/InboxOutlined';
 import PlusOutlined from '@ant-design/icons/PlusOutlined';
 import PrinterOutlined from '@ant-design/icons/PrinterOutlined';
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
@@ -30,10 +27,10 @@ import StatusChip from 'components/sinoport/StatusChip';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import { inboundFlightWaybillDetails, inboundFlights } from 'data/sinoport';
-import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed, isMobileTabAllowed } from 'data/sinoport-adapters';
+import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
 import { useLocalStorage } from 'hooks/useLocalStorage';
 import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
-import { localizeMobileText, readMobileLanguage, t } from 'utils/mobile/i18n';
+import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
 export const defaultTask = {
@@ -59,6 +56,12 @@ export function normalizeCode(value) {
 
 function compactCode(value) {
   return normalizeCode(value).replace(/[^A-Z0-9]/g, '');
+}
+
+function derivePalletStorageLocation(palletNo, index = 0) {
+  if (!palletNo) return `MME-STAGE-${String(index + 1).padStart(2, '0')}`;
+  const suffix = palletNo.replace(/[^0-9]/g, '').slice(-2) || String(index + 1).padStart(2, '0');
+  return `MME-STAGE-${suffix}`;
 }
 
 export function stationKeyOf(session) {
@@ -178,9 +181,9 @@ const DEFAULT_LOADING_PLANS = [
     checker: 'Checker A',
     arrivalTime: '2026-04-07T18:20',
     departTime: '',
-    pallets: [],
-    totalBoxes: 0,
-    totalWeight: 0,
+    pallets: ['SE803-PLT-1301', 'SE803-PLT-1302'],
+    totalBoxes: 36,
+    totalWeight: 812.4,
     status: '计划',
     createdAt: '2026-04-07T17:50:00.000Z'
   },
@@ -230,9 +233,9 @@ const DEFAULT_LOADING_PLANS = [
     checker: 'Checker D',
     arrivalTime: '2026-04-07T19:05',
     departTime: '',
-    pallets: [],
-    totalBoxes: 0,
-    totalWeight: 0,
+    pallets: ['SE803-PLT-1401'],
+    totalBoxes: 18,
+    totalWeight: 402.6,
     status: '计划',
     createdAt: '2026-04-07T18:35:00.000Z'
   },
@@ -273,6 +276,145 @@ const DEFAULT_LOADING_PLANS = [
   }
 ];
 
+const DEFAULT_INBOUND_PALLETS = [
+  {
+    palletNo: 'SE803-PLT-1301',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-11',
+    entries: [
+      { awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 10, weightKg: 140.0 },
+      { awb: '436-10359018', consignee: 'MME Hub', boxes: 8, weightKg: 280.4 }
+    ],
+    printed: true,
+    totalWeightKg: 420.4,
+    totalBoxes: 18,
+    status: '待装车',
+    printQueuedAt: '2026-04-07T17:48:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1302',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-12',
+    entries: [
+      { awb: '436-10354363', consignee: 'LGG Transfer', boxes: 18, weightKg: 392.0 }
+    ],
+    printed: true,
+    totalWeightKg: 392.0,
+    totalBoxes: 18,
+    status: '待装车',
+    printQueuedAt: '2026-04-07T17:52:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1201',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-21',
+    entries: [{ awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 14, weightKg: 196.0 }],
+    printed: true,
+    totalWeightKg: 196.0,
+    totalBoxes: 14,
+    status: '待装车',
+    printQueuedAt: '2026-04-07T18:05:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1202',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-22',
+    entries: [{ awb: '436-10359018', consignee: 'MME Hub', boxes: 14, weightKg: 446.5 }],
+    printed: true,
+    totalWeightKg: 446.5,
+    totalBoxes: 14,
+    status: '待装车',
+    printQueuedAt: '2026-04-07T18:09:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1101',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-31',
+    entries: [{ awb: '436-10354363', consignee: 'LGG Transfer', boxes: 16, weightKg: 348.0 }],
+    printed: true,
+    totalWeightKg: 348.0,
+    totalBoxes: 16,
+    status: '待装车',
+    loadedPlate: 'HX-TRK-318',
+    loadedAt: '2026-04-07T18:05:00.000Z',
+    printQueuedAt: '2026-04-07T16:42:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1102',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-32',
+    entries: [{ awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 15, weightKg: 210.0 }],
+    printed: true,
+    totalWeightKg: 210.0,
+    totalBoxes: 15,
+    status: '待装车',
+    loadedPlate: 'HX-TRK-318',
+    loadedAt: '2026-04-07T18:05:00.000Z',
+    printQueuedAt: '2026-04-07T16:44:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1103',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-33',
+    entries: [{ awb: '436-10359018', consignee: 'MME Hub', boxes: 15, weightKg: 480.2 }],
+    printed: true,
+    totalWeightKg: 480.2,
+    totalBoxes: 15,
+    status: '待装车',
+    loadedPlate: 'HX-TRK-318',
+    loadedAt: '2026-04-07T18:05:00.000Z',
+    printQueuedAt: '2026-04-07T16:46:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1401',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-41',
+    entries: [{ awb: '436-10354363', consignee: 'LGG Transfer', boxes: 18, weightKg: 402.6 }],
+    printed: true,
+    totalWeightKg: 402.6,
+    totalBoxes: 18,
+    status: '待装车',
+    printQueuedAt: '2026-04-07T18:33:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1203',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-23',
+    entries: [{ awb: '436-10359018', consignee: 'MME Hub', boxes: 12, weightKg: 288.4 }],
+    printed: true,
+    totalWeightKg: 288.4,
+    totalBoxes: 12,
+    status: '待装车',
+    printQueuedAt: '2026-04-07T18:47:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1008',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-08',
+    entries: [{ awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 16, weightKg: 352.0 }],
+    printed: true,
+    totalWeightKg: 352.0,
+    totalBoxes: 16,
+    status: '待装车',
+    loadedPlate: 'HX-TRK-608',
+    loadedAt: '2026-04-07T17:20:00.000Z',
+    printQueuedAt: '2026-04-07T15:53:00.000Z'
+  },
+  {
+    palletNo: 'SE803-PLT-1009',
+    flightNo: 'SE803',
+    storageLocation: 'MME-STAGE-09',
+    entries: [{ awb: '436-10354363', consignee: 'LGG Transfer', boxes: 15, weightKg: 354.9 }],
+    printed: true,
+    totalWeightKg: 354.9,
+    totalBoxes: 15,
+    status: '待装车',
+    loadedPlate: 'HX-TRK-608',
+    loadedAt: '2026-04-07T17:20:00.000Z',
+    printQueuedAt: '2026-04-07T15:56:00.000Z'
+  }
+];
+
 export function getInboundFlight(flightNo) {
   return inboundFlights.find((item) => item.flightNo === flightNo) || null;
 }
@@ -301,7 +443,18 @@ export function useInboundStorage() {
   const session = readMobileSession();
   const stationKey = stationKeyOf(session);
   const counts = useLocalStorage(`sinoport-mobile-inbound-counts-${stationKey}`, {});
-  const pallets = useLocalStorage(`sinoport-mobile-inbound-pallets-${stationKey}`, []);
+  const pallets = useLocalStorage(`sinoport-mobile-inbound-pallets-${stationKey}`, DEFAULT_INBOUND_PALLETS);
+
+  useEffect(() => {
+    const current = Array.isArray(pallets.state) ? pallets.state : [];
+    const missingDefaults = DEFAULT_INBOUND_PALLETS.filter(
+      (seed) => !current.some((item) => item.palletNo === seed.palletNo && item.flightNo === seed.flightNo)
+    );
+
+    if (missingDefaults.length) {
+      pallets.setState([...current, ...missingDefaults]);
+    }
+  }, [pallets.state, pallets.setState]);
 
   return {
     taskMap: counts.state,
@@ -470,18 +623,7 @@ export function InboundOverviewPanel({ flight, waybills, taskMap }) {
   );
 }
 
-function inboundTabItems(roleKey) {
-  const language = mobileLanguage();
-  return [
-    { key: 'overview', label: t(language, 'overview'), icon: AppstoreOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}` },
-    { key: 'counting', label: t(language, 'counting'), icon: BarcodeOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}/breakdown` },
-    { key: 'pallet', label: t(language, 'pallet'), icon: InboxOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}/pallet` },
-    { key: 'loading', label: t(language, 'loading'), icon: CarOutlined, pathOf: (flightNo) => `/mobile/inbound/${flightNo}/loading` }
-  ].filter((item) => isMobileTabAllowed(roleKey, 'inbound', item.key));
-}
-
-export function InboundFlightAppShell({ flight, waybills, taskMap, children, showHero = true }) {
-  const location = useLocation();
+export function InboundFlightAppShell({ flight, waybills, taskMap, children, showHero = true, showOps = showHero }) {
   const navigate = useNavigate();
   const session = readMobileSession();
   const roleKey = getMobileRoleKey(session);
@@ -503,81 +645,22 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
   };
 
   return (
-    <Box sx={{ pb: 11 }}>
-      <Stack sx={{ gap: 2 }}>
+    <Box>
+      <Stack sx={{ gap: 1.5 }}>
         {showHero ? <InboundFlightHeroCard flight={flight} waybills={waybills} taskMap={taskMap} /> : null}
-        <TaskOpsPanel
-          scopeKey={`inbound-flight-${flight.flightNo}`}
-          currentLabel={flight.flightNo}
-          contextChips={[`角色 ${mt(roleView.label)}`, `优先级 ${flight.priority}`, `当前节点 ${mt(flight.step)}`]}
-          quickLinks={[
-            { label: '节点选择', onClick: () => navigate('/mobile/select') },
-            { label: '航班列表', onClick: () => navigate('/mobile/inbound') }
-          ]}
-        />
-        <MainCard title="快捷任务入口">
-          <Stack sx={{ gap: 1.25 }}>
-            <Typography variant="body2" color="text.secondary">
-              当前角色：{mt(roleView.label)}。点击下方按钮可直接进入当前角色最常用的进港任务。
-            </Typography>
-            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              {inboundTabItems(roleKey).map((item) => (
-                <Button key={item.key} size="small" variant={item.key === 'overview' ? 'outlined' : 'contained'} onClick={() => navigate(item.pathOf(flight.flightNo))}>
-                  {item.label}
-                </Button>
-              ))}
-            </Stack>
-          </Stack>
-        </MainCard>
-        <MainCard>
-          <Typography variant="body2" color="text.secondary">
-            当前角色：{mt(roleView.label)}。底部导航和任务动作会按角色过滤。
-          </Typography>
-        </MainCard>
+        {showOps ? (
+          <TaskOpsPanel
+            scopeKey={`inbound-flight-${flight.flightNo}`}
+            currentLabel={flight.flightNo}
+            contextChips={[`角色 ${mt(roleView.label)}`, `优先级 ${flight.priority}`, `当前节点 ${mt(flight.step)}`]}
+            quickLinks={[
+              { label: '节点选择', onClick: () => navigate('/mobile/select') },
+              { label: '航班列表', onClick: () => navigate('/mobile/inbound') }
+            ]}
+          />
+        ) : null}
         {typeof children === 'function' ? children({ roleKey, roleView, runScopedAction, opsState: opsStorage.state }) : children}
       </Stack>
-
-      <Paper
-        elevation={4}
-        sx={{
-          position: 'fixed',
-          bottom: 12,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 24px)',
-          maxWidth: 456,
-          borderRadius: 3,
-          px: 1,
-          py: 1,
-          zIndex: 12
-        }}
-      >
-        <Stack direction="row" sx={{ gap: 0.75 }}>
-          {inboundTabItems(roleKey).map((item) => {
-            const active = location.pathname === item.pathOf(flight.flightNo);
-            const Icon = item.icon;
-
-            return (
-              <Button
-                key={item.key}
-                fullWidth
-                size="small"
-                variant={active ? 'contained' : 'text'}
-                color={active ? 'primary' : 'inherit'}
-                onClick={() => navigate(item.pathOf(flight.flightNo))}
-                sx={{ minWidth: 0, px: 0.25, py: 0.9 }}
-              >
-                <Stack sx={{ alignItems: 'center', gap: 0.35, width: '100%' }}>
-                  <Icon />
-                  <Typography variant="caption" sx={{ lineHeight: 1.1 }}>
-                    {item.label}
-                  </Typography>
-                </Stack>
-              </Button>
-            );
-          })}
-        </Stack>
-      </Paper>
     </Box>
   );
 }
@@ -809,8 +892,6 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('counting', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title="扫描提单">
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
@@ -845,6 +926,8 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
           </Typography>
         </Stack>
       </MainCard>
+
+      <TaskCard {...roleAwareInboundTaskCardConfig('counting', flightNo, roleKey, roleView, runScopedAction)} />
 
       <Dialog open={!!pendingWaybill} fullWidth maxWidth="xs" disableEscapeKeyDown onClose={() => {}}>
         {pendingWaybill ? (
@@ -1129,8 +1212,6 @@ export function PalletPanel({ flightNo, pallets }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title="托盘操作">
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
@@ -1153,6 +1234,9 @@ export function PalletPanel({ flightNo, pallets }) {
                     <Typography variant="caption" color="text.secondary">
                       {item.totalBoxes} 箱 / {item.totalWeightKg} kg / {item.entries.length} 票
                     </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+                      存放位置：{item.storageLocation || derivePalletStorageLocation(item.palletNo)}
+                    </Typography>
                   </div>
                   <StatusChip label={item.loadedPlate ? '已装车' : '待装车'} />
                 </Stack>
@@ -1168,6 +1252,8 @@ export function PalletPanel({ flightNo, pallets }) {
           )}
         </Stack>
       </MainCard>
+
+      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, roleKey, roleView, runScopedAction)} />
     </Stack>
   );
 }
@@ -1277,6 +1363,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
     const finalized = {
       ...currentPallet,
       printed: true,
+      storageLocation: derivePalletStorageLocation(currentPallet.palletNo, pallets.length),
       totalWeightKg: Number(totalWeightKg.toFixed(1)),
       totalBoxes,
       status: '待装车',
@@ -1432,24 +1519,13 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title="装车计划">
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            先点击“开始装车”创建装车计划并录入车牌，再回到这里从预定装车计划中选择一条开始执行。
+            装车计划应由后台办公室先完成编排，包括车牌、司机、Collection Note 与预定托盘；PDA 仅执行已排好的计划。
           </Typography>
-          <Button
-            fullWidth
-            size="large"
-            variant="contained"
-            startIcon={<PlusOutlined />}
-            onClick={() => {
-              runScopedAction('确认', `装车前准备 / ${flightNo}`);
-              navigate(`/mobile/inbound/${flightNo}/loading/new`);
-            }}
-          >
-            开始装车
+          <Button fullWidth size="large" variant="outlined" onClick={() => navigate('/station/resources/vehicles')}>
+            去后台排计划
           </Button>
         </Stack>
       </MainCard>
@@ -1491,6 +1567,8 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
           )}
         </Stack>
       </MainCard>
+
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, roleKey, roleView, runScopedAction)} />
     </Stack>
   );
 }
@@ -1622,8 +1700,6 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('loadingExecution', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title="当前装车计划">
         <Stack sx={{ gap: 1.25 }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
@@ -1662,6 +1738,44 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
               </Typography>
             </Grid>
           </Grid>
+        </Stack>
+      </MainCard>
+
+      <MainCard title="预计装载目标">
+        <Stack sx={{ gap: 1.25 }}>
+          {(plan.pallets || []).length ? (
+            (plan.pallets || []).map((palletNo) => {
+              const plannedPallet = pallets.find((item) => item.palletNo === palletNo);
+
+              if (!plannedPallet) {
+                return (
+                  <Box key={palletNo} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
+                    <Typography variant="subtitle2">{palletNo}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      计划托盘，待从历史托盘记录中恢复详情。
+                    </Typography>
+                  </Box>
+                );
+              }
+
+              return (
+                <Box key={plannedPallet.palletNo} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
+                  <Typography variant="subtitle2">{plannedPallet.palletNo}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
+                    {plannedPallet.totalBoxes} 箱 / {plannedPallet.totalWeightKg} kg
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    存放位置：{plannedPallet.storageLocation || derivePalletStorageLocation(plannedPallet.palletNo)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    计划货物：{(plannedPallet.entries || []).map((entry) => entry.awb).join(' / ') || '待补提单'}
+                  </Typography>
+                </Box>
+              );
+            })
+          ) : (
+            <Typography color="text.secondary">当前装车计划还没有预定托盘或箱号。</Typography>
+          )}
         </Stack>
       </MainCard>
 
@@ -1768,6 +1882,8 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
           </Button>
         </Stack>
       </MainCard>
+
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingExecution', flightNo, roleKey, roleView, runScopedAction)} />
     </Stack>
   );
 }

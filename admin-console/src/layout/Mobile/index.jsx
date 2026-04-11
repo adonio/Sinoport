@@ -5,16 +5,141 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
+import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
+import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
+import BarcodeOutlined from '@ant-design/icons/BarcodeOutlined';
+import CarOutlined from '@ant-design/icons/CarOutlined';
+import InboxOutlined from '@ant-design/icons/InboxOutlined';
 import LeftOutlined from '@ant-design/icons/LeftOutlined';
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
 
 import sinoportLogo from 'assets/images/sinoport-logo.png';
 import { clearMobileSession, readMobileSession, writeMobileSession } from 'utils/mobile/session';
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, translateRenderedText, writeMobileLanguage } from 'utils/mobile/i18n';
+
+function resolveBottomNav(pathname, language) {
+  let match = pathname.match(/^\/mobile\/inbound\/([^/]+)(?:\/.*)?$/);
+  if (match) {
+    const flightNo = match[1];
+    const activeKey = pathname.includes('/breakdown')
+      ? 'counting'
+      : pathname.includes('/pallet')
+        ? 'pallet'
+        : pathname.includes('/loading')
+          ? 'loading'
+          : 'overview';
+
+    return {
+      variant: 'section',
+      activeKey,
+      items: [
+        { key: 'overview', label: t(language, 'overview'), icon: AppstoreOutlined, path: `/mobile/inbound/${flightNo}` },
+        { key: 'counting', label: t(language, 'counting'), icon: BarcodeOutlined, path: `/mobile/inbound/${flightNo}/breakdown` },
+        { key: 'pallet', label: t(language, 'pallet'), icon: InboxOutlined, path: `/mobile/inbound/${flightNo}/pallet` },
+        { key: 'loading', label: t(language, 'loading'), icon: CarOutlined, path: `/mobile/inbound/${flightNo}/loading` }
+      ]
+    };
+  }
+
+  match = pathname.match(/^\/mobile\/outbound\/([^/]+)(?:\/.*)?$/);
+  if (match) {
+    const flightNo = match[1];
+    const activeKey = pathname.includes('/receipt')
+      ? 'receipt'
+      : pathname.includes('/pmc')
+        ? 'container'
+        : pathname.includes('/loading')
+          ? 'loading'
+          : 'overview';
+
+    return {
+      variant: 'section',
+      activeKey,
+      items: [
+        { key: 'overview', label: t(language, 'overview'), icon: AppstoreOutlined, path: `/mobile/outbound/${flightNo}` },
+        { key: 'receipt', label: t(language, 'receipt'), icon: InboxOutlined, path: `/mobile/outbound/${flightNo}/receipt` },
+        { key: 'container', label: t(language, 'container'), icon: BarcodeOutlined, path: `/mobile/outbound/${flightNo}/pmc` },
+        { key: 'loading', label: language === 'en' ? 'Aircraft' : '装机', icon: CarOutlined, path: `/mobile/outbound/${flightNo}/loading` }
+      ]
+    };
+  }
+
+  return null;
+}
+
+function MobileBottomNav({ nav, onNavigate }) {
+  if (!nav?.items?.length) return null;
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        px: 1.5,
+        pt: 1,
+        pb: 'calc(12px + env(safe-area-inset-bottom))',
+        zIndex: 12,
+        pointerEvents: 'none'
+      }}
+    >
+      <Paper
+        elevation={6}
+        sx={{
+          borderRadius: 4,
+          px: 1,
+          py: 0.75,
+          overflow: 'hidden',
+          pointerEvents: 'auto'
+        }}
+      >
+        <Stack
+          direction="row"
+          sx={{
+            gap: 1,
+            overflowX: 'visible',
+            scrollbarWidth: 'none',
+            '&::-webkit-scrollbar': { display: 'none' }
+          }}
+        >
+          {nav.items.map((item) => {
+            const active = nav.activeKey === item.key;
+            const Icon = item.icon;
+
+            return (
+              <Button
+                key={item.key}
+                onClick={() => onNavigate(item.path)}
+                variant={active ? 'contained' : 'text'}
+                color={active ? 'primary' : 'inherit'}
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  px: 0.75,
+                  py: 1.25,
+                  borderRadius: 2.5,
+                  color: active ? 'common.white' : 'text.primary'
+                }}
+              >
+                <Stack sx={{ alignItems: 'center', gap: 0.65, width: '100%' }}>
+                  <Icon />
+                  <Typography variant="caption" sx={{ lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+                    {item.label}
+                  </Typography>
+                </Stack>
+              </Button>
+            );
+          })}
+        </Stack>
+      </Paper>
+    </Box>
+  );
+}
 
 function resolveShell(pathname) {
   let match = pathname.match(/^\/mobile\/pre-warehouse\/([^/]+)$/);
@@ -60,7 +185,7 @@ function resolveShell(pathname) {
   if (match) return { titleKey: 'counting', subtitle: match[2], backPath: `/mobile/outbound/${match[1]}/receipt` };
 
   match = pathname.match(/^\/mobile\/outbound\/([^/]+)\/loading$/);
-  if (match) return { titleKey: 'loading', subtitle: match[1], backPath: '/mobile/outbound' };
+  if (match) return { titleKey: 'aircraft_loading', subtitle: match[1], backPath: '/mobile/outbound' };
 
   match = pathname.match(/^\/mobile\/outbound\/([^/]+)\/pmc\/new$/);
   if (match) return { titleKey: 'new_container', subtitle: match[1], backPath: `/mobile/outbound/${match[1]}/pmc` };
@@ -132,6 +257,7 @@ export default function MobileLayout() {
   const session = readMobileSession();
   const language = session?.language || readMobileLanguage();
   const shell = resolveShell(location.pathname);
+  const bottomNav = resolveBottomNav(location.pathname, language);
   const languageOptions = getMobileLanguageOptions(language);
 
   useEffect(() => {
@@ -169,11 +295,11 @@ export default function MobileLayout() {
   }, [language, location.pathname]);
 
   return (
-    <Box data-mobile-shell="true" sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: { xs: 0, sm: 2 } }}>
+    <Box data-mobile-shell="true" sx={{ height: '100dvh', overflow: 'hidden', bgcolor: 'grey.100' }}>
       <Box
         sx={{
           maxWidth: 480,
-          minHeight: '100vh',
+          height: '100%',
           mx: 'auto',
           bgcolor: 'background.default',
           boxShadow: { sm: 3 },
@@ -188,7 +314,7 @@ export default function MobileLayout() {
             top: 0,
             zIndex: 10,
             px: 2,
-            py: 1.5,
+            py: 1.25,
             borderBottom: '1px solid',
             borderColor: 'divider',
             bgcolor: 'rgba(255,255,255,0.88)',
@@ -265,9 +391,23 @@ export default function MobileLayout() {
           </Stack>
         </Box>
 
-        <Box sx={{ flex: 1, px: 2, py: 2.5, pb: 4 }}>
-          <Outlet />
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Box
+            sx={{
+              height: '100%',
+              overflowY: 'auto',
+              px: 2,
+              py: 2,
+              pb: bottomNav ? 14 : 4,
+              scrollbarWidth: 'thin',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
+            <Outlet />
+          </Box>
         </Box>
+
+        <MobileBottomNav nav={bottomNav} onNavigate={navigate} />
       </Box>
     </Box>
   );

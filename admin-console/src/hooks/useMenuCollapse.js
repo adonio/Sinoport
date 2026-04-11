@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { matchPath } from 'react-router-dom';
+
+import { matchesMenuTree } from 'utils/menuMatch';
 
 // ==============================|| MENU COLLAPSED - RECURSIVE FUNCTION ||============================== //
 
@@ -16,15 +17,10 @@ import { matchPath } from 'react-router-dom';
 
 function setParentOpenedMenu(items, pathname, menuId, setSelected, setOpen) {
   for (const item of items) {
-    // Recursively check child menus
-    if (item.children?.length) {
-      setParentOpenedMenu(item.children, pathname, menuId, setSelected, setOpen);
-    }
-
-    // Check if the current menu item matches the pathname
-    if ((item.link && matchPath({ path: item.link, end: false }, pathname)) || item.url === pathname) {
+    if (matchesMenuTree(item, pathname)) {
       setSelected(menuId ?? null); // Select the parent menu
       setOpen(true); // Open the menu
+      return;
     }
   }
 }

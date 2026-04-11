@@ -45,7 +45,8 @@ const station = {
           id: 'station-inbound-flights',
           title: '航班管理',
           type: 'item',
-          url: '/station/inbound/flights'
+          url: '/station/inbound/flights',
+          matchPrefix: true
         },
         {
           id: 'station-inbound-waybills',
@@ -93,6 +94,7 @@ const station = {
       title: '提单与履约链路',
       type: 'item',
       url: '/station/shipments',
+      matchPrefix: true,
       icon: icons.IdcardOutlined
     },
     {

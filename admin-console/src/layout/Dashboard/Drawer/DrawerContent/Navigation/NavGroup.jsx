@@ -93,13 +93,18 @@ export default function NavGroup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, lastItem, downLG]);
 
+  const matchesMenuTree = (menu, currentPath) => {
+    if (menu?.url && matchPath({ path: menu?.link ? menu.link : menu.url, end: false }, currentPath)) return true;
+    return menu?.children?.some((child) => matchesMenuTree(child, currentPath)) || false;
+  };
+
   const checkOpenForParent = (child, id) => {
     child.forEach((ele) => {
       if (ele.children?.length) {
         checkOpenForParent(ele.children, currentItem.id);
       }
 
-      if (ele.url && !!matchPath({ path: ele?.link ? ele.link : ele.url, end: true }, pathname)) {
+      if (ele.url && !!matchPath({ path: ele?.link ? ele.link : ele.url, end: false }, pathname)) {
         setSelectedID(id);
       }
     });
@@ -112,7 +117,7 @@ export default function NavGroup({
         checkOpenForParent(itemCheck.children, currentItem.id);
       }
 
-      if (itemCheck && itemCheck?.url && !!matchPath({ path: itemCheck?.link ? itemCheck.link : itemCheck.url, end: true }, pathname)) {
+      if (itemCheck && itemCheck?.url && !!matchPath({ path: itemCheck?.link ? itemCheck.link : itemCheck.url, end: false }, pathname)) {
         setSelectedID(currentItem.id);
       }
     });
@@ -134,7 +139,7 @@ export default function NavGroup({
     setAnchorEl(null);
   };
 
-  const isSelected = selectedID === currentItem.id;
+  const isSelected = selectedID === currentItem.id || matchesMenuTree(currentItem, pathname);
 
   const Icon = currentItem?.icon ? currentItem.icon : null;
   const itemIcon = Icon ? <Icon style={{ fontSize: 20, stroke: '1.5' }} /> : null;

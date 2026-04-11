@@ -1,5 +1,6 @@
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -27,6 +28,66 @@ import {
   stationTaskBoard,
   stationTaskSummary
 } from 'data/sinoport-adapters';
+import { useLocalStorage } from 'hooks/useLocalStorage';
+
+const mobileOfficeMatrix = [
+  {
+    mobileNode: '前置仓收货',
+    pdaAction: '现场收货、扫码、件重体确认',
+    officeAction: '提前建批次、锁定计划 AWB、确认异常口径',
+    links: [
+      { label: '作业任务', to: '/station/tasks' },
+      { label: '单证中心', to: '/station/documents' }
+    ]
+  },
+  {
+    mobileNode: '头程卡车',
+    pdaAction: '确认 CMR、发车、到站交接',
+    officeAction: '先分配 Trip、车牌、司机、Collection Note',
+    links: [
+      { label: '车辆计划', to: '/station/resources/vehicles' },
+      { label: '作业任务', to: '/station/tasks' }
+    ]
+  },
+  {
+    mobileNode: '进港点数 / 打托 / 装车',
+    pdaAction: '理货、组托、按计划装车',
+    officeAction: '先排托盘、装车计划、车牌/司机/Collection Note',
+    links: [
+      { label: '进港航班', to: '/station/inbound/flights' },
+      { label: '车辆计划', to: '/station/resources/vehicles' }
+    ]
+  },
+  {
+    mobileNode: '出港收货 / 集装器 / 装机',
+    pdaAction: '按计划收货、ULD 执行、机坪装机',
+    officeAction: '先排航班计划、ULD、机位、Manifest/UWS',
+    links: [
+      { label: '出港航班', to: '/station/outbound/flights' },
+      { label: '单证中心', to: '/station/documents' }
+    ]
+  },
+  {
+    mobileNode: '到港 / 出港机坪',
+    pdaAction: '按机位执行卸载或装机并回填状态',
+    officeAction: '先下发 ULD 与机位顺序、放行门槛和执行要求',
+    links: [
+      { label: '作业任务', to: '/station/tasks' },
+      { label: '出港航班', to: '/station/outbound/flights' }
+    ]
+  },
+  {
+    mobileNode: '航班运行 Runtime',
+    pdaAction: '确认 Airborne/Landed、异常上报',
+    officeAction: '后台维护运行态、关键字段和后续联动条件',
+    links: [
+      { label: '进港航班', to: '/station/inbound/flights' },
+      { label: '出港航班', to: '/station/outbound/flights' }
+    ]
+  }
+];
+
+const OFFICE_TASK_STORAGE_KEY = 'sinoport-station-task-office-state-v1';
 
 function getTaskDocumentPath(task) {
   if (task.title.includes('POD')) return '/station/documents/pod';
@@ -41,6 +102,24 @@ function getTaskExceptionPath(task) {
 }
 
 export default function StationTasksPage() {
+  const { state: officeTaskState, setState: setOfficeTaskState } = useLocalStorage(OFFICE_TASK_STORAGE_KEY, {});
+
+  const getOfficeState = (taskId) =>
+    officeTaskState[taskId] || {
+      planStatus: '待排计划',
+      dispatchStatus: '未下发',
+      reviewStatus: '待复核'
+    };
+
+  const updateOfficeState = (taskId, patch) =>
+    setOfficeTaskState((prev) => ({
+      ...prev,
+      [taskId]: {
+        ...getOfficeState(taskId),
+        ...patch
+      }
+    }));
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
@@ -81,6 +160,41 @@ export default function StationTasksPage() {
         </Grid>
       ))}
 
+      <Grid size={12}>
+        <MainCard title="PDA 对应后台动作矩阵">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>移动端节点</TableCell>
+                <TableCell>PDA 现场动作</TableCell>
+                <TableCell>后台管理人员动作</TableCell>
+                <TableCell align="right">后台入口</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {mobileOfficeMatrix.map((item) => (
+                <TableRow key={item.mobileNode} hover>
+                  <TableCell>{item.mobileNode}</TableCell>
+                  <TableCell>{item.pdaAction}</TableCell>
+                  <TableCell>{item.officeAction}</TableCell>
+                  <TableCell align="right">
+                    <Grid container spacing={1} sx={{ width: 'auto', justifyContent: 'flex-end' }}>
+                      {item.links.map((link) => (
+                        <Grid key={`${item.mobileNode}-${link.to}`}>
+                          <Button component={RouterLink} to={link.to} size="small" variant="outlined">
+                            {link.label}
+                          </Button>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </MainCard>
+      </Grid>
+
       <Grid size={{ xs: 12, xl: 7 }}>
         <MainCard title="站内任务池">
           <Table size="small">
@@ -93,46 +207,71 @@ export default function StationTasksPage() {
                 <TableCell>SLA</TableCell>
                 <TableCell>优先级</TableCell>
                 <TableCell>状态</TableCell>
+                <TableCell>办公室编排</TableCell>
                 <TableCell>Gate</TableCell>
                 <TableCell>阻断</TableCell>
                 <TableCell align="right">跳转</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {stationTaskBoard.map((item) => (
-                <TableRow key={item.id} hover>
-                  <TableCell>{item.title}</TableCell>
-                  <TableCell>{item.node}</TableCell>
-                  <TableCell>{item.role}</TableCell>
-                  <TableCell>{item.owner}</TableCell>
-                  <TableCell>{item.due}</TableCell>
-                  <TableCell>{item.priority}</TableCell>
-                  <TableCell>
-                    <StatusChip label={item.status} />
-                  </TableCell>
-                  <TableCell>{item.gateIds.join(', ')}</TableCell>
-                  <TableCell>{item.blocker}</TableCell>
-                  <TableCell align="right">
-                    <Grid container spacing={1} sx={{ width: 'auto', justifyContent: 'flex-end' }}>
-                      <Grid>
-                        <Button component={RouterLink} to={item.objectTo} size="small" variant="outlined">
-                          对象详情
-                        </Button>
+              {stationTaskBoard.map((item) => {
+                const officeState = getOfficeState(item.id);
+
+                return (
+                  <TableRow key={item.id} hover>
+                    <TableCell>{item.title}</TableCell>
+                    <TableCell>{item.node}</TableCell>
+                    <TableCell>{item.role}</TableCell>
+                    <TableCell>{item.owner}</TableCell>
+                    <TableCell>{item.due}</TableCell>
+                    <TableCell>{item.priority}</TableCell>
+                    <TableCell>
+                      <StatusChip label={item.status} />
+                    </TableCell>
+                    <TableCell>
+                      <Stack sx={{ gap: 0.75 }}>
+                        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
+                          <StatusChip label={officeState.planStatus} color={officeState.planStatus === '已排计划' ? 'success' : 'warning'} />
+                          <StatusChip label={officeState.dispatchStatus} color={officeState.dispatchStatus === '已下发 PDA' ? 'success' : 'secondary'} />
+                          <StatusChip label={officeState.reviewStatus} color={officeState.reviewStatus === '已复核' ? 'success' : 'info'} />
+                        </Stack>
+                        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
+                          <Button size="small" variant="outlined" onClick={() => updateOfficeState(item.id, { planStatus: '已排计划' })}>
+                            标记已排计划
+                          </Button>
+                          <Button size="small" variant="outlined" onClick={() => updateOfficeState(item.id, { dispatchStatus: '已下发 PDA' })}>
+                            下发到 PDA
+                          </Button>
+                          <Button size="small" variant="outlined" onClick={() => updateOfficeState(item.id, { reviewStatus: '已复核' })}>
+                            完成复核
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>{item.gateIds.join(', ')}</TableCell>
+                    <TableCell>{item.blocker}</TableCell>
+                    <TableCell align="right">
+                      <Grid container spacing={1} sx={{ width: 'auto', justifyContent: 'flex-end' }}>
+                        <Grid>
+                          <Button component={RouterLink} to={item.objectTo} size="small" variant="outlined">
+                            对象详情
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button component={RouterLink} to={getTaskDocumentPath(item)} size="small" variant="outlined">
+                            单证
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button component={RouterLink} to={getTaskExceptionPath(item)} size="small" variant="outlined">
+                            异常
+                          </Button>
+                        </Grid>
                       </Grid>
-                      <Grid>
-                        <Button component={RouterLink} to={getTaskDocumentPath(item)} size="small" variant="outlined">
-                          单证
-                        </Button>
-                      </Grid>
-                      <Grid>
-                        <Button component={RouterLink} to={getTaskExceptionPath(item)} size="small" variant="outlined">
-                          异常
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </MainCard>

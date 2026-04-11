@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 // material-ui
 import { styled, useColorScheme, useTheme } from '@mui/material/styles';
@@ -28,6 +28,7 @@ import { MenuOrientation, ThemeMode } from 'config';
 import useConfig from 'hooks/useConfig';
 import useMenuCollapse from 'hooks/useMenuCollapse';
 import { useGetMenuMaster } from 'api/menu';
+import { matchesMenuTree } from 'utils/menuMatch';
 
 // third-party
 import { FormattedMessage } from 'react-intl';
@@ -73,12 +74,6 @@ const PopperStyled = styled(Popper)(({ theme }) => ({
     }
   }
 }));
-
-function matchesRoute(item, pathname) {
-  if (item.link && matchPath({ path: item.link, end: false }, pathname)) return true;
-  if (item.url === pathname) return true;
-  return false;
-}
 
 export default function NavCollapse({ menu, level, parentId, setSelectedItems, selectedItems, setSelectedLevel, selectedLevel }) {
   const theme = useTheme();
@@ -169,7 +164,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
   useMenuCollapse(menu, pathname, miniMenuOpened, setSelected, setOpen, setAnchorEl);
 
   useEffect(() => {
-    if (menu.url === pathname) {
+    if (matchesMenuTree(menu, pathname)) {
       setSelected(menu.id);
       setAnchorEl(null);
       setOpen(true);
@@ -202,7 +197,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
     }
   });
 
-  const isSelected = matchesRoute(menu, pathname);
+  const isSelected = matchesMenuTree(menu, pathname);
   const borderIcon = level === 1 ? <BorderOutlined style={{ fontSize: '1rem' }} /> : false;
   const Icon = menu.icon;
   const menuIcon = menu.icon ? <Icon style={{ fontSize: drawerOpen ? '1rem' : '1.25rem' }} /> : borderIcon;

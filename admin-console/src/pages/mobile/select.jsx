@@ -7,6 +7,15 @@ import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 
+import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
+import CarOutlined from '@ant-design/icons/CarOutlined';
+import ClusterOutlined from '@ant-design/icons/ClusterOutlined';
+import DeploymentUnitOutlined from '@ant-design/icons/DeploymentUnitOutlined';
+import InboxOutlined from '@ant-design/icons/InboxOutlined';
+import ScanOutlined from '@ant-design/icons/ScanOutlined';
+import SendOutlined from '@ant-design/icons/SendOutlined';
+import ShopOutlined from '@ant-design/icons/ShopOutlined';
+import TruckOutlined from '@ant-design/icons/TruckOutlined';
 import RightOutlined from '@ant-design/icons/RightOutlined';
 
 import MainCard from 'components/MainCard';
@@ -24,6 +33,18 @@ const nodeFlowMap = {
   inbound_station: 'destinationRamp',
   tailhaul: 'tailhaul',
   delivery: 'delivery'
+};
+
+const nodeIconMap = {
+  pre_warehouse: InboxOutlined,
+  headhaul: TruckOutlined,
+  outbound_station: ShopOutlined,
+  export_ramp: DeploymentUnitOutlined,
+  flight_runtime: SendOutlined,
+  destination_ramp: ClusterOutlined,
+  inbound_station: ScanOutlined,
+  tailhaul: CarOutlined,
+  delivery: AppstoreOutlined
 };
 
 export default function MobileSelectPage() {
@@ -44,24 +65,61 @@ export default function MobileSelectPage() {
   const outboundCapability = roleView.outboundTabs.length ? roleView.outboundTabs.join(' / ') : '-';
 
   const renderNodeCard = (option) => (
-    <Grid key={option.key} size={12}>
+    <Grid key={option.key} size={6}>
       <MainCard
-        sx={{ cursor: 'pointer', '&:hover': { borderColor: 'primary.main', boxShadow: 2 } }}
+        sx={{
+          cursor: 'pointer',
+          minHeight: 188,
+          height: '100%',
+          '&:hover': { borderColor: 'primary.main', boxShadow: 2 }
+        }}
         onClick={() => {
           writeMobileSession({ ...session, selectedNode: option.key });
           navigate(option.path);
         }}
       >
-        <Stack sx={{ gap: 2 }}>
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5 }}>
+        <Stack sx={{ gap: 1.5, height: '100%', justifyContent: 'space-between' }}>
+          <Stack sx={{ gap: 1.25 }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+              <Box
+                sx={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 3,
+                  bgcolor: option.recommended ? 'primary.lighter' : 'secondary.lighter',
+                  color: option.recommended ? 'primary.main' : 'secondary.main',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 28
+                }}
+              >
+                {(() => {
+                  const Icon = nodeIconMap[option.key] || AppstoreOutlined;
+                  return <Icon />;
+                })()}
+              </Box>
+              {option.recommended ? <Chip label="Recommended" size="small" color="primary" variant="light" /> : null}
+            </Stack>
+
             <div>
               <Typography variant="h5">{option.title}</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  mt: 0.75,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}
+              >
                 {option.description}
               </Typography>
             </div>
-            {option.recommended ? <Chip label="Recommended" size="small" color="primary" variant="light" /> : null}
           </Stack>
+
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="subtitle2" color="primary.main">
               {option.enterLabel}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -9,15 +9,11 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-import AppstoreOutlined from '@ant-design/icons/AppstoreOutlined';
-import BarcodeOutlined from '@ant-design/icons/BarcodeOutlined';
 import CameraOutlined from '@ant-design/icons/CameraOutlined';
-import CarOutlined from '@ant-design/icons/CarOutlined';
 import InboxOutlined from '@ant-design/icons/InboxOutlined';
 
 import MainCard from 'components/MainCard';
@@ -26,10 +22,10 @@ import StatusChip from 'components/sinoport/StatusChip';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import { ffmForecastRows, masterAwbRows, outboundFlights } from 'data/sinoport';
-import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed, isMobileTabAllowed } from 'data/sinoport-adapters';
+import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
 import { useLocalStorage } from 'hooks/useLocalStorage';
 import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
-import { localizeMobileText, readMobileLanguage, t } from 'utils/mobile/i18n';
+import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
 export function parseNumber(value) {
@@ -388,16 +384,6 @@ export function OutboundOverviewPanel({ flight, pmcBoards = [], receiptMap = {} 
   );
 }
 
-function outboundTabItems() {
-  const language = mobileLanguage();
-  return [
-    { key: 'overview', label: t(language, 'overview'), icon: AppstoreOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}` },
-    { key: 'receipt', label: t(language, 'receipt'), icon: InboxOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}/receipt` },
-    { key: 'container', label: t(language, 'container'), icon: BarcodeOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}/pmc` },
-    { key: 'loading', label: language === 'en' ? 'Aircraft' : '装机', icon: CarOutlined, pathOf: (flightNo) => `/mobile/outbound/${flightNo}/loading` }
-  ].filter((item) => isMobileTabAllowed(getMobileRoleKey(readMobileSession()), 'outbound', item.key));
-}
-
 function useOutboundTaskContext(flightNo) {
   const session = readMobileSession();
   const roleKey = getMobileRoleKey(session);
@@ -421,84 +407,28 @@ function useOutboundTaskContext(flightNo) {
   return { roleKey, roleView, runScopedAction, opsState: opsStorage.state, setOpsState: opsStorage.setState };
 }
 
-export function OutboundFlightAppShell({ flight, children, showHero = true }) {
-  const location = useLocation();
+export function OutboundFlightAppShell({ flight, children, showHero = true, showOps = showHero }) {
   const navigate = useNavigate();
   const session = readMobileSession();
-  const roleKey = getMobileRoleKey(session);
-  const roleView = getMobileRoleView(roleKey);
+  const roleView = getMobileRoleView(getMobileRoleKey(session));
 
   return (
-    <Box sx={{ pb: 11 }}>
-      <Stack sx={{ gap: 2 }}>
+    <Box>
+      <Stack sx={{ gap: 1.5 }}>
         {showHero ? <OutboundFlightHeroCard flight={flight} /> : null}
-        <TaskOpsPanel
-          scopeKey={`outbound-flight-${flight.flightNo}`}
-          currentLabel={flight.flightNo}
-          contextChips={[`角色 ${mt(roleView.label)}`, `当前阶段 ${flight.stage}`, `Manifest ${flight.manifest}`]}
-          quickLinks={[
-            { label: '节点选择', onClick: () => navigate('/mobile/select') },
-            { label: '航班列表', onClick: () => navigate('/mobile/outbound') }
-          ]}
-        />
-        <MainCard title="快捷任务入口">
-          <Stack sx={{ gap: 1.25 }}>
-            <Typography variant="body2" color="text.secondary">
-              当前角色：{mt(roleView.label)}。点击下方按钮可直接进入当前角色最常用的出港任务。
-            </Typography>
-            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              {outboundTabItems().map((item) => (
-                <Button key={item.key} size="small" variant={item.key === 'overview' ? 'outlined' : 'contained'} onClick={() => navigate(item.pathOf(flight.flightNo))}>
-                  {item.label}
-                </Button>
-              ))}
-            </Stack>
-          </Stack>
-        </MainCard>
+        {showOps ? (
+          <TaskOpsPanel
+            scopeKey={`outbound-flight-${flight.flightNo}`}
+            currentLabel={flight.flightNo}
+            contextChips={[`角色 ${mt(roleView.label)}`, `当前阶段 ${flight.stage}`, `Manifest ${flight.manifest}`]}
+            quickLinks={[
+              { label: '节点选择', onClick: () => navigate('/mobile/select') },
+              { label: '航班列表', onClick: () => navigate('/mobile/outbound') }
+            ]}
+          />
+        ) : null}
         {children}
       </Stack>
-
-      <Paper
-        elevation={4}
-        sx={{
-          position: 'fixed',
-          bottom: 12,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 'calc(100% - 24px)',
-          maxWidth: 456,
-          borderRadius: 3,
-          px: 1,
-          py: 1,
-          zIndex: 12
-        }}
-      >
-        <Stack direction="row" sx={{ gap: 0.75 }}>
-          {outboundTabItems().map((item) => {
-            const active = location.pathname === item.pathOf(flight.flightNo);
-            const Icon = item.icon;
-
-            return (
-              <Button
-                key={item.key}
-                fullWidth
-                size="small"
-                variant={active ? 'contained' : 'text'}
-                color={active ? 'primary' : 'inherit'}
-                onClick={() => navigate(item.pathOf(flight.flightNo))}
-                sx={{ minWidth: 0, px: 0.25, py: 0.9 }}
-              >
-                <Stack sx={{ alignItems: 'center', gap: 0.35, width: '100%' }}>
-                  <Icon />
-                  <Typography variant="caption" sx={{ lineHeight: 1.1 }}>
-                    {item.label}
-                  </Typography>
-                </Stack>
-              </Button>
-            );
-          })}
-        </Stack>
-      </Paper>
     </Box>
   );
 }
@@ -576,8 +506,6 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareOutboundTaskCardConfig('receipt', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title="收货扫描">
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
@@ -659,6 +587,8 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
         </Stack>
       </MainCard>
 
+      <TaskCard {...roleAwareOutboundTaskCardConfig('receipt', flightNo, roleKey, roleView, runScopedAction)} />
+
       <Dialog open={!!reviewAwb} fullWidth maxWidth="xs" onClose={() => setReviewAwb('')}>
         <DialogTitle>重量复核</DialogTitle>
         <DialogContent>
@@ -685,19 +615,13 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title={mt('集装器')}>
         <Stack sx={{ gap: 2 }}>
-          <Button
-            variant="contained"
-            startIcon={<BarcodeOutlined />}
-            onClick={() => {
-              runScopedAction('确认', `新建集装器 / ${flightNo}`);
-              navigate(`/mobile/outbound/${flightNo}/pmc/new`);
-            }}
-          >
-            {mt('新建集装器')}
+          <Typography variant="body2" color="text.secondary">
+            ULD / 集装器应由后台办公室先完成预排并分配机位；PDA 仅执行已排好的集装与装机。
+          </Typography>
+          <Button variant="outlined" onClick={() => navigate('/station/outbound/flights')}>
+            去后台排 ULD
           </Button>
         </Stack>
       </MainCard>
@@ -728,6 +652,8 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
           )}
         </Stack>
       </MainCard>
+
+      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
     </Stack>
   );
 }
@@ -811,7 +737,7 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
 }
 
 export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPmcBoards }) {
-  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
+  const { runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -832,8 +758,6 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title={mt('当前集装器')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="h5">{container.boardCode}</Typography>
@@ -1009,8 +933,6 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareOutboundTaskCardConfig('loading', flightNo, roleKey, roleView, runScopedAction)} />
-
       <MainCard title={mt('待装机集装器')}>
         <Stack sx={{ gap: 1.25 }}>
           {pendingContainers.length ? (
@@ -1106,6 +1028,8 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
           )}
         </Stack>
       </MainCard>
+
+      <TaskCard {...roleAwareOutboundTaskCardConfig('loading', flightNo, roleKey, roleView, runScopedAction)} />
     </Stack>
   );
 }

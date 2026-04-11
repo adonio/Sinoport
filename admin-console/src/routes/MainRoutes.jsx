@@ -5,6 +5,7 @@ import DashboardLayout from 'layout/Dashboard';
 
 const PlatformStationsPage = Loadable(lazy(() => import('pages/platform/stations')));
 const PlatformStationsCapabilitiesPage = Loadable(lazy(() => import('pages/platform/stations-capabilities')));
+const PlatformStationDetailPage = Loadable(lazy(() => import('pages/platform/station-detail')));
 const PlatformStationsTeamsPage = Loadable(lazy(() => import('pages/platform/stations-teams')));
 const PlatformStationsZonesPage = Loadable(lazy(() => import('pages/platform/stations-zones')));
 const PlatformStationsDevicesPage = Loadable(lazy(() => import('pages/platform/stations-devices')));
@@ -30,9 +31,12 @@ const StationInboundFlightsPage = Loadable(lazy(() => import('pages/station/inbo
 const StationInboundFlightDetailPage = Loadable(lazy(() => import('pages/station/inbound-flight-detail')));
 const StationInboundFlightCreatePage = Loadable(lazy(() => import('pages/station/inbound-flight-create')));
 const StationInboundWaybillsPage = Loadable(lazy(() => import('pages/station/inbound-waybills')));
+const StationInboundWaybillDetailPage = Loadable(lazy(() => import('pages/station/inbound-waybill-detail')));
 const StationOutboundPage = Loadable(lazy(() => import('pages/station/outbound')));
 const StationOutboundFlightsPage = Loadable(lazy(() => import('pages/station/outbound-flights')));
+const StationOutboundFlightDetailPage = Loadable(lazy(() => import('pages/station/outbound-flight-detail')));
 const StationOutboundWaybillsPage = Loadable(lazy(() => import('pages/station/outbound-waybills')));
+const StationOutboundWaybillDetailPage = Loadable(lazy(() => import('pages/station/outbound-waybill-detail')));
 const StationDocumentsPage = Loadable(lazy(() => import('pages/station/documents')));
 const StationShipmentsPage = Loadable(lazy(() => import('pages/station/shipments')));
 const StationShipmentDetailPage = Loadable(lazy(() => import('pages/station/shipment-detail')));
@@ -74,6 +78,10 @@ const MainRoutes = {
             {
               path: 'stations/capabilities',
               element: <PlatformStationsCapabilitiesPage />
+            },
+            {
+              path: 'stations/:stationCode',
+              element: <PlatformStationDetailPage />
             },
             {
               path: 'stations/teams',
@@ -174,6 +182,10 @@ const MainRoutes = {
                 {
                   path: 'waybills',
                   element: <StationInboundWaybillsPage />
+                },
+                {
+                  path: 'waybills/:awb',
+                  element: <StationInboundWaybillDetailPage />
                 }
               ]
             },
@@ -189,8 +201,16 @@ const MainRoutes = {
                   element: <StationOutboundFlightsPage />
                 },
                 {
+                  path: 'flights/:flightNo',
+                  element: <StationOutboundFlightDetailPage />
+                },
+                {
                   path: 'waybills',
                   element: <StationOutboundWaybillsPage />
+                },
+                {
+                  path: 'waybills/:awb',
+                  element: <StationOutboundWaybillDetailPage />
                 }
               ]
             },

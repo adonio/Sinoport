@@ -71,6 +71,9 @@ export default function StationInboundWaybillsPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                      <Button component={RouterLink} to={`/station/inbound/waybills/${encodeURIComponent(item.awb)}`} size="small" variant="outlined">
+                        查看
+                      </Button>
                       <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`in-${item.awb}`)}`} size="small" variant="outlined">
                         履约链路
                       </Button>
