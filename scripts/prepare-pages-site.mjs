@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 const repoRoot = resolve(process.cwd());
 const outputRoot = join(repoRoot, 'site-dist');
 
-const rootFiles = ['index.html', 'about.html', 'network.html', 'scenarios.html', 'sinoport-os.html', 'solutions.html'];
+const rootFiles = ['CNAME', 'index.html', 'about.html', 'network.html', 'scenarios.html', 'sinoport-os.html', 'solutions.html'];
 const rootDirs = ['assets', 'en', 'platform', 'station', 'mobile', 'admin-assets'];
 
 function copyEntry(entry) {
