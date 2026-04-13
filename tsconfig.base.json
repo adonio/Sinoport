@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@sinoport/auth": [
+        "packages/auth/src/index.ts"
+      ],
+      "@sinoport/contracts": [
+        "packages/contracts/src/index.ts"
+      ],
+      "@sinoport/domain": [
+        "packages/domain/src/index.ts"
+      ],
+      "@sinoport/repositories": [
+        "packages/repositories/src/index.ts"
+      ],
+      "@sinoport/tools": [
+        "packages/tools/src/index.ts"
+      ],
+      "@sinoport/workflows": [
+        "packages/workflows/src/index.ts"
+      ]
+    },
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}

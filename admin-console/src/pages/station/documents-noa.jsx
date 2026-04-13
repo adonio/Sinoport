@@ -16,6 +16,8 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { openSnackbar } from 'api/snackbar';
+import { processInboundNoa, useGetNoaNotifications } from 'api/station';
 import { getGateEvaluationsByGateId, getHardGatePolicy, noaNotificationRows } from 'data/sinoport-adapters';
 
 function buildInitialState() {
@@ -23,7 +25,9 @@ function buildInitialState() {
 }
 
 export default function StationDocumentsNoaPage() {
+  const { noaNotifications } = useGetNoaNotifications();
   const [selectedId, setSelectedId] = useState(noaNotificationRows[0]?.id || '');
+  const [activeAction, setActiveAction] = useState('');
   const [rowState, setRowState] = useState(buildInitialState);
   const [actionLog, setActionLog] = useState([
     {
@@ -34,7 +38,7 @@ export default function StationDocumentsNoaPage() {
     }
   ]);
 
-  const selectedRow = noaNotificationRows.find((item) => item.id === selectedId) || noaNotificationRows[0];
+  const selectedRow = noaNotifications.find((item) => item.id === selectedId) || noaNotifications[0] || noaNotificationRows[0];
   const gatePolicy = getHardGatePolicy(selectedRow.gateId);
   const gateItems = useMemo(
     () =>
@@ -73,34 +77,74 @@ export default function StationDocumentsNoaPage() {
     }));
   }
 
-  function handleValidate() {
-    if (selectedRow.id === 'NOA-001') {
-      updateRow('待处理', `仍命中 ${selectedRow.gateId}，需先完成理货复核。`);
-      pushLog('NOA 校验未通过', `${selectedRow.awb} 仍命中 ${selectedRow.gateId}，发送动作保持待处理。`, '待处理');
-      return;
-    }
+  async function handleValidate() {
+    if (!selectedRow.awbId) return;
 
-    pushLog('NOA 校验通过', `${selectedRow.awb} 已满足发送前门槛，可继续通知动作。`, '运行中');
+    try {
+      setActiveAction('validate');
+      const response = await processInboundNoa(selectedRow.awbId, {
+        action: 'validate',
+        channel: selectedRow.channel,
+        note: 'Validate from NOA page'
+      });
+
+      const passed = response?.data?.validation_passed;
+      updateRow(passed ? '已校验' : '待处理', response?.data?.message || selectedRow.note);
+      pushLog(passed ? 'NOA 校验通过' : 'NOA 校验未通过', `${selectedRow.awb} · ${response?.data?.message || '校验完成'}`, passed ? '运行中' : '待处理');
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || 'NOA 校验失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveAction('');
+    }
   }
 
-  function handleRetry() {
-    if (selectedRow.id !== 'NOA-003') {
-      pushLog('无需重试', `${selectedRow.id} 当前不是失败态，无需执行重试。`, '运行中');
+  async function handleRetry() {
+    if (!selectedRow.awbId) {
       return;
     }
 
-    updateRow('已发送', '重试成功，已记录补发时间与渠道。');
-    pushLog('NOA 重试成功', `${selectedRow.awb} 已从失败态恢复为已发送。`, '运行中');
+    try {
+      setActiveAction('retry');
+      const response = await processInboundNoa(selectedRow.awbId, { action: 'retry', channel: selectedRow.channel, note: 'Retry from NOA page' });
+      updateRow('已发送', response?.data?.message || '重试成功');
+      pushLog('NOA 重试成功', `${selectedRow.awb} 已从失败态恢复为已发送。`, '运行中');
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || 'NOA 重试失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveAction('');
+    }
   }
 
-  function handleManualSend() {
-    if (selectedRow.id === 'NOA-001') {
-      pushLog('人工补发被拦截', `${selectedRow.awb} 仍命中 ${selectedRow.gateId}，需先解除门槛。`, '警戒');
+  async function handleManualSend() {
+    if (!selectedRow.awbId) {
       return;
     }
 
-    updateRow('已发送', '已登记人工补发记录和责任人。');
-    pushLog('人工补发完成', `${selectedRow.awb} 已登记人工补发记录。`, '运行中');
+    try {
+      setActiveAction('manual_send');
+      const response = await processInboundNoa(selectedRow.awbId, { action: 'manual_send', channel: selectedRow.channel, note: 'Manual send from NOA page' });
+      updateRow('已发送', response?.data?.message || '已登记人工补发记录');
+      pushLog('人工补发完成', `${selectedRow.awb} 已登记人工补发记录。`, '运行中');
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '人工补发失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveAction('');
+    }
   }
 
   return (
@@ -143,7 +187,7 @@ export default function StationDocumentsNoaPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {noaNotificationRows.map((item) => (
+              {noaNotifications.map((item) => (
                 <TableRow key={item.id} hover selected={item.id === selectedId} onClick={() => setSelectedId(item.id)} sx={{ cursor: 'pointer' }}>
                   <TableCell>{item.id}</TableCell>
                   <TableCell>{item.awb}</TableCell>
@@ -183,13 +227,13 @@ export default function StationDocumentsNoaPage() {
             </Stack>
 
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="contained" onClick={handleValidate}>
+              <Button variant="contained" onClick={handleValidate} disabled={activeAction === 'validate' || !selectedRow.awbId}>
                 发送前校验
               </Button>
-              <Button variant="outlined" onClick={handleRetry}>
+              <Button variant="outlined" onClick={handleRetry} disabled={activeAction === 'retry' || !selectedRow.awbId}>
                 重试发送
               </Button>
-              <Button variant="outlined" onClick={handleManualSend}>
+              <Button variant="outlined" onClick={handleManualSend} disabled={activeAction === 'manual_send' || !selectedRow.awbId}>
                 人工补发
               </Button>
             </Stack>

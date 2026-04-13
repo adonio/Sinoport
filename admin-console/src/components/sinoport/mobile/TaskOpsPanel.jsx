@@ -19,7 +19,16 @@ function queueSummary(queue = []) {
   };
 }
 
-export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onRecover, contextChips = [], quickLinks = [] }) {
+export default function TaskOpsPanel({
+  scopeKey,
+  currentLabel,
+  onSuspend,
+  onRecover,
+  contextChips = [],
+  quickLinks = [],
+  liveTasks = [],
+  onTaskAction
+}) {
   const { session, state, setState } = useMobileOpsStorage(scopeKey);
   const previousModeRef = useRef(state.deviceMode);
   const summary = queueSummary(state.queue);
@@ -60,6 +69,45 @@ export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onReco
               <Chip key={item} size="small" label={item} variant="outlined" />
             ))}
           </Stack>
+        ) : null}
+
+        {liveTasks.length ? (
+          <Fragment>
+            <Divider />
+            <Stack sx={{ gap: 1 }}>
+              <Typography variant="subtitle2">真实任务</Typography>
+              {liveTasks.map((task) => (
+                <Stack key={task.task_id} sx={{ gap: 0.75, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}>
+                  <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
+                    <Typography variant="body2">{task.task_type}</Typography>
+                    <Chip size="small" label={task.task_status} color="info" variant="light" />
+                  </Stack>
+                  <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
+                    {task.allowed_actions.includes('accept') ? (
+                      <Button size="small" variant="outlined" onClick={() => onTaskAction?.(task, 'accept')}>
+                        领取
+                      </Button>
+                    ) : null}
+                    {task.allowed_actions.includes('start') ? (
+                      <Button size="small" variant="outlined" onClick={() => onTaskAction?.(task, 'start')}>
+                        开始
+                      </Button>
+                    ) : null}
+                    {task.allowed_actions.includes('upload_evidence') ? (
+                      <Button size="small" variant="outlined" onClick={() => onTaskAction?.(task, 'evidence')}>
+                        证据
+                      </Button>
+                    ) : null}
+                    {task.allowed_actions.includes('complete') ? (
+                      <Button size="small" variant="contained" onClick={() => onTaskAction?.(task, 'complete')}>
+                        完成
+                      </Button>
+                    ) : null}
+                  </Stack>
+                </Stack>
+              ))}
+            </Stack>
+          </Fragment>
         ) : null}
 
         {quickLinks.length ? (
@@ -170,6 +218,8 @@ export default function TaskOpsPanel({ scopeKey, currentLabel, onSuspend, onReco
 TaskOpsPanel.propTypes = {
   contextChips: PropTypes.array,
   currentLabel: PropTypes.string.isRequired,
+  liveTasks: PropTypes.array,
+  onTaskAction: PropTypes.func,
   onRecover: PropTypes.func,
   onSuspend: PropTypes.func,
   quickLinks: PropTypes.array,

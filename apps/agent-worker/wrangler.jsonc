@@ -1,0 +1,57 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "sinoport-agent-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-13",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "APP_NAME": "sinoport-agent-worker",
+    "AUTH_TOKEN_SECRET": "sinoport-local-dev-secret",
+    "ENVIRONMENT": "local"
+  },
+  "env": {
+    "staging": {
+      "vars": {
+        "APP_NAME": "sinoport-agent-worker-staging",
+        "AUTH_TOKEN_SECRET": "replace-me-staging",
+        "ENVIRONMENT": "staging"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "sinoport-api-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID",
+          "preview_database_id": "REPLACE_WITH_STAGING_PREVIEW_D1_ID",
+          "migrations_dir": "../api-worker/migrations"
+        }
+      ]
+    },
+    "production": {
+      "vars": {
+        "APP_NAME": "sinoport-agent-worker-production",
+        "AUTH_TOKEN_SECRET": "replace-me-production",
+        "ENVIRONMENT": "production"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "sinoport-api-production",
+          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
+          "preview_database_id": "REPLACE_WITH_PRODUCTION_PREVIEW_D1_ID",
+          "migrations_dir": "../api-worker/migrations"
+        }
+      ]
+    }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sinoport-api-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "preview_database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../api-worker/migrations"
+    }
+  ]
+}

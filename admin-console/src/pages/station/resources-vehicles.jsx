@@ -16,11 +16,11 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { OFFICE_TRIP_STORAGE_KEY, readOfficeTripPlans } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+import { useMobileState } from 'hooks/useMobileState';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function StationResourcesVehiclesPage() {
-  const { state: officePlans, setState: setOfficePlans } = useLocalStorage(OFFICE_TRIP_STORAGE_KEY, readOfficeTripPlans());
+  const { state: officePlans, setState: setOfficePlans } = useMobileState(OFFICE_TRIP_STORAGE_KEY, readOfficeTripPlans());
   const [form, setForm] = useState({
     tripId: 'TRIP-URC-003',
     flowKey: 'headhaul',

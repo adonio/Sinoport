@@ -6,7 +6,7 @@ export default function MobileInboundFlightPage() {
   const { flightNo } = useParams();
   const flight = getInboundFlight(flightNo);
   const waybills = flight ? buildFlightWaybills(flight.flightNo) : [];
-  const { taskMap } = useInboundStorage();
+  const { taskMap } = useInboundStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;

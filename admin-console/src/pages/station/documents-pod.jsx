@@ -16,6 +16,8 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { openSnackbar } from 'api/snackbar';
+import { processInboundPod, useGetPodNotifications } from 'api/station';
 import { getGateEvaluationsByGateId, getHardGatePolicy, podNotificationRows } from 'data/sinoport-adapters';
 
 function buildInitialState() {
@@ -23,7 +25,9 @@ function buildInitialState() {
 }
 
 export default function StationDocumentsPodPage() {
+  const { podNotifications } = useGetPodNotifications();
   const [selectedId, setSelectedId] = useState(podNotificationRows[0]?.id || '');
+  const [activeAction, setActiveAction] = useState('');
   const [rowState, setRowState] = useState(buildInitialState);
   const [actionLog, setActionLog] = useState([
     {
@@ -34,7 +38,7 @@ export default function StationDocumentsPodPage() {
     }
   ]);
 
-  const selectedRow = podNotificationRows.find((item) => item.id === selectedId) || podNotificationRows[0];
+  const selectedRow = podNotifications.find((item) => item.id === selectedId) || podNotifications[0] || podNotificationRows[0];
   const gatePolicy = getHardGatePolicy(selectedRow.gateId);
   const gateItems = useMemo(
     () =>
@@ -73,41 +77,85 @@ export default function StationDocumentsPodPage() {
     }));
   }
 
-  function handleCheckClose() {
-    if (selectedRow.id === 'POD-001') {
-      updateRow('待补签', '仍缺双签，Closed 校验未通过。');
-      pushLog('Closed 校验未通过', `${selectedRow.object} 仍命中 ${selectedRow.gateId}，无法关闭。`, '阻塞');
-      return;
-    }
+  async function handleCheckClose() {
+    if (!selectedRow.awbId) return;
 
-    if (selectedRow.id === 'POD-003') {
-      updateRow('警戒', '扫描件仍需替换，归档前继续保持警戒。');
-      pushLog('Closed 校验待补件', `${selectedRow.object} 仍需替换模糊扫描件。`, '警戒');
-      return;
-    }
+    try {
+      setActiveAction('validate_close');
+      const response = await processInboundPod(selectedRow.awbId, {
+        action: 'validate_close',
+        document_name: `${selectedRow.object}-pod.pdf`,
+        signer: selectedRow.signer,
+        note: 'Validate close from POD page'
+      });
 
-    pushLog('Closed 校验通过', `${selectedRow.object} 已满足归档与关闭条件。`, '运行中');
+      const passed = response?.data?.validation_passed;
+      updateRow(passed ? '已校验' : '待补签', response?.data?.message || selectedRow.note);
+      pushLog(passed ? 'Closed 校验通过' : 'Closed 校验未通过', `${selectedRow.object} · ${response?.data?.message || '校验完成'}`, passed ? '运行中' : '阻塞');
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '关闭前校验失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveAction('');
+    }
   }
 
-  function handleConfirmSign() {
-    if (selectedRow.id === 'POD-001') {
-      updateRow('已归档', '已记录司机与客户双签，可进入归档。');
+  async function handleConfirmSign() {
+    if (!selectedRow.awbId) {
+      return;
+    }
+
+    try {
+      setActiveAction('confirm_sign');
+      const response = await processInboundPod(selectedRow.awbId, {
+        action: 'confirm_sign',
+        document_name: `${selectedRow.object}-pod.pdf`,
+        signer: selectedRow.signer,
+        note: 'Confirm sign from POD page'
+      });
+      updateRow('已归档', response?.data?.message || '已完成补签');
       pushLog('POD 双签完成', `${selectedRow.object} 已补齐双签，阻断解除。`, '运行中');
-      return;
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || 'POD 补签失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveAction('');
     }
-
-    pushLog('无需补签', `${selectedRow.id} 当前不需要补签动作。`, '运行中');
   }
 
-  function handleArchive() {
-    if (selectedRow.id === 'POD-003') {
-      updateRow('待补签', '归档前需先替换扫描件并复核清晰度。');
-      pushLog('归档前被拦截', `${selectedRow.object} 因扫描件模糊被拦截。`, '警戒');
+  async function handleArchive() {
+    if (!selectedRow.awbId) {
       return;
     }
 
-    updateRow('已归档', '已登记归档结果与责任人。');
-    pushLog('POD 已归档', `${selectedRow.object} 已完成归档动作。`, '运行中');
+    try {
+      setActiveAction('archive');
+      const response = await processInboundPod(selectedRow.awbId, {
+        action: 'archive',
+        document_name: `${selectedRow.object}-pod.pdf`,
+        signer: selectedRow.signer,
+        note: 'Archive from POD page'
+      });
+      updateRow('已归档', response?.data?.message || '已完成归档');
+      pushLog('POD 已归档', `${selectedRow.object} 已完成归档动作。`, '运行中');
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || 'POD 归档失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveAction('');
+    }
   }
 
   return (
@@ -149,7 +197,7 @@ export default function StationDocumentsPodPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {podNotificationRows.map((item) => (
+              {podNotifications.map((item) => (
                 <TableRow key={item.id} hover selected={item.id === selectedId} onClick={() => setSelectedId(item.id)} sx={{ cursor: 'pointer' }}>
                   <TableCell>{item.id}</TableCell>
                   <TableCell>{item.object}</TableCell>
@@ -188,13 +236,13 @@ export default function StationDocumentsPodPage() {
             </Stack>
 
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="contained" onClick={handleCheckClose}>
+              <Button variant="contained" onClick={handleCheckClose} disabled={activeAction === 'validate_close' || !selectedRow.awbId}>
                 关闭前校验
               </Button>
-              <Button variant="outlined" onClick={handleConfirmSign}>
+              <Button variant="outlined" onClick={handleConfirmSign} disabled={activeAction === 'confirm_sign' || !selectedRow.awbId}>
                 补签确认
               </Button>
-              <Button variant="outlined" onClick={handleArchive}>
+              <Button variant="outlined" onClick={handleArchive} disabled={activeAction === 'archive' || !selectedRow.awbId}>
                 执行归档
               </Button>
             </Stack>

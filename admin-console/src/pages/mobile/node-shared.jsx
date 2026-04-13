@@ -19,6 +19,8 @@ import ObjectSummaryCard from 'components/sinoport/ObjectSummaryCard';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
+import { acceptMobileTask, completeMobileTask, startMobileTask, uploadMobileTaskEvidence, useGetMobileTasks } from 'api/station';
+import { openSnackbar } from 'api/snackbar';
 import {
   filterMobileActionsByRole,
   getMobileNodeDetail,
@@ -27,7 +29,7 @@ import {
   isMobileFlowAllowed,
   isMobileRoleAllowed
 } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+import { useMobileState } from 'hooks/useMobileState';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { getMobileFlowStorageKey, getMobileRoleKey, readMobileSession } from 'utils/mobile/session';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
@@ -78,6 +80,24 @@ function useNodeRoleContext(flowKey) {
   const language = session?.language || readMobileLanguage();
 
   return { session, roleKey, roleView, language, flowAllowed: isMobileFlowAllowed(roleKey, flowKey) };
+}
+
+function matchNodeTask(task, flowKey, itemId) {
+  if (task.task_id === itemId || task.related_object_id === itemId || task.flight_no === itemId || task.awb_no === itemId) {
+    return true;
+  }
+
+  const executionNode = task.execution_node || '';
+
+  if (flowKey === 'flightRuntime') return executionNode.includes('Runtime') || task.flight_no === itemId;
+  if (flowKey === 'destinationRamp') return executionNode.includes('Ramp') || task.flight_no === itemId;
+  if (flowKey === 'exportRamp') return executionNode.includes('Ramp') || task.flight_no === itemId;
+  if (flowKey === 'delivery') return executionNode.includes('Delivery');
+  if (flowKey === 'tailhaul') return executionNode.includes('Tail') || executionNode.includes('Truck');
+  if (flowKey === 'headhaul') return executionNode.includes('Truck') || executionNode.includes('Headhaul');
+  if (flowKey === 'preWarehouse') return executionNode.includes('Warehouse') || executionNode.includes('Receiving');
+
+  return false;
 }
 
 export function MobileNodeListPage({ flowKey, pathOf }) {
@@ -147,8 +167,9 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const { session, roleKey, roleView, language, flowAllowed } = useNodeRoleContext(flowKey);
   const [activeSection, setActiveSection] = useState(flowKey === 'flightRuntime' ? 'summary' : 'ops');
   const detail = getMobileNodeDetail(flowKey, itemId);
-  const storage = useLocalStorage(getMobileFlowStorageKey(session, `${flowKey}-${itemId}`), {});
+  const storage = useMobileState(getMobileFlowStorageKey(session, `${flowKey}-${itemId}`), {});
   const opsStorage = useMobileOpsStorage(`node-${flowKey}-${itemId}`);
+  const { mobileTasks } = useGetMobileTasks();
 
   const state = useMemo(() => {
     if (!detail) return null;
@@ -160,6 +181,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   }
 
   const roleAllowed = isMobileRoleAllowed(roleKey, detail.role) || flowAllowed;
+  const liveTasks = mobileTasks.filter((task) => matchNodeTask(task, flowKey, itemId));
 
   const setCurrentState = (updater) => {
     storage.setState((prev) => {
@@ -212,6 +234,34 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
     { key: 'records', label: '记录', icon: FileTextOutlined }
   ];
 
+  const handleLiveTaskAction = async (task, action) => {
+    try {
+      if (action === 'accept') await acceptMobileTask(task.task_id, { note: `Accepted from ${flowKey} detail` });
+      if (action === 'start') await startMobileTask(task.task_id, { note: `Started from ${flowKey} detail` });
+      if (action === 'evidence') {
+        await uploadMobileTaskEvidence(task.task_id, {
+          note: `Evidence from ${flowKey} detail`,
+          evidence_summary: `${detail.title} evidence summary`
+        });
+      }
+      if (action === 'complete') await completeMobileTask(task.task_id, { note: `Completed from ${flowKey} detail` });
+
+      openSnackbar({
+        open: true,
+        message: `任务 ${task.task_id} 已执行 ${action}`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || `任务 ${action} 失败`,
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    }
+  };
+
   return (
     <Box sx={{ pb: 12 }}>
       <Stack sx={{ gap: 1.5 }}>
@@ -249,6 +299,8 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
             scopeKey={`node-${flowKey}-${itemId}`}
             currentLabel={detail.title}
             contextChips={[`节点 ${detail.node}`, `角色 ${roleView.label}`, `SLA ${detail.sla}`]}
+            liveTasks={liveTasks}
+            onTaskAction={handleLiveTaskAction}
             quickLinks={[
               { label: '返回列表', variant: 'outlined', onClick: () => navigate(backPath) },
               { label: '节点选择', variant: 'outlined', onClick: () => navigate('/mobile/select') }

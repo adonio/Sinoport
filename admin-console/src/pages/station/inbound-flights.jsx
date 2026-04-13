@@ -17,8 +17,8 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import ProgressMetricCard from 'components/sinoport/ProgressMetricCard';
 import StatusChip from 'components/sinoport/StatusChip';
-import { inboundCargoLifecycle, inboundFlights } from 'data/sinoport';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+import { useGetInboundFlights } from 'api/station';
+import { useMobileState } from 'hooks/useMobileState';
 import { getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 
 const officeInboundPlans = [
@@ -35,9 +35,10 @@ const officeInboundPlans = [
 ];
 
 export default function StationInboundFlightsPage() {
+  const { inboundFlights, inboundLifecycle } = useGetInboundFlights();
   const stationKey = getMobileStationKey(readMobileSession() || { stationCode: 'MME' });
-  const { state: loadingPlans, setState: setLoadingPlans } = useLocalStorage(`sinoport-mobile-loading-plans-${stationKey}`, []);
-  const { state: pallets, setState: setPallets } = useLocalStorage(`sinoport-mobile-inbound-pallets-${stationKey}`, []);
+  const { state: loadingPlans, setState: setLoadingPlans } = useMobileState(`sinoport-mobile-loading-plans-${stationKey}`, []);
+  const { state: pallets, setState: setPallets } = useMobileState(`sinoport-mobile-inbound-pallets-${stationKey}`, []);
   const [palletForm, setPalletForm] = useState({
     flightNo: 'SE803',
     palletNo: 'SE803-PLT-1501',
@@ -59,8 +60,8 @@ export default function StationInboundFlightsPage() {
   });
 
   const lifecycleColors = ['primary', 'secondary', 'info', 'warning', 'success', 'error'];
-  const totalCount = inboundCargoLifecycle[0]?.count || 0;
-  const displayLifecycle = inboundCargoLifecycle.filter((item) => item.label !== '已交付');
+  const totalCount = inboundLifecycle[0]?.count || 0;
+  const displayLifecycle = inboundLifecycle.filter((item) => item.label !== '已交付');
   const flightPallets = useMemo(() => pallets.filter((item) => item.flightNo === 'SE803'), [pallets]);
   const flightLoadingPlans = useMemo(() => loadingPlans.filter((item) => item.flightNo === 'SE803'), [loadingPlans]);
 

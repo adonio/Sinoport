@@ -11,9 +11,11 @@ import { Link as RouterLink } from 'react-router-dom';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { inboundWaybillRows } from 'data/sinoport';
+import { useGetInboundWaybills } from 'api/station';
 
 export default function StationInboundWaybillsPage() {
+  const { inboundWaybills } = useGetInboundWaybills();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
@@ -55,7 +57,7 @@ export default function StationInboundWaybillsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {inboundWaybillRows.map((item) => (
+              {inboundWaybills.map((item) => (
                 <TableRow key={item.awb} hover>
                   <TableCell>{item.awb}</TableCell>
                   <TableCell>{item.flightNo}</TableCell>

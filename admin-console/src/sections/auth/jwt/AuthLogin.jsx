@@ -55,8 +55,8 @@ export default function AuthLogin({ isDemo = false }) {
     <>
       <Formik
         initialValues={{
-          email: 'info@codedthemes.com',
-          password: '123456',
+          email: 'supervisor@sinoport.local',
+          password: 'Sinoport123!',
           submit: null
         }}
         validationSchema={Yup.object().shape({
@@ -64,7 +64,7 @@ export default function AuthLogin({ isDemo = false }) {
           password: Yup.string()
             .required('Password is required')
             .test('no-leading-trailing-whitespace', 'Password cannot start or end with spaces', (value) => value === value.trim())
-            .max(10, 'Password must be less than 10 characters')
+            .max(64, 'Password must be less than 64 characters')
         })}
         onSubmit={async (values, { setErrors, setStatus, setSubmitting }) => {
           try {

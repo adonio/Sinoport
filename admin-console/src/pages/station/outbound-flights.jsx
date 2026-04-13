@@ -17,8 +17,9 @@ import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
+import { useGetOutboundFlights } from 'api/station';
 import { ffmForecastRows, manifestSummary, outboundFlights } from 'data/sinoport';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+import { useMobileState } from 'hooks/useMobileState';
 import { getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 
 const officeOutboundPlans = [
@@ -35,8 +36,9 @@ const officeOutboundPlans = [
 ];
 
 export default function StationOutboundFlightsPage() {
+  const { outboundFlights: liveOutboundFlights, outboundFlightsUsingMock } = useGetOutboundFlights();
   const stationKey = getMobileStationKey(readMobileSession() || { stationCode: 'MME' });
-  const { state: pmcBoards, setState: setPmcBoards } = useLocalStorage(`sinoport-mobile-outbound-containers-${stationKey}`, []);
+  const { state: pmcBoards, setState: setPmcBoards } = useMobileState(`sinoport-mobile-outbound-containers-${stationKey}`, []);
   const [uldForm, setUldForm] = useState({
     flightNo: 'SE913',
     boardCode: 'ULD91009',
@@ -44,8 +46,9 @@ export default function StationOutboundFlightsPage() {
     aircraftPosition: '15L'
   });
 
+  const rows = outboundFlightsUsingMock ? outboundFlights : liveOutboundFlights;
   const metrics = [
-    { title: '待飞走航班', value: `${outboundFlights.length}`, helper: '当前在本站处理的出港航班', chip: 'Flights', color: 'primary' },
+    { title: '待飞走航班', value: `${rows.length}`, helper: '当前在本站处理的出港航班', chip: 'Flights', color: 'primary' },
     { title: 'Manifest 版本', value: manifestSummary.version, helper: manifestSummary.exchange, chip: 'Manifest', color: 'secondary' },
     { title: '出港货物数量', value: manifestSummary.outboundCount, helper: '来自航班级装载汇总', chip: 'Cargo', color: 'success' }
   ];
@@ -129,7 +132,7 @@ export default function StationOutboundFlightsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {outboundFlights.map((item) => (
+              {rows.map((item) => (
                 <TableRow key={item.flightNo} hover>
                   <TableCell>{item.flightNo}</TableCell>
                   <TableCell>{item.etd}</TableCell>

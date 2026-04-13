@@ -1,4 +1,10 @@
+import { useState } from 'react';
+
 import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
@@ -6,6 +12,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import { Link as RouterLink } from 'react-router-dom';
 
 import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
@@ -16,6 +23,15 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { openSnackbar } from 'api/snackbar';
+import {
+  assignStationTask,
+  escalateStationTask,
+  raiseStationTaskException,
+  reworkStationTask,
+  useGetStationTasks,
+  verifyStationTask
+} from 'api/station';
 import {
   exceptionDetailRows,
   getGateEvaluationsForTask,
@@ -25,10 +41,8 @@ import {
   scenarioTimelineRows,
   stationBlockerQueue,
   stationReviewQueue,
-  stationTaskBoard,
-  stationTaskSummary
+  stationTaskBoard
 } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
 
 const mobileOfficeMatrix = [
   {
@@ -87,8 +101,6 @@ const mobileOfficeMatrix = [
   }
 ];
 
-const OFFICE_TASK_STORAGE_KEY = 'sinoport-station-task-office-state-v1';
-
 function getTaskDocumentPath(task) {
   if (task.title.includes('POD')) return '/station/documents/pod';
   if (task.title.includes('NOA')) return '/station/documents/noa';
@@ -102,23 +114,201 @@ function getTaskExceptionPath(task) {
 }
 
 export default function StationTasksPage() {
-  const { state: officeTaskState, setState: setOfficeTaskState } = useLocalStorage(OFFICE_TASK_STORAGE_KEY, {});
+  const { stationTasks, stationTaskSummaryCards } = useGetStationTasks();
+  const [activeMutationId, setActiveMutationId] = useState('');
+  const [assignDialogTask, setAssignDialogTask] = useState(null);
+  const [exceptionDialogTask, setExceptionDialogTask] = useState(null);
+  const [assignForm, setAssignForm] = useState(null);
+  const [exceptionForm, setExceptionForm] = useState(null);
 
-  const getOfficeState = (taskId) =>
-    officeTaskState[taskId] || {
-      planStatus: '待排计划',
-      dispatchStatus: '未下发',
-      reviewStatus: '待复核'
+  const getOfficeState = (task) => ({
+    planStatus: ['Created'].includes(task.status) ? '待排计划' : '已排计划',
+    dispatchStatus: ['Created'].includes(task.status) ? '待下发' : '已下发 PDA',
+    reviewStatus: ['Completed', 'Verified', 'Closed'].includes(task.status)
+      ? '已复核'
+      : task.status === 'Exception Raised'
+        ? '异常待处理'
+        : '待复核'
+  });
+
+  const getSuggestedAssignee = (task) => {
+    if (task.title.includes('NOA')) {
+      return {
+        assigned_role: 'document_desk',
+        assigned_team_id: 'TEAM-DD-01',
+        assigned_worker_id: 'WORKER-DOC-001',
+        due_at: '2026-04-08T20:25:00Z',
+        task_sla: '15m',
+        reason: 'Auto-assigned from task center'
+      };
+    }
+
+    if (task.title.includes('Inventory') || task.title.includes('Check')) {
+      return {
+        assigned_role: 'check_worker',
+        assigned_team_id: 'TEAM-CK-01',
+        assigned_worker_id: 'WORKER-CK-007',
+        due_at: '2026-04-08T19:45:00Z',
+        task_sla: '30m',
+        reason: 'Auto-assigned from task center'
+      };
+    }
+
+    return {
+      assigned_role: 'inbound_operator',
+      assigned_team_id: 'TEAM-IN-01',
+      assigned_worker_id: 'WORKER-PDA-001',
+      due_at: '2026-04-08T19:30:00Z',
+      task_sla: '30m',
+      reason: 'Auto-assigned from task center'
     };
+  };
 
-  const updateOfficeState = (taskId, patch) =>
-    setOfficeTaskState((prev) => ({
-      ...prev,
-      [taskId]: {
-        ...getOfficeState(taskId),
-        ...patch
+  const getSuggestedException = (task) => ({
+    exception_type: 'PiecesMismatch',
+    severity: task.priority === 'P1' ? 'P1' : 'P2',
+    blocker_flag: true,
+    owner_role: task.role === 'check_worker' ? 'check_worker' : 'inbound_operator',
+    owner_team_id: task.role === 'check_worker' ? 'TEAM-CK-01' : 'TEAM-IN-01',
+    root_cause: `task center reported blocker ${task.blocker || 'manual review required'}`,
+    action_taken: 'hold further task progression',
+    note: 'Raised from task center quick action'
+  });
+
+  const handleAssign = async (task) => {
+    try {
+      setActiveMutationId(`assign:${task.id}`);
+      await assignStationTask(task.id, getSuggestedAssignee(task));
+      openSnackbar({
+        open: true,
+        message: `${task.title} 已完成真实分派。`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '任务分派失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveMutationId('');
+    }
+  };
+
+  const handleRaiseException = async (task) => {
+    try {
+      setActiveMutationId(`exception:${task.id}`);
+      await raiseStationTaskException(task.id, getSuggestedException(task));
+      openSnackbar({
+        open: true,
+        message: `${task.title} 已上报异常。`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '异常上报失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveMutationId('');
+    }
+  };
+
+  const handleWorkflowAction = async (task, action) => {
+    try {
+      setActiveMutationId(`${action}:${task.id}`);
+      if (action === 'verify') {
+        await verifyStationTask(task.id, { note: 'Verified from task center' });
       }
-    }));
+      if (action === 'rework') {
+        await reworkStationTask(task.id, { note: 'Rework requested from task center', reason: 'Manual rework request' });
+      }
+      if (action === 'escalate') {
+        await escalateStationTask(task.id, { note: 'Escalated from task center', reason: 'Supervisor escalation' });
+      }
+
+      openSnackbar({
+        open: true,
+        message: `${task.title} 已执行 ${action}。`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || `${action} 失败`,
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveMutationId('');
+    }
+  };
+
+  const openAssignDialog = (task) => {
+    setAssignDialogTask(task);
+    setAssignForm(getSuggestedAssignee(task));
+  };
+
+  const openExceptionDialog = (task) => {
+    setExceptionDialogTask(task);
+    setExceptionForm(getSuggestedException(task));
+  };
+
+  const submitAssignDialog = async () => {
+    if (!assignDialogTask || !assignForm) return;
+
+    try {
+      setActiveMutationId(`assign:${assignDialogTask.id}`);
+      await assignStationTask(assignDialogTask.id, assignForm);
+      setAssignDialogTask(null);
+      openSnackbar({
+        open: true,
+        message: `${assignDialogTask.title} 已完成真实分派。`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '任务分派失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveMutationId('');
+    }
+  };
+
+  const submitExceptionDialog = async () => {
+    if (!exceptionDialogTask || !exceptionForm) return;
+
+    try {
+      setActiveMutationId(`exception:${exceptionDialogTask.id}`);
+      await raiseStationTaskException(exceptionDialogTask.id, exceptionForm);
+      setExceptionDialogTask(null);
+      openSnackbar({
+        open: true,
+        message: `${exceptionDialogTask.title} 已上报异常。`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '异常上报失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setActiveMutationId('');
+    }
+  };
 
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
@@ -154,7 +344,7 @@ export default function StationTasksPage() {
         <BlockingReasonAlert title="当前硬门槛阻断" reasons={stationBlockerQueue.map((item) => `${item.title} · ${item.description}`)} />
       </Grid>
 
-      {stationTaskSummary.map((item) => (
+      {stationTaskSummaryCards.map((item) => (
         <Grid key={item.title} size={{ xs: 12, sm: 6, lg: 3 }}>
           <MetricCard {...item} />
         </Grid>
@@ -214,8 +404,8 @@ export default function StationTasksPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {stationTaskBoard.map((item) => {
-                const officeState = getOfficeState(item.id);
+              {stationTasks.map((item) => {
+                const officeState = getOfficeState(item);
 
                 return (
                   <TableRow key={item.id} hover>
@@ -233,18 +423,7 @@ export default function StationTasksPage() {
                         <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
                           <StatusChip label={officeState.planStatus} color={officeState.planStatus === '已排计划' ? 'success' : 'warning'} />
                           <StatusChip label={officeState.dispatchStatus} color={officeState.dispatchStatus === '已下发 PDA' ? 'success' : 'secondary'} />
-                          <StatusChip label={officeState.reviewStatus} color={officeState.reviewStatus === '已复核' ? 'success' : 'info'} />
-                        </Stack>
-                        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
-                          <Button size="small" variant="outlined" onClick={() => updateOfficeState(item.id, { planStatus: '已排计划' })}>
-                            标记已排计划
-                          </Button>
-                          <Button size="small" variant="outlined" onClick={() => updateOfficeState(item.id, { dispatchStatus: '已下发 PDA' })}>
-                            下发到 PDA
-                          </Button>
-                          <Button size="small" variant="outlined" onClick={() => updateOfficeState(item.id, { reviewStatus: '已复核' })}>
-                            完成复核
-                          </Button>
+                          <StatusChip label={officeState.reviewStatus} color={officeState.reviewStatus === '已复核' ? 'success' : officeState.reviewStatus === '异常待处理' ? 'warning' : 'info'} />
                         </Stack>
                       </Stack>
                     </TableCell>
@@ -265,6 +444,60 @@ export default function StationTasksPage() {
                         <Grid>
                           <Button component={RouterLink} to={getTaskExceptionPath(item)} size="small" variant="outlined">
                             异常
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => openAssignDialog(item)}
+                            disabled={activeMutationId === `assign:${item.id}` || ['Completed', 'Verified', 'Closed'].includes(item.status)}
+                          >
+                            真实分派
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            onClick={() => openExceptionDialog(item)}
+                            disabled={activeMutationId === `exception:${item.id}` || item.status === 'Exception Raised'}
+                          >
+                            上报异常
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                            onClick={() => handleWorkflowAction(item, 'verify')}
+                            disabled={activeMutationId === `verify:${item.id}` || !['Completed', 'Evidence Uploaded'].includes(item.status)}
+                          >
+                            复核
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            onClick={() => handleWorkflowAction(item, 'rework')}
+                            disabled={activeMutationId === `rework:${item.id}` || ['Closed', 'Rejected'].includes(item.status)}
+                          >
+                            返工
+                          </Button>
+                        </Grid>
+                        <Grid>
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            onClick={() => handleWorkflowAction(item, 'escalate')}
+                            disabled={activeMutationId === `escalate:${item.id}` || ['Verified', 'Closed'].includes(item.status)}
+                          >
+                            升级
                           </Button>
                         </Grid>
                       </Grid>
@@ -337,6 +570,107 @@ export default function StationTasksPage() {
           )}
         />
       </Grid>
+
+      <Dialog open={Boolean(assignDialogTask)} onClose={() => setAssignDialogTask(null)} fullWidth maxWidth="sm">
+        <DialogTitle>任务分派</DialogTitle>
+        <DialogContent dividers>
+          <Stack sx={{ gap: 1.5, pt: 0.5 }}>
+            <TextField
+              label="角色"
+              value={assignForm?.assigned_role || ''}
+              onChange={(event) => setAssignForm((prev) => ({ ...prev, assigned_role: event.target.value }))}
+            />
+            <TextField
+              label="班组"
+              value={assignForm?.assigned_team_id || ''}
+              onChange={(event) => setAssignForm((prev) => ({ ...prev, assigned_team_id: event.target.value }))}
+            />
+            <TextField
+              label="人员"
+              value={assignForm?.assigned_worker_id || ''}
+              onChange={(event) => setAssignForm((prev) => ({ ...prev, assigned_worker_id: event.target.value }))}
+            />
+            <TextField
+              label="截止时间"
+              value={assignForm?.due_at || ''}
+              onChange={(event) => setAssignForm((prev) => ({ ...prev, due_at: event.target.value }))}
+            />
+            <TextField
+              label="SLA"
+              value={assignForm?.task_sla || ''}
+              onChange={(event) => setAssignForm((prev) => ({ ...prev, task_sla: event.target.value }))}
+            />
+            <TextField
+              label="原因"
+              multiline
+              minRows={3}
+              value={assignForm?.reason || ''}
+              onChange={(event) => setAssignForm((prev) => ({ ...prev, reason: event.target.value }))}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAssignDialogTask(null)}>取消</Button>
+          <Button onClick={submitAssignDialog} variant="contained" disabled={activeMutationId === `assign:${assignDialogTask?.id || ''}`}>
+            提交
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(exceptionDialogTask)} onClose={() => setExceptionDialogTask(null)} fullWidth maxWidth="sm">
+        <DialogTitle>上报异常</DialogTitle>
+        <DialogContent dividers>
+          <Stack sx={{ gap: 1.5, pt: 0.5 }}>
+            <TextField
+              label="异常类型"
+              value={exceptionForm?.exception_type || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, exception_type: event.target.value }))}
+            />
+            <TextField
+              label="严重等级"
+              value={exceptionForm?.severity || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, severity: event.target.value }))}
+            />
+            <TextField
+              label="责任角色"
+              value={exceptionForm?.owner_role || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, owner_role: event.target.value }))}
+            />
+            <TextField
+              label="责任班组"
+              value={exceptionForm?.owner_team_id || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, owner_team_id: event.target.value }))}
+            />
+            <TextField
+              label="根因"
+              multiline
+              minRows={2}
+              value={exceptionForm?.root_cause || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, root_cause: event.target.value }))}
+            />
+            <TextField
+              label="已采取动作"
+              multiline
+              minRows={2}
+              value={exceptionForm?.action_taken || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, action_taken: event.target.value }))}
+            />
+            <TextField
+              label="备注"
+              multiline
+              minRows={2}
+              value={exceptionForm?.note || ''}
+              onChange={(event) => setExceptionForm((prev) => ({ ...prev, note: event.target.value }))}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExceptionDialogTask(null)}>取消</Button>
+          <Button onClick={submitExceptionDialog} variant="contained" disabled={activeMutationId === `exception:${exceptionDialogTask?.id || ''}`}>
+            提交
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Grid>
   );
 }

@@ -5,8 +5,8 @@ import { LoadingExecutionPanel, useInboundLoadingStorage, useInboundStorage } fr
 export default function MobileInboundLoadingPlanPage() {
   const navigate = useNavigate();
   const { flightNo, planId } = useParams();
-  const { loadingPlans, setLoadingPlans } = useInboundLoadingStorage();
-  const { pallets, setPallets } = useInboundStorage();
+  const { loadingPlans, setLoadingPlans } = useInboundLoadingStorage(flightNo);
+  const { pallets, setPallets } = useInboundStorage(flightNo);
 
   const plan = loadingPlans.find((item) => item.id === planId && item.flightNo === flightNo);
 

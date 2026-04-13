@@ -1,0 +1,23 @@
+{
+  "name": "sinoport-backend-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace @sinoport/api-worker",
+    "test:frontend:smoke": "node ./scripts/test-frontend-smoke.mjs",
+    "dev:agent": "npm run dev --workspace @sinoport/agent-worker",
+    "test:agent:smoke": "node ./scripts/test-agent-smoke.mjs",
+    "test:integration:api": "node ./scripts/test-api-integration.mjs",
+    "test:smoke:api": "node ./scripts/smoke-api.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1",
+    "typescript": "^5.8.3"
+  }
+}

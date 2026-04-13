@@ -12,6 +12,7 @@ import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
+import { useGetStationShipments } from 'api/station';
 import { exceptionDetailRows, shipmentRows } from 'data/sinoport-adapters';
 
 function getShipmentExceptionPath(shipmentId) {
@@ -20,11 +21,13 @@ function getShipmentExceptionPath(shipmentId) {
 }
 
 export default function StationShipmentsPage() {
+  const { stationShipments } = useGetStationShipments();
+  const rows = stationShipments?.length ? stationShipments : shipmentRows;
   const metrics = [
-    { title: '履约对象总数', value: `${shipmentRows.length}`, helper: '统一按 Shipment / AWB 观察进港与出港链路', chip: 'Objects', color: 'primary' },
-    { title: '进港对象', value: `${shipmentRows.filter((item) => item.direction === '进港').length}`, helper: '重点跟踪 Inbound Handling 与 NOA', chip: 'Inbound', color: 'secondary' },
-    { title: '出港对象', value: `${shipmentRows.filter((item) => item.direction === '出港').length}`, helper: '重点跟踪 Loaded / Airborne / Manifest', chip: 'Outbound', color: 'success' },
-    { title: '存在阻断', value: `${shipmentRows.filter((item) => item.blocker !== '无').length}`, helper: '需要文件、异常或复核解除后才能继续', chip: 'Blocked', color: 'warning' }
+    { title: '履约对象总数', value: `${rows.length}`, helper: '统一按 Shipment / AWB 观察进港与出港链路', chip: 'Objects', color: 'primary' },
+    { title: '进港对象', value: `${rows.filter((item) => item.direction === '进港').length}`, helper: '重点跟踪 Inbound Handling 与 NOA', chip: 'Inbound', color: 'secondary' },
+    { title: '出港对象', value: `${rows.filter((item) => item.direction === '出港').length}`, helper: '重点跟踪 Loaded / Airborne / Manifest', chip: 'Outbound', color: 'success' },
+    { title: '存在阻断', value: `${rows.filter((item) => item.blocker !== '无').length}`, helper: '需要文件、异常或复核解除后才能继续', chip: 'Blocked', color: 'warning' }
   ];
 
   return (
@@ -65,7 +68,7 @@ export default function StationShipmentsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {shipmentRows.map((item) => (
+              {rows.map((item) => (
                 <TableRow key={item.id} hover>
                   <TableCell>
                     {item.awb}

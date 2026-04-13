@@ -8,12 +8,14 @@ import TableRow from '@mui/material/TableRow';
 import Stack from '@mui/material/Stack';
 import { Link as RouterLink } from 'react-router-dom';
 
+import { useGetPlatformAuditEvents } from 'api/platform';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { auditEvents } from 'data/sinoport';
 
 export default function PlatformAuditPage() {
+  const { auditEvents } = useGetPlatformAuditEvents();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

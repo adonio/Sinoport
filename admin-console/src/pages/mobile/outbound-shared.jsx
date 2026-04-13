@@ -21,9 +21,20 @@ import MetricCard from 'components/sinoport/MetricCard';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
+import {
+  acceptMobileTask,
+  completeMobileTask,
+  getOutboundContainers,
+  getOutboundReceipts,
+  saveOutboundContainer,
+  saveOutboundReceipt,
+  startMobileTask,
+  uploadMobileTaskEvidence,
+  useGetMobileTasks
+} from 'api/station';
+import { openSnackbar } from 'api/snackbar';
 import { ffmForecastRows, masterAwbRows, outboundFlights } from 'data/sinoport';
 import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
 import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
@@ -281,28 +292,69 @@ export function getOutboundSummary(flight) {
   };
 }
 
-export function useOutboundStorage() {
-  const session = readMobileSession();
-  const stationKey = stationKeyOf(session);
-  const containers = useLocalStorage(`sinoport-mobile-outbound-containers-${stationKey}`, DEFAULT_OUTBOUND_CONTAINERS);
-  const receipts = useLocalStorage(`sinoport-mobile-outbound-receipts-${stationKey}`, {});
+export function useOutboundStorage(flightNo) {
+  const [pmcBoards, setPmcBoardsState] = useState(DEFAULT_OUTBOUND_CONTAINERS.filter((item) => !flightNo || item.flightNo === flightNo));
+  const [receiptMap, setReceiptMapState] = useState({});
 
   useEffect(() => {
-    const current = Array.isArray(containers.state) ? containers.state : [];
-    const missingDefaults = DEFAULT_OUTBOUND_CONTAINERS.filter(
-      (seed) => !current.some((item) => item.boardCode === seed.boardCode && item.flightNo === seed.flightNo)
-    );
+    if (!flightNo) return;
 
-    if (missingDefaults.length) {
-      containers.setState([...current, ...missingDefaults]);
-    }
-  }, [containers.state, containers.setState]);
+    void getOutboundContainers(flightNo)
+      .then((response) => {
+        const containers = response?.data?.containers || [];
+        setPmcBoardsState(containers.length ? containers.map((item) => ({ ...item, flightNo })) : DEFAULT_OUTBOUND_CONTAINERS.filter((item) => item.flightNo === flightNo));
+      })
+      .catch(() => setPmcBoardsState(DEFAULT_OUTBOUND_CONTAINERS.filter((item) => item.flightNo === flightNo)));
+
+    void getOutboundReceipts(flightNo)
+      .then((response) => setReceiptMapState(response?.data?.receipts || {}))
+      .catch(() => setReceiptMapState({}));
+  }, [flightNo]);
+
+  const setPmcBoards = (updater) => {
+    setPmcBoardsState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        (next || []).forEach((item) => {
+          void saveOutboundContainer(flightNo, {
+            container_id: item.containerId,
+            boardCode: item.boardCode,
+            totalBoxes: item.totalBoxes,
+            totalWeightKg: item.totalWeightKg,
+            reviewedWeightKg: item.reviewedWeightKg,
+            status: item.status,
+            loadedAt: item.loadedAt,
+            note: item.note,
+            entries: item.entries
+          });
+        });
+      }
+      return next;
+    });
+  };
+
+  const setReceiptMap = (updater) => {
+    setReceiptMapState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        Object.entries(next || {}).forEach(([awbNo, value]) => {
+          void saveOutboundReceipt(flightNo, awbNo, {
+            received_pieces: value?.receivedPieces || 0,
+            received_weight: value?.receivedWeight || 0,
+            status: value?.status || '已收货',
+            note: value?.note || ''
+          });
+        });
+      }
+      return next;
+    });
+  };
 
   return {
-    pmcBoards: containers.state,
-    setPmcBoards: containers.setState,
-    receiptMap: receipts.state,
-    setReceiptMap: receipts.setState
+    pmcBoards,
+    setPmcBoards,
+    receiptMap,
+    setReceiptMap
   };
 }
 
@@ -411,6 +463,36 @@ export function OutboundFlightAppShell({ flight, children, showHero = true, show
   const navigate = useNavigate();
   const session = readMobileSession();
   const roleView = getMobileRoleView(getMobileRoleKey(session));
+  const { mobileTasks } = useGetMobileTasks();
+  const liveTasks = mobileTasks.filter((task) => task.flight_no === flight.flightNo);
+
+  const handleLiveTaskAction = async (task, action) => {
+    try {
+      if (action === 'accept') await acceptMobileTask(task.task_id, { note: 'Accepted from outbound TaskOpsPanel' });
+      if (action === 'start') await startMobileTask(task.task_id, { note: 'Started from outbound TaskOpsPanel' });
+      if (action === 'evidence') {
+        await uploadMobileTaskEvidence(task.task_id, {
+          note: 'Evidence from outbound TaskOpsPanel',
+          evidence_summary: 'TaskOpsPanel outbound evidence'
+        });
+      }
+      if (action === 'complete') await completeMobileTask(task.task_id, { note: 'Completed from outbound TaskOpsPanel' });
+
+      openSnackbar({
+        open: true,
+        message: `任务 ${task.task_id} 已执行 ${action}`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || `任务 ${action} 失败`,
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    }
+  };
 
   return (
     <Box>
@@ -425,6 +507,8 @@ export function OutboundFlightAppShell({ flight, children, showHero = true, show
               { label: '节点选择', onClick: () => navigate('/mobile/select') },
               { label: '航班列表', onClick: () => navigate('/mobile/outbound') }
             ]}
+            liveTasks={liveTasks}
+            onTaskAction={handleLiveTaskAction}
           />
         ) : null}
         {children}

@@ -5,7 +5,7 @@ import { ContainerDetailPanel, getOutboundFlight, OutboundFlightAppShell, useOut
 export default function MobileOutboundPmcDetailPage() {
   const { flightNo, containerCode } = useParams();
   const flight = getOutboundFlight(flightNo);
-  const { pmcBoards, setPmcBoards } = useOutboundStorage();
+  const { pmcBoards, setPmcBoards } = useOutboundStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/outbound" replace />;

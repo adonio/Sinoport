@@ -10,6 +10,8 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'components/MainCard';
 import sinoportLogo from 'assets/images/sinoport-logo.png';
+import { openSnackbar } from 'api/snackbar';
+import { mobileLogin } from 'api/station';
 import { mobileRoleOptions } from 'data/sinoport-adapters';
 import { writeMobileSession } from 'utils/mobile/session';
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, writeMobileLanguage } from 'utils/mobile/i18n';
@@ -25,6 +27,7 @@ const stationOptions = [
 export default function MobileLoginPage() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState(readMobileLanguage());
+  const [submitting, setSubmitting] = useState(false);
   const languageOptions = getMobileLanguageOptions(language);
   const [form, setForm] = useState({
     operator: '',
@@ -108,25 +111,59 @@ export default function MobileLoginPage() {
             <Button
               size="large"
               variant="contained"
-              disabled={!canSubmit}
-              onClick={() => {
+              disabled={!canSubmit || submitting}
+              onClick={async () => {
                 const selectedRole = mobileRoleOptions.find((item) => item.value === form.roleKey) || mobileRoleOptions[0];
-                writeMobileSession({
-                  operator: form.operator.trim(),
-                  employeeId: form.employeeId.trim(),
-                  stationCode: stationOptions.find((item) => item.value === form.station)?.code || stationOptions[0].code,
-                  station: stationOptions.find((item) => item.value === form.station)?.label || stationOptions[0].label,
-                  roleKey: selectedRole.value,
-                  roleLabel: selectedRole.label,
-                  role: selectedRole.label,
-                  language,
-                  businessType: '',
-                  loginAt: new Date().toISOString()
-                });
-                navigate('/mobile/select', { replace: true });
+                const station = stationOptions.find((item) => item.value === form.station) || stationOptions[0];
+
+                try {
+                  setSubmitting(true);
+                  const response = await mobileLogin({
+                    operator: form.operator.trim(),
+                    employeeId: form.employeeId.trim(),
+                    stationCode: station.code,
+                    roleKey: selectedRole.value,
+                    language
+                  });
+
+                  if (response?.data?.token) {
+                    localStorage.setItem('serviceToken', response.data.token);
+                  }
+
+                  writeMobileSession({
+                    operator: form.operator.trim(),
+                    employeeId: form.employeeId.trim(),
+                    stationCode: station.code,
+                    station: station.label,
+                    roleKey: selectedRole.value,
+                    roleLabel: selectedRole.label,
+                    role: selectedRole.label,
+                    language,
+                    businessType: '',
+                    loginAt: new Date().toISOString()
+                  });
+
+                  openSnackbar({
+                    open: true,
+                    message: '移动端登录成功',
+                    variant: 'alert',
+                    alert: { color: 'success' }
+                  });
+
+                  navigate('/mobile/select', { replace: true });
+                } catch (error) {
+                  openSnackbar({
+                    open: true,
+                    message: error?.error?.message || '移动端登录失败',
+                    variant: 'alert',
+                    alert: { color: 'error' }
+                  });
+                } finally {
+                  setSubmitting(false);
+                }
               }}
             >
-              {t(language, 'login_continue')}
+              {submitting ? localizeMobileText(language, '登录中…') : t(language, 'login_continue')}
             </Button>
           </Stack>
         </MainCard>

@@ -26,9 +26,22 @@ import MetricCard from 'components/sinoport/MetricCard';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
+import {
+  acceptMobileTask,
+  completeMobileTask,
+  getInboundCountRecords,
+  getInboundLoadingPlans,
+  getInboundPallets,
+  saveInboundCountRecord,
+  saveInboundLoadingPlan,
+  saveInboundPallet,
+  startMobileTask,
+  uploadMobileTaskEvidence,
+  useGetMobileTasks
+} from 'api/station';
+import { openSnackbar } from 'api/snackbar';
 import { inboundFlightWaybillDetails, inboundFlights } from 'data/sinoport';
 import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
 import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
@@ -439,45 +452,115 @@ export function getInboundSummary(waybills, taskMap) {
   };
 }
 
-export function useInboundStorage() {
-  const session = readMobileSession();
-  const stationKey = stationKeyOf(session);
-  const counts = useLocalStorage(`sinoport-mobile-inbound-counts-${stationKey}`, {});
-  const pallets = useLocalStorage(`sinoport-mobile-inbound-pallets-${stationKey}`, DEFAULT_INBOUND_PALLETS);
+export function useInboundStorage(flightNo) {
+  const [taskMap, setTaskMapState] = useState({});
+  const [pallets, setPalletsState] = useState(DEFAULT_INBOUND_PALLETS.filter((item) => !flightNo || item.flightNo === flightNo));
 
   useEffect(() => {
-    const current = Array.isArray(pallets.state) ? pallets.state : [];
-    const missingDefaults = DEFAULT_INBOUND_PALLETS.filter(
-      (seed) => !current.some((item) => item.palletNo === seed.palletNo && item.flightNo === seed.flightNo)
-    );
+    if (!flightNo) return;
 
-    if (missingDefaults.length) {
-      pallets.setState([...current, ...missingDefaults]);
-    }
-  }, [pallets.state, pallets.setState]);
+    void getInboundCountRecords(flightNo)
+      .then((response) => setTaskMapState(response?.data?.records || {}))
+      .catch(() => setTaskMapState({}));
+
+    void getInboundPallets(flightNo)
+      .then((response) => {
+        const livePallets = response?.data?.pallets || [];
+        setPalletsState(livePallets.length ? livePallets.map((item) => ({ ...item, flightNo })) : DEFAULT_INBOUND_PALLETS.filter((item) => item.flightNo === flightNo));
+      })
+      .catch(() => setPalletsState(DEFAULT_INBOUND_PALLETS.filter((item) => item.flightNo === flightNo)));
+  }, [flightNo]);
+
+  const setTaskMap = (updater) => {
+    setTaskMapState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        Object.entries(next || {}).forEach(([awbNo, value]) => {
+          void saveInboundCountRecord(flightNo, awbNo, {
+            counted_boxes: value?.countedBoxes || 0,
+            status: value?.status || '未开始',
+            scanned_serials: value?.scannedSerials || [],
+            note: value?.note || ''
+          });
+        });
+      }
+      return next;
+    });
+  };
+
+  const setPallets = (updater) => {
+    setPalletsState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        (next || []).forEach((item) => {
+          void saveInboundPallet(flightNo, {
+            pallet_id: item.palletId,
+            pallet_no: item.palletNo,
+            status: item.status,
+            total_boxes: item.totalBoxes,
+            total_weight: item.totalWeight,
+            storage_location: item.storageLocation,
+            note: item.note,
+            items: item.items
+          });
+        });
+      }
+      return next;
+    });
+  };
 
   return {
-    taskMap: counts.state,
-    setTaskMap: counts.setState,
-    pallets: pallets.state,
-    setPallets: pallets.setState
+    taskMap,
+    setTaskMap,
+    pallets,
+    setPallets
   };
 }
 
-export function useInboundLoadingStorage() {
-  const session = readMobileSession();
-  const stationKey = stationKeyOf(session);
-  const plans = useLocalStorage(`sinoport-mobile-loading-plans-${stationKey}`, DEFAULT_LOADING_PLANS);
+export function useInboundLoadingStorage(flightNo) {
+  const [loadingPlans, setLoadingPlansState] = useState(DEFAULT_LOADING_PLANS.filter((item) => !flightNo || item.flightNo === flightNo));
 
   useEffect(() => {
-    if (!plans.state?.length) {
-      plans.setState(DEFAULT_LOADING_PLANS);
-    }
-  }, [plans.state, plans.setState]);
+    if (!flightNo) return;
+
+    void getInboundLoadingPlans(flightNo)
+      .then((response) => {
+        const plans = response?.data?.plans || [];
+        setLoadingPlansState(plans.length ? plans.map((item) => ({ ...item, flightNo })) : DEFAULT_LOADING_PLANS.filter((item) => item.flightNo === flightNo));
+      })
+      .catch(() => setLoadingPlansState(DEFAULT_LOADING_PLANS.filter((item) => item.flightNo === flightNo)));
+  }, [flightNo]);
+
+  const setLoadingPlans = (updater) => {
+    setLoadingPlansState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        (next || []).forEach((item) => {
+          void saveInboundLoadingPlan(flightNo, {
+            id: item.id,
+            truckPlate: item.truckPlate,
+            vehicleModel: item.vehicleModel,
+            driverName: item.driverName,
+            collectionNote: item.collectionNote,
+            forkliftDriver: item.forkliftDriver,
+            checker: item.checker,
+            arrivalTime: item.arrivalTime,
+            departTime: item.departTime,
+            totalBoxes: item.totalBoxes,
+            totalWeight: item.totalWeight,
+            status: item.status,
+            note: item.note,
+            pallets: item.pallets
+          });
+        });
+      }
+      return next;
+    });
+  };
 
   return {
-    loadingPlans: plans.state,
-    setLoadingPlans: plans.setState
+    loadingPlans,
+    setLoadingPlans
   };
 }
 
@@ -629,6 +712,8 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
   const roleKey = getMobileRoleKey(session);
   const roleView = getMobileRoleView(roleKey);
   const opsStorage = useMobileOpsStorage(`inbound-flight-${flight.flightNo}`);
+  const { mobileTasks } = useGetMobileTasks();
+  const liveTasks = mobileTasks.filter((task) => task.flight_no === flight.flightNo);
 
   const runScopedAction = (label, taskLabel) => {
     opsStorage.setState((prev) =>
@@ -644,6 +729,34 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
     );
   };
 
+  const handleLiveTaskAction = async (task, action) => {
+    try {
+      if (action === 'accept') await acceptMobileTask(task.task_id, { note: 'Accepted from inbound TaskOpsPanel' });
+      if (action === 'start') await startMobileTask(task.task_id, { note: 'Started from inbound TaskOpsPanel' });
+      if (action === 'evidence') {
+        await uploadMobileTaskEvidence(task.task_id, {
+          note: 'Evidence from inbound TaskOpsPanel',
+          evidence_summary: 'TaskOpsPanel inbound evidence'
+        });
+      }
+      if (action === 'complete') await completeMobileTask(task.task_id, { note: 'Completed from inbound TaskOpsPanel' });
+
+      openSnackbar({
+        open: true,
+        message: `任务 ${task.task_id} 已执行 ${action}`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || `任务 ${action} 失败`,
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    }
+  };
+
   return (
     <Box>
       <Stack sx={{ gap: 1.5 }}>
@@ -657,6 +770,8 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
               { label: '节点选择', onClick: () => navigate('/mobile/select') },
               { label: '航班列表', onClick: () => navigate('/mobile/inbound') }
             ]}
+            liveTasks={liveTasks}
+            onTaskAction={handleLiveTaskAction}
           />
         ) : null}
         {typeof children === 'function' ? children({ roleKey, roleView, runScopedAction, opsState: opsStorage.state }) : children}

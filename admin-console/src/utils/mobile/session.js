@@ -19,6 +19,7 @@ export function writeMobileSession(session) {
 export function clearMobileSession() {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(MOBILE_SESSION_KEY);
+  window.localStorage.removeItem('serviceToken');
 }
 
 export function getMobileStationKey(session) {

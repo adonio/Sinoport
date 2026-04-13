@@ -5,6 +5,7 @@ import ExportOutlined from '@ant-design/icons/ExportOutlined';
 import FileTextOutlined from '@ant-design/icons/FileTextOutlined';
 import ImportOutlined from '@ant-design/icons/ImportOutlined';
 import IdcardOutlined from '@ant-design/icons/IdcardOutlined';
+import MessageOutlined from '@ant-design/icons/MessageOutlined';
 
 const icons = {
   AlertOutlined,
@@ -115,6 +116,13 @@ const station = {
       type: 'item',
       url: '/station/tasks',
       icon: icons.DashboardOutlined
+    },
+    {
+      id: 'station-copilot',
+      title: 'Copilot 交互层',
+      type: 'item',
+      url: '/station/copilot',
+      icon: MessageOutlined
     },
     {
       id: 'station-resources',
