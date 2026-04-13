@@ -27,8 +27,8 @@
         {
           "binding": "DB",
           "database_name": "sinoport-api-staging",
-          "database_id": "REPLACE_WITH_STAGING_D1_ID",
-          "preview_database_id": "REPLACE_WITH_STAGING_PREVIEW_D1_ID",
+          "database_id": "49398fa3-a8b7-47a1-a355-f8a6b1d1af84",
+          "preview_database_id": "49398fa3-a8b7-47a1-a355-f8a6b1d1af84",
           "migrations_dir": "migrations"
         }
       ],
@@ -49,8 +49,8 @@
         {
           "binding": "DB",
           "database_name": "sinoport-api-production",
-          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
-          "preview_database_id": "REPLACE_WITH_PRODUCTION_PREVIEW_D1_ID",
+          "database_id": "8dc8bc79-69b4-41fd-b406-b6e06b651ea1",
+          "preview_database_id": "8dc8bc79-69b4-41fd-b406-b6e06b651ea1",
           "migrations_dir": "migrations"
         }
       ],

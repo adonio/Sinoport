@@ -26,15 +26,13 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: release-${{ inputs.target }}
   cancel-in-progress: false
 
 jobs:
-  deploy-pages:
+  build-static:
     runs-on: ubuntu-latest
 
     defaults:
@@ -52,9 +50,6 @@ jobs:
           cache: npm
           cache-dependency-path: admin-console/package-lock.json
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
       - name: Install dependencies
         run: npm ci
 
@@ -66,6 +61,7 @@ jobs:
         working-directory: admin-console
         env:
           VITE_APP_STATION_API_URL: ${{ inputs.station_api_url }}
+          VITE_APP_AGENT_API_URL: ${{ inputs.agent_url }}
         run: npm run build
 
       - name: Publish admin static routes
@@ -74,25 +70,77 @@ jobs:
       - name: Prepare Pages artifact
         run: node scripts/prepare-pages-site.mjs
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v4
         with:
-          path: site-dist
+          name: cloudflare-pages-artifacts
+          path: |
+            site-dist
+            admin-console/dist
 
-  deploy-pages-publish:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  deploy-pages:
     runs-on: ubuntu-latest
-    needs: deploy-pages
+    needs: build-static
+    environment: ${{ inputs.target }}
 
     outputs:
-      page_url: ${{ steps.deployment.outputs.page_url }}
+      site_url: ${{ steps.resolve-site-url.outputs.site_url }}
+      admin_url: ${{ steps.resolve-admin-url.outputs.admin_url }}
 
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-pages-artifacts
+
+      - name: Deploy main site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          BRANCH_NAME=$([ "${{ inputs.target }}" = "production" ] && echo "main" || echo "staging")
+          npx wrangler pages deploy site-dist --project-name adonio-sinoport --branch "$BRANCH_NAME" --commit-dirty=true
+
+      - name: Deploy admin site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          BRANCH_NAME=$([ "${{ inputs.target }}" = "production" ] && echo "main" || echo "staging")
+          npx wrangler pages deploy admin-console/dist --project-name adonio-sinoport-admin --branch "$BRANCH_NAME" --commit-dirty=true
+
+      - name: Resolve main site URL
+        id: resolve-site-url
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          echo "site_url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve admin site URL
+        id: resolve-admin-url
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport-admin --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          echo "admin_url=$URL" >> "$GITHUB_OUTPUT"
 
   deploy-workers:
     runs-on: ubuntu-latest
@@ -116,22 +164,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler d1 migrations apply sinoport-api-${{ inputs.target }} --remote --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }}
+
       - name: Deploy api-worker
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }}
+        run: npx wrangler deploy --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars
 
       - name: Deploy agent-worker
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config apps/agent-worker/wrangler.jsonc --env ${{ inputs.target }}
+        run: npx wrangler deploy --config apps/agent-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars
 
   smoke:
     runs-on: ubuntu-latest
     needs:
-      - deploy-pages-publish
+      - deploy-pages
       - deploy-workers
 
     defaults:
@@ -161,5 +216,5 @@ jobs:
         env:
           SMOKE_API_URL: ${{ inputs.api_url }}
           SMOKE_AGENT_URL: ${{ inputs.agent_url }}
-          SMOKE_WEB_URL: ${{ needs.deploy-pages-publish.outputs.page_url }}
+          SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url }}
         run: npm run test:frontend:smoke
