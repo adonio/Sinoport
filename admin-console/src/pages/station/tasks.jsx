@@ -175,50 +175,6 @@ export default function StationTasksPage() {
     note: 'Raised from task center quick action'
   });
 
-  const handleAssign = async (task) => {
-    try {
-      setActiveMutationId(`assign:${task.id}`);
-      await assignStationTask(task.id, getSuggestedAssignee(task));
-      openSnackbar({
-        open: true,
-        message: `${task.title} 已完成真实分派。`,
-        variant: 'alert',
-        alert: { color: 'success' }
-      });
-    } catch (error) {
-      openSnackbar({
-        open: true,
-        message: error?.error?.message || '任务分派失败',
-        variant: 'alert',
-        alert: { color: 'error' }
-      });
-    } finally {
-      setActiveMutationId('');
-    }
-  };
-
-  const handleRaiseException = async (task) => {
-    try {
-      setActiveMutationId(`exception:${task.id}`);
-      await raiseStationTaskException(task.id, getSuggestedException(task));
-      openSnackbar({
-        open: true,
-        message: `${task.title} 已上报异常。`,
-        variant: 'alert',
-        alert: { color: 'success' }
-      });
-    } catch (error) {
-      openSnackbar({
-        open: true,
-        message: error?.error?.message || '异常上报失败',
-        variant: 'alert',
-        alert: { color: 'error' }
-      });
-    } finally {
-      setActiveMutationId('');
-    }
-  };
-
   const handleWorkflowAction = async (task, action) => {
     try {
       setActiveMutationId(`${action}:${task.id}`);

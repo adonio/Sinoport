@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import { exceptionOverview, inboundCargoLifecycle, inboundFlights, inboundWaybillRows } from 'data/sinoport';
 import {
   exceptionDetailRows,
-  getShipmentDetail,
   noaNotificationRows,
   podNotificationRows,
   shipmentRows,

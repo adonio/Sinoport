@@ -35,7 +35,7 @@ import {
 import { openSnackbar } from 'api/snackbar';
 import { ffmForecastRows, masterAwbRows, outboundFlights } from 'data/sinoport';
 import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
-import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
+import { getMobileRoleKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
@@ -46,10 +46,6 @@ export function parseNumber(value) {
 
 export function normalizeCode(value) {
   return value.trim().toUpperCase();
-}
-
-function stationKeyOf(session) {
-  return getMobileStationKey(session);
 }
 
 function mobileLanguage() {
