@@ -350,7 +350,19 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
     try {
       const stationId = resolveScopedStation(c.var.actor, c.req.query('station_id'));
       const body = await c.req.json();
-      const palletId = body.pallet_id || createId('PLT');
+      const existing = await c.env.DB?.prepare(
+        `
+          SELECT pallet_id
+          FROM inbound_pallets
+          WHERE station_id = ?
+            AND flight_no = ?
+            AND pallet_no = ?
+          LIMIT 1
+        `
+      )
+        .bind(stationId, c.req.param('flightNo'), body.pallet_no || body.palletNo)
+        .first<{ pallet_id: string }>();
+      const palletId = existing?.pallet_id || body.pallet_id || createId('PLT');
       const items = Array.isArray(body.items) ? body.items : [];
       const now = isoNow();
 
@@ -788,7 +800,19 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
     try {
       const stationId = resolveScopedStation(c.var.actor, c.req.query('station_id'));
       const body = await c.req.json();
-      const containerId = body.container_id || createId('ULD');
+      const existing = await c.env.DB?.prepare(
+        `
+          SELECT container_id
+          FROM outbound_containers
+          WHERE station_id = ?
+            AND flight_no = ?
+            AND container_code = ?
+          LIMIT 1
+        `
+      )
+        .bind(stationId, c.req.param('flightNo'), body.container_code || body.boardCode)
+        .first<{ container_id: string }>();
+      const containerId = existing?.container_id || body.container_id || createId('ULD');
       const entries = Array.isArray(body.entries) ? body.entries : [];
       const now = isoNow();
 

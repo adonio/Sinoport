@@ -116,6 +116,7 @@ async function resetIntegrationFixtures() {
 }
 
 async function main() {
+  await runCommand('npm', ['run', 'db:migrate:local', '--workspace', '@sinoport/api-worker']);
   await resetIntegrationFixtures();
 
   const worker = spawn(

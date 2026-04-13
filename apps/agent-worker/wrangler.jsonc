@@ -18,6 +18,12 @@
         "AUTH_TOKEN_SECRET": "replace-me-staging",
         "ENVIRONMENT": "staging"
       },
+      "routes": [
+        {
+          "pattern": "staging-agent.sinoport.co",
+          "custom_domain": true
+        }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
@@ -34,6 +40,12 @@
         "AUTH_TOKEN_SECRET": "replace-me-production",
         "ENVIRONMENT": "production"
       },
+      "routes": [
+        {
+          "pattern": "agent.sinoport.co",
+          "custom_domain": true
+        }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
