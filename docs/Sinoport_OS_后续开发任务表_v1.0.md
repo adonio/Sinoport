@@ -11,6 +11,7 @@
   - [Sinoport_OS_技术架构_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_技术架构_v1.0.md)
   - [Sinoport_OS_API_Contract_Draft_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_API_Contract_Draft_v1.0.md)
   - [Sinoport_OS_数据库收口与12个月开发规划_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_数据库收口与12个月开发规划_v1.0.md)
+  - [Sinoport_OS_年度复盘与下一年度规划_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_年度复盘与下一年度规划_v1.0.md)
 
 ## 2. 文档目的
 
@@ -33,7 +34,7 @@
 - Cloudflare Worker + D1 + R2 的后端骨架已搭建
 - `MME` 进港与最小出港样板数据已进入本地 D1
 - 一期核心接口大部分已具备真实读写能力
-- 站内主要页面已开始接真实 API，并保留 mock fallback
+- 站内主要页面已全部接真实 API，mock fallback 仅保留极少量兼容位
 - `shipments` 对象链已具备真实查询能力
 - 已有可重复执行的 API smoke / integration 脚本
 - Cloudflare `staging / production` 已完成发布
@@ -52,6 +53,7 @@
 - 生产 secret 仍是占位值，尚未做正式 secret 管理收口
 - 本地构建产物会污染主工作区，仓库治理未完成
 - PR 远端 checks 仍需以最新提交再确认一次
+- 年度复盘与下一年度规划已单独回写，Wave 0-8 的完成状态已经与主文档对齐
 
 ## 4. 总体建议
 

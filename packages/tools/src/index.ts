@@ -41,6 +41,21 @@ export const agentToolCatalog: AgentToolDefinition[] = [
     name: 'get_outbound_waybill_context',
     description: 'Load outbound AWB context for receipt, loading, and exception review.',
     requiredRoles: ['station_supervisor', 'document_desk', 'delivery_desk']
+  },
+  {
+    name: 'get_station_shipment_context',
+    description: 'Load shipment fulfillment chain context for the focused Shipment object.',
+    requiredRoles: ['station_supervisor', 'document_desk', 'delivery_desk']
+  },
+  {
+    name: 'get_station_exception_context',
+    description: 'Load station exception detail and recovery context for the focused Exception object.',
+    requiredRoles: ['station_supervisor', 'document_desk', 'delivery_desk', 'check_worker']
+  },
+  {
+    name: 'get_station_document_context',
+    description: 'Load document body summary, version, release gates, and related tasks/exceptions for the focused Document object.',
+    requiredRoles: ['station_supervisor', 'document_desk', 'delivery_desk', 'check_worker']
   }
 ];
 

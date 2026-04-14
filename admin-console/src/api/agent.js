@@ -60,6 +60,24 @@ export function useGetAgentWorkflows() {
   );
 }
 
+export function useGetAgentSessions(refreshNonce = 0) {
+  const { data, isLoading, error, isValidating } = useSWR([endpoints.sessions, refreshNonce], agentFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      agentSessions: data?.items || [],
+      agentSessionsLoading: isLoading,
+      agentSessionsError: error,
+      agentSessionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
 export function useGetAgentSessionContext(sessionId, objectType, objectKey, refreshNonce = 0) {
   const requestKey = sessionId ? [endpoints.sessionContext(sessionId), buildQueryConfig(objectType, objectKey), refreshNonce] : null;
   const { data, isLoading, error, isValidating } = useSWR(requestKey, agentFetcher, {
@@ -74,6 +92,25 @@ export function useGetAgentSessionContext(sessionId, objectType, objectKey, refr
       agentSessionContextLoading: isLoading,
       agentSessionContextError: error,
       agentSessionContextValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export function useGetAgentSessionDetail(sessionId, refreshNonce = 0) {
+  const requestKey = sessionId ? [endpoints.sessionDetail(sessionId), refreshNonce] : null;
+  const { data, isLoading, error, isValidating } = useSWR(requestKey, agentFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      agentSessionDetail: data?.data || null,
+      agentSessionDetailLoading: isLoading,
+      agentSessionDetailError: error,
+      agentSessionDetailValidating: isValidating
     }),
     [data, error, isLoading, isValidating]
   );

@@ -16,6 +16,7 @@
 - 后续开发任务表：`docs/Sinoport_OS_后续开发任务表_v1.0.md`
 - 数据库收口与 12 个月开发规划：`docs/Sinoport_OS_数据库收口与12个月开发规划_v1.0.md`
 - 数据库收口执行台账：`docs/Sinoport_OS_数据库收口执行台账_v1.0.md`
+- 年度复盘与下一年度规划：`docs/Sinoport_OS_年度复盘与下一年度规划_v1.0.md`
 
 ## 后端骨架
 

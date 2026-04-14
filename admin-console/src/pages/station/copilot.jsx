@@ -23,6 +23,8 @@ import ToolOutlined from '@ant-design/icons/ToolOutlined';
 import {
   createAgentSession,
   postAgentMessage,
+  useGetAgentSessions,
+  useGetAgentSessionDetail,
   useGetAgentSessionContext,
   useGetAgentSessionPlan,
   useGetAgentTools,
@@ -36,6 +38,7 @@ import {
   useGetOutboundFlights,
   useGetOutboundWaybills,
   useGetStationExceptions,
+  useGetStationDocuments,
   useGetStationShipments
 } from 'api/station';
 import MainCard from 'components/MainCard';
@@ -51,6 +54,7 @@ const objectTypeOptions = [
   { value: 'station', label: 'Station' },
   { value: 'Flight', label: 'Flight' },
   { value: 'AWB', label: 'AWB' },
+  { value: 'Document', label: 'Document' },
   { value: 'Shipment', label: 'Shipment' },
   { value: 'Exception', label: 'Exception' }
 ];
@@ -137,6 +141,122 @@ function buildAssistantIntro(plan, focusLabel) {
   return [`已打开 ${focusLabel} 的 Copilot 交互层。`, '建议步骤：', ...steps.map((step, index) => `${index + 1}. ${step}`)].join('\n');
 }
 
+function normalizeMessage(message) {
+  const time = message.created_at || message.createdAt || message.time || new Date().toISOString();
+
+  return {
+    id: message.message_id || message.id || createId('msg'),
+    role: message.role || 'assistant',
+    content: message.content || '',
+    toolName: message.tool_name || message.toolName || null,
+    time
+  };
+}
+
+function normalizeRun(run) {
+  const time = run.created_at || run.createdAt || run.time || new Date().toISOString();
+
+  return {
+    id: run.run_id || run.id || createId('run'),
+    status: run.status || 'completed',
+    toolName: run.tool_name || run.toolName || null,
+    inputJson: run.input_json ?? run.inputJson ?? null,
+    outputJson: run.output_json ?? run.outputJson ?? null,
+    errorMessage: run.error_message || run.errorMessage || null,
+    time
+  };
+}
+
+function normalizeSessionRecord(session) {
+  const messages = Array.isArray(session.messages) ? session.messages.map(normalizeMessage) : [];
+  const runs = Array.isArray(session.runs) ? session.runs.map(normalizeRun) : [];
+  const updatedAt = session.updatedAt || session.updated_at || session.createdAt || session.created_at || new Date().toISOString();
+
+  return {
+    ...session,
+    id: session.id || session.session_id || createId('session'),
+    title: session.title || session.summary || buildSessionTitle(session.objectType || session.object_type || 'station', session.objectKey || session.object_key || 'MME'),
+    objectType: session.objectType || session.object_type || 'station',
+    objectKey: session.objectKey || session.object_key || 'MME',
+    status: session.status || 'active',
+    summary: session.summary || '',
+    messages,
+    runs,
+    createdAt: session.createdAt || session.created_at || updatedAt,
+    updatedAt
+  };
+}
+
+function normalizeSessions(rawSessions, fallbackSession = null) {
+  const sessions = Array.isArray(rawSessions) ? rawSessions : [];
+
+  if (!sessions.length && fallbackSession) {
+    return [normalizeSessionRecord(fallbackSession)];
+  }
+
+  return sessions.map(normalizeSessionRecord).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+function mergeSessionCollections(existingSessions, incomingSessions) {
+  const next = new Map(existingSessions.map((session) => [session.id, session]));
+
+  for (const incoming of incomingSessions.map(normalizeSessionRecord)) {
+    const current = next.get(incoming.id);
+    next.set(incoming.id, {
+      ...(current || {}),
+      ...incoming,
+      messages: current?.messages || incoming.messages,
+      runs: current?.runs || incoming.runs
+    });
+  }
+
+  return Array.from(next.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+function mergeSessionDetail(existingSessions, detail) {
+  if (!detail) return existingSessions;
+
+  const sessionId = detail.session_id || detail.sessionId;
+  if (!sessionId) return existingSessions;
+
+  const next = new Map(existingSessions.map((session) => [session.id, session]));
+  const current = next.get(sessionId) || {};
+  const updatedAt = detail.updated_at || detail.updatedAt || current.updatedAt || new Date().toISOString();
+
+  next.set(sessionId, {
+    ...current,
+    id: sessionId,
+    title: current.title || detail.summary || buildSessionTitle(detail.object_type || detail.objectType || current.objectType || 'station', detail.object_key || detail.objectKey || current.objectKey || 'MME'),
+    objectType: detail.object_type || detail.objectType || current.objectType || 'station',
+    objectKey: detail.object_key || detail.objectKey || current.objectKey || 'MME',
+    status: detail.status || current.status || 'active',
+    summary: detail.summary || current.summary || '',
+    createdAt: detail.created_at || detail.createdAt || current.createdAt || updatedAt,
+    updatedAt,
+    messages: Array.isArray(detail.messages) ? detail.messages.map(normalizeMessage) : current.messages || [],
+    runs: Array.isArray(detail.runs) ? detail.runs.map(normalizeRun) : current.runs || []
+  });
+
+  return Array.from(next.values()).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+function buildRunFeedMessage(run) {
+  return {
+    id: `run-${run.id}`,
+    role: 'tool',
+    content:
+      run.status === 'failed'
+        ? `工具执行失败: ${run.errorMessage || 'unknown'}`
+        : formatToolResult(run.outputJson),
+    time: run.time,
+    toolName: run.toolName
+  };
+}
+
+function buildSessionTimeline(messages = [], runs = []) {
+  return [...messages, ...runs.map(buildRunFeedMessage)].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+}
+
 function buildToolPayload(toolName, objectType, objectKey) {
   if (toolName === 'get_flight_context') {
     return JSON.stringify({ object_type: objectType, object_key: objectKey, flight_no: objectType === 'Flight' ? objectKey : undefined }, null, 2);
@@ -148,6 +268,18 @@ function buildToolPayload(toolName, objectType, objectKey) {
 
   if (toolName === 'list_open_exceptions') {
     return JSON.stringify({ object_type: objectType === 'station' ? undefined : objectType, object_key: objectKey }, null, 2);
+  }
+
+  if (toolName === 'get_station_shipment_context') {
+    return JSON.stringify({ object_type: objectType === 'station' ? 'Shipment' : objectType, object_key: objectKey }, null, 2);
+  }
+
+  if (toolName === 'get_station_exception_context') {
+    return JSON.stringify({ object_type: 'Exception', object_key: objectKey }, null, 2);
+  }
+
+  if (toolName === 'get_station_document_context') {
+    return JSON.stringify({ object_type: 'Document', object_key: objectKey }, null, 2);
   }
 
   if (toolName === 'request_task_assignment') {
@@ -188,23 +320,7 @@ function createMessage(role, content, extra = {}) {
   };
 }
 
-function normalizeSessions(rawSessions, fallbackSession) {
-  const sessions = Array.isArray(rawSessions) ? rawSessions : [];
-
-  if (!sessions.length) {
-    return [fallbackSession];
-  }
-
-  return sessions
-    .map((session) => ({
-      ...session,
-      messages: Array.isArray(session.messages) ? session.messages : [],
-      updatedAt: session.updatedAt || session.createdAt || new Date().toISOString()
-    }))
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-}
-
-function buildObjectOptions(inboundFlights, inboundWaybills, outboundFlights, outboundWaybills, shipments, exceptions) {
+function buildObjectOptions(inboundFlights, inboundWaybills, outboundFlights, outboundWaybills, documents, shipments, exceptions) {
   return {
     station: [{ value: 'MME', label: 'MME / 货站总览' }],
     Flight: [
@@ -227,6 +343,10 @@ function buildObjectOptions(inboundFlights, inboundWaybills, outboundFlights, ou
         label: `${item.awb} / Outbound / ${item.destination}`
       }))
     ],
+    Document: documents.map((item) => ({
+      value: item.documentId,
+      label: `${item.documentId} / ${item.type} / ${item.version} / ${item.status}`
+    })),
     Shipment: shipments.map((item) => ({
       value: item.id,
       label: `${item.id} / ${item.direction} / ${item.priority}`
@@ -245,6 +365,30 @@ function buildSessionDisplayLabel(session) {
 
 function buildSessionCardLabel(session) {
   return `${session.objectType || 'station'} / ${session.objectKey || 'MME'}`;
+}
+
+function buildDocumentContextLines(documentContext) {
+  if (!documentContext) return [];
+
+  const thresholds = Array.isArray(documentContext.thresholds)
+    ? documentContext.thresholds.map((item) => `${item.label || item.name || 'threshold'}:${item.status || '--'}`)
+    : [];
+  const versionChain = Array.isArray(documentContext.version_chain)
+    ? documentContext.version_chain.map((item) => `${item.version_no || '--'} · ${item.document_status || '--'}`)
+    : [];
+
+  return [
+    `文档ID：${documentContext.document_id || '--'}`,
+    `文档名：${documentContext.document_name || '--'}`,
+    `版本 / 状态：${documentContext.version_no || '--'} · ${documentContext.document_status || '--'}`,
+    `摘要：${documentContext.body_summary || '--'}`,
+    `放行门槛：${documentContext.required_for_release ? '必需' : '可选'}`,
+    `关联对象：${documentContext.related_object_label || documentContext.related_object_id || '--'}`,
+    `关联任务：${(documentContext.related_tasks || []).length || 0} · 关联异常：${(documentContext.related_exceptions || []).length || 0}`,
+    `推荐工作流：${(documentContext.recommended_workflows || []).join(' -> ') || '--'}`,
+    thresholds.length ? `门槛明细：${thresholds.join(' / ')}` : null,
+    versionChain.length ? `版本链：${versionChain.join(' / ')}` : null
+  ].filter(Boolean);
 }
 
 function buildAuditItems(events = [], transitions = []) {
@@ -277,6 +421,7 @@ export default function StationCopilotPage() {
   const { outboundWaybills } = useGetOutboundWaybills();
   const { stationShipments } = useGetStationShipments();
   const { stationExceptions } = useGetStationExceptions();
+  const { stationDocuments } = useGetStationDocuments();
   const { agentTools } = useGetAgentTools();
   const { agentWorkflows } = useGetAgentWorkflows();
 
@@ -304,11 +449,23 @@ export default function StationCopilotPage() {
   const [toolResult, setToolResult] = useState(null);
   const [toolLoading, setToolLoading] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const { agentSessions } = useGetAgentSessions(refreshNonce);
+  const { agentSessionDetail } = useGetAgentSessionDetail(activeSessionId, refreshNonce);
 
   useEffect(() => {
     if (!sessions.length) return;
     writeLocalSessions(sessions);
   }, [sessions]);
+
+  useEffect(() => {
+    if (!agentSessions.length) return;
+    setSessions((prev) => mergeSessionCollections(prev, agentSessions));
+  }, [agentSessions]);
+
+  useEffect(() => {
+    if (!agentSessionDetail) return;
+    setSessions((prev) => mergeSessionDetail(prev, agentSessionDetail));
+  }, [agentSessionDetail]);
 
   useEffect(() => {
     if (activeSessionId) {
@@ -334,8 +491,17 @@ export default function StationCopilotPage() {
   const activeSession = useMemo(() => sessions.find((item) => item.id === activeSessionId) || sessions[0] || null, [activeSessionId, sessions]);
   const activeFocusObjectType = activeSession?.objectType || objectType;
   const activeFocusObjectKey = activeSession?.objectKey || objectKey;
+  const activeSessionRuns = activeSession?.runs || [];
   const focusLabel = buildStationObjectLabel(activeFocusObjectType, activeFocusObjectKey);
-  const selectedObjectOptions = buildObjectOptions(inboundFlights, inboundWaybills, outboundFlights, outboundWaybills, stationShipments, stationExceptions);
+  const selectedObjectOptions = buildObjectOptions(
+    inboundFlights,
+    inboundWaybills,
+    outboundFlights,
+    outboundWaybills,
+    stationDocuments,
+    stationShipments,
+    stationExceptions
+  );
   const currentOptions = selectedObjectOptions[objectType] || selectedObjectOptions.station;
   const currentDetailPath = buildStationObjectDetailUrl(activeFocusObjectType, activeFocusObjectKey);
 
@@ -344,6 +510,26 @@ export default function StationCopilotPage() {
   const { agentSessionPlan } = useGetAgentSessionPlan(agentSessionId, activeFocusObjectType, activeFocusObjectKey, refreshNonce);
   const auditType = activeFocusObjectType === 'station' ? null : activeFocusObjectType;
   const { objectAuditEvents, objectAuditTransitions } = useGetObjectAudit(auditType || undefined, activeFocusObjectKey);
+  const latestRun = activeSessionRuns[activeSessionRuns.length - 1] || null;
+  const documentContext = activeFocusObjectType === 'Document' ? agentSessionContext?.focus_context : null;
+
+  useEffect(() => {
+    if (!activeSession) {
+      setToolResult(null);
+      return;
+    }
+
+    if (!latestRun) {
+      setToolResult(null);
+      return;
+    }
+
+    setToolResult(
+      latestRun.status === 'failed'
+        ? { error: latestRun.errorMessage || '工具执行失败', details: latestRun.outputJson || null }
+        : latestRun.outputJson || null
+    );
+  }, [activeSession, latestRun?.id]);
 
   useEffect(() => {
     if (!sessions.length) return;
@@ -405,7 +591,7 @@ export default function StationCopilotPage() {
       time: baseTime
     };
 
-    return [contextMessage, planMessage, ...(activeSession?.messages || [])];
+    return [contextMessage, planMessage, ...buildSessionTimeline(activeSession?.messages || [], activeSession?.runs || [])];
   }, [activeSession, agentSessionContext, agentSessionPlan, agentSessionId, focusLabel, refreshNonce]);
 
   const auditPreviewItems = useMemo(() => buildAuditItems(objectAuditEvents, objectAuditTransitions), [objectAuditEvents, objectAuditTransitions]);
@@ -431,13 +617,16 @@ export default function StationCopilotPage() {
       title: buildSessionTitle(objectType, objectKey),
       objectType,
       objectKey,
+      status: 'active',
       messages: [createMessage('assistant', `已创建新的 Copilot 会话，当前对象为 ${focusLabel}。`)],
+      runs: [],
       createdAt: now,
       updatedAt: now
     };
 
     setSessions((prev) => [nextSession, ...prev.filter((item) => item.id !== sessionId)]);
     setActiveSessionId(sessionId);
+    setRefreshNonce((prev) => prev + 1);
   };
 
   const activateSession = (session) => {
@@ -477,7 +666,9 @@ export default function StationCopilotPage() {
         title: buildSessionTitle(objectType, nextKey),
         objectType,
         objectKey: nextKey,
+        status: 'active',
         messages: activeSession?.messages || [createMessage('assistant', `已切换到 ${buildStationObjectLabel(objectType, nextKey)}。`)],
+        runs: activeSession?.runs || [],
         createdAt: activeSession?.createdAt || now,
         updatedAt: now
       };
@@ -523,6 +714,7 @@ export default function StationCopilotPage() {
             : session
         )
       );
+      setRefreshNonce((prev) => prev + 1);
     } catch {
       setSessions((prev) =>
         prev.map((session) =>
@@ -540,6 +732,7 @@ export default function StationCopilotPage() {
             : session
         )
       );
+      setRefreshNonce((prev) => prev + 1);
     }
   };
 
@@ -556,40 +749,17 @@ export default function StationCopilotPage() {
 
     try {
       setToolLoading(true);
-      const response = await executeAgentTool(selectedToolName, payload);
+      const response = await executeAgentTool(selectedToolName, {
+        ...payload,
+        session_id: activeSession?.id
+      });
       const result = response?.data ?? response;
-      const formatted = formatToolResult(result);
       setToolResult(result);
-
-      if (activeSession) {
-        setSessions((prev) =>
-          prev.map((session) =>
-            session.id === activeSession.id
-              ? {
-                  ...session,
-                  messages: [...session.messages, createMessage('tool', formatted, { toolName: selectedToolName })],
-                  updatedAt: new Date().toISOString()
-                }
-              : session
-          )
-        );
-      }
+      setRefreshNonce((prev) => prev + 1);
     } catch (error) {
       const message = error?.response?.data?.error?.message || error?.message || '工具执行失败';
       setToolResult({ error: message });
-      if (activeSession) {
-        setSessions((prev) =>
-          prev.map((session) =>
-            session.id === activeSession.id
-              ? {
-                  ...session,
-                  messages: [...session.messages, createMessage('tool', `工具执行失败: ${message}`, { toolName: selectedToolName })],
-                  updatedAt: new Date().toISOString()
-                }
-              : session
-          )
-        );
-      }
+      setRefreshNonce((prev) => prev + 1);
     } finally {
       setToolLoading(false);
     }
@@ -644,7 +814,7 @@ export default function StationCopilotPage() {
                       primary={
                         <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
                           <Typography variant="subtitle2">{buildSessionDisplayLabel(session)}</Typography>
-                          <Chip size="small" label={session.messages?.length || 0} variant="light" color="secondary" />
+                          <Chip size="small" label={(session.messages?.length || 0) + (session.runs?.length || 0)} variant="light" color="secondary" />
                         </Stack>
                       }
                       secondary={
@@ -786,6 +956,29 @@ export default function StationCopilotPage() {
                 <Typography variant="body2" fontWeight={600}>
                   {currentDetailPath}
                 </Typography>
+              </Stack>
+              {documentContext ? (
+                <Stack
+                  sx={(theme) => ({
+                    gap: 0.85,
+                    p: 1.25,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: theme.palette.divider,
+                    bgcolor: alpha(theme.palette.secondary.main, 0.04)
+                  })}
+                >
+                  {buildDocumentContextLines(documentContext).map((line) => (
+                    <Typography key={line} variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {line}
+                    </Typography>
+                  ))}
+                </Stack>
+              ) : null}
+              <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                {(agentSessionContext?.recommended_workflows || []).map((workflow) => (
+                  <Chip key={workflow} label={workflow} size="small" color="primary" variant="filled" />
+                ))}
               </Stack>
               <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
                 {(agentSessionContext?.available_tools || []).map((tool) => (
