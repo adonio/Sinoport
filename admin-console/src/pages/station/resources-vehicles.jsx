@@ -15,12 +15,12 @@ import Typography from '@mui/material/Typography';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { OFFICE_TRIP_STORAGE_KEY, readOfficeTripPlans } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+import { upsertStationResourceVehicle, useGetStationResourceVehicles } from 'api/station';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function StationResourcesVehiclesPage() {
-  const { state: officePlans, setState: setOfficePlans } = useLocalStorage(OFFICE_TRIP_STORAGE_KEY, readOfficeTripPlans());
+  const { stationResourceVehicles } = useGetStationResourceVehicles();
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     tripId: 'TRIP-URC-003',
     flowKey: 'headhaul',
@@ -38,26 +38,31 @@ export default function StationResourcesVehiclesPage() {
     pdaExec: '现场执行发车、到站交接'
   });
   const stationVehicleRows = useMemo(
-    () =>
-      officePlans.map((item) => ({
-        tripId: item.tripId,
-        plate: item.plate,
-        driver: item.driver,
-        collectionNote: item.collectionNote,
-        stage: item.stage,
-        status: item.status
-      })),
-    [officePlans]
+    () => stationResourceVehicles,
+    [stationResourceVehicles]
   );
 
-  const saveOfficeTrip = () => {
+  const saveOfficeTrip = async () => {
     const nextTrip = {
       ...form,
       awbs: form.awbs.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
       pallets: form.pallets.split(/[,\n]/).map((item) => item.trim()).filter(Boolean)
     };
 
-    setOfficePlans((prev) => [nextTrip, ...prev.filter((item) => item.tripId !== nextTrip.tripId)]);
+    setSaving(true);
+
+    try {
+      const response = await upsertStationResourceVehicle(nextTrip);
+      const savedItem = response?.item || nextTrip;
+
+      setForm({
+        ...savedItem,
+        awbs: (savedItem.awbs || []).join(', '),
+        pallets: (savedItem.pallets || []).join(', ')
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -66,7 +71,7 @@ export default function StationResourcesVehiclesPage() {
         <PageHeader
           eyebrow="Vehicles"
           title="车辆与 Collection Note"
-          description="按 Trip / Truck / Driver / Collection Note 展示尾程与头程车辆占位视图。"
+          description="按 Trip / Truck / Driver / Collection Note 展示后端车辆与 Trip 计划视图。"
           chips={['Truck', 'Driver', 'Collection Note']}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
@@ -86,6 +91,7 @@ export default function StationResourcesVehiclesPage() {
             <TableHead>
               <TableRow>
                 <TableCell>Trip</TableCell>
+                <TableCell>路线</TableCell>
                 <TableCell>车牌</TableCell>
                 <TableCell>司机</TableCell>
                 <TableCell>Collection Note</TableCell>
@@ -98,6 +104,7 @@ export default function StationResourcesVehiclesPage() {
               {stationVehicleRows.map((item) => (
                 <TableRow key={item.tripId} hover>
                   <TableCell>{item.tripId}</TableCell>
+                  <TableCell>{item.route}</TableCell>
                   <TableCell>{item.plate}</TableCell>
                   <TableCell>{item.driver}</TableCell>
                   <TableCell>{item.collectionNote}</TableCell>
@@ -110,23 +117,21 @@ export default function StationResourcesVehiclesPage() {
                       size="small"
                       variant="outlined"
                       onClick={() => {
-                        const matched = officePlans.find((plan) => plan.tripId === item.tripId);
-                        if (!matched) return;
                         setForm({
-                          tripId: matched.tripId,
-                          flowKey: matched.flowKey,
-                          route: matched.route,
-                          plate: matched.plate,
-                          driver: matched.driver,
-                          collectionNote: matched.collectionNote,
-                          stage: matched.stage,
-                          status: matched.status,
-                          priority: matched.priority,
-                          sla: matched.sla,
-                          awbs: (matched.awbs || []).join(', '),
-                          pallets: (matched.pallets || []).join(', '),
-                          officePlan: matched.officePlan,
-                          pdaExec: matched.pdaExec
+                          tripId: item.tripId,
+                          flowKey: item.flowKey,
+                          route: item.route,
+                          plate: item.plate,
+                          driver: item.driver,
+                          collectionNote: item.collectionNote,
+                          stage: item.stage,
+                          status: item.status,
+                          priority: item.priority,
+                          sla: item.sla,
+                          awbs: (item.awbs || []).join(', '),
+                          pallets: (item.pallets || []).join(', '),
+                          officePlan: item.officePlan,
+                          pdaExec: item.pdaExec
                         });
                       }}
                     >
@@ -146,13 +151,13 @@ export default function StationResourcesVehiclesPage() {
             <TableHead>
               <TableRow>
                 <TableCell>计划编号</TableCell>
-                <TableCell>阶段</TableCell>
+                <TableCell>流程</TableCell>
                 <TableCell>后台先完成</TableCell>
                 <TableCell>PDA 现场执行</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {officePlans.map((item) => (
+              {stationVehicleRows.map((item) => (
                 <TableRow key={item.tripId} hover>
                   <TableCell>{item.tripId}</TableCell>
                   <TableCell>{item.flowKey === 'headhaul' ? '头程' : '尾程'}</TableCell>
@@ -198,11 +203,11 @@ export default function StationResourcesVehiclesPage() {
             <TextField label="计划托盘" value={form.pallets} onChange={(event) => setForm((prev) => ({ ...prev, pallets: event.target.value }))} />
             <TextField label="后台先完成" value={form.officePlan} onChange={(event) => setForm((prev) => ({ ...prev, officePlan: event.target.value }))} />
             <TextField label="PDA 现场执行" value={form.pdaExec} onChange={(event) => setForm((prev) => ({ ...prev, pdaExec: event.target.value }))} />
-            <Button variant="contained" onClick={saveOfficeTrip}>
-              保存 Trip 计划
+            <Button variant="contained" disabled={saving} onClick={saveOfficeTrip}>
+              {saving ? '保存中...' : '保存 Trip 计划'}
             </Button>
             <Typography variant="caption" color="text.secondary">
-              保存后会同步到 PDA 的头程 / 尾程任务列表和详情页。
+              保存后会写入后端资源接口 `/api/v1/station/resources/vehicles`，供列表和详情页读取。
             </Typography>
           </Stack>
         </MainCard>

@@ -8,15 +8,13 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy-cloudflare-pages:
     runs-on: ubuntu-latest
 
     defaults:
@@ -34,8 +32,8 @@ jobs:
           cache: npm
           cache-dependency-path: admin-console/package-lock.json
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      - name: Install root dependencies
+        run: npm ci
 
       - name: Install dependencies
         working-directory: admin-console
@@ -43,27 +41,25 @@ jobs:
 
       - name: Build admin console
         working-directory: admin-console
+        env:
+          VITE_APP_STATION_API_URL: https://sinoport.co
+          VITE_APP_AGENT_API_URL: https://adonio-sinoport-admin.pages.dev
         run: npm run build
 
       - name: Publish admin static routes
         run: node scripts/publish-admin-static.mjs
 
-      - name: Prepare Pages artifact
+      - name: Prepare site-dist
         run: node scripts/prepare-pages-site.mjs
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site-dist
+      - name: Deploy main site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy site-dist --project-name adonio-sinoport --branch main --commit-dirty=true
 
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy admin site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy admin-console/dist --project-name adonio-sinoport-admin --branch main --commit-dirty=true

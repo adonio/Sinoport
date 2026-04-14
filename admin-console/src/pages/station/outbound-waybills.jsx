@@ -11,9 +11,12 @@ import { Link as RouterLink } from 'react-router-dom';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { outboundWaybillRows } from 'data/sinoport';
+import { useGetOutboundWaybills } from 'api/station';
 
 export default function StationOutboundWaybillsPage() {
+  const { outboundWaybills, outboundWaybillsLoading } = useGetOutboundWaybills();
+  const rows = outboundWaybills;
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
@@ -55,44 +58,52 @@ export default function StationOutboundWaybillsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {outboundWaybillRows.map((item) => (
-                <TableRow key={item.awb} hover>
-                  <TableCell>{item.awb}</TableCell>
-                  <TableCell>{item.flightNo}</TableCell>
-                  <TableCell>{item.destination}</TableCell>
-                  <TableCell>
-                    <StatusChip label={item.forecast} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusChip label={item.receipt} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusChip label={item.master} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusChip label={item.loading} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusChip label={item.manifest} />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                      <Button component={RouterLink} to={`/station/outbound/waybills/${encodeURIComponent(item.awb)}`} size="small" variant="outlined">
-                        查看
-                      </Button>
-                      <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`out-${item.awb}`)}`} size="small" variant="outlined">
-                        履约链路
-                      </Button>
-                      <Button component={RouterLink} to="/station/documents" size="small" variant="outlined">
-                        单证
-                      </Button>
-                      <Button component={RouterLink} to="/station/tasks" size="small" variant="contained">
-                        任务
-                      </Button>
-                    </Stack>
+              {rows.length > 0 ? (
+                rows.map((item) => (
+                  <TableRow key={item.awb} hover>
+                    <TableCell>{item.awb}</TableCell>
+                    <TableCell>{item.flightNo}</TableCell>
+                    <TableCell>{item.destination}</TableCell>
+                    <TableCell>
+                      <StatusChip label={item.forecast} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusChip label={item.receipt} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusChip label={item.master} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusChip label={item.loading} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusChip label={item.manifest} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
+                        <Button component={RouterLink} to={`/station/outbound/waybills/${encodeURIComponent(item.awb)}`} size="small" variant="outlined">
+                          查看
+                        </Button>
+                        <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`out-${item.awb}`)}`} size="small" variant="outlined">
+                          履约链路
+                        </Button>
+                        <Button component={RouterLink} to="/station/documents" size="small" variant="outlined">
+                          单证
+                        </Button>
+                        <Button component={RouterLink} to="/station/tasks" size="small" variant="contained">
+                          任务
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={9} sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
+                    {outboundWaybillsLoading ? '加载中...' : '暂无提单数据'}
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </MainCard>

@@ -14,10 +14,11 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { exceptionOverview } from 'data/sinoport';
-import { exceptionDetailRows, stationBlockerQueue } from 'data/sinoport-adapters';
+import { useGetStationExceptions } from 'api/station';
 
 export default function StationExceptionsPage() {
+  const { stationExceptions, stationExceptionOverview, stationBlockerQueue, stationRecoveryRows } = useGetStationExceptions();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
@@ -46,7 +47,7 @@ export default function StationExceptionsPage() {
         <BlockingReasonAlert title="当前异常导致的阻断" reasons={stationBlockerQueue.map((item) => item.title)} />
       </Grid>
 
-      {exceptionOverview.map((item) => (
+      {stationExceptionOverview.map((item) => (
         <Grid key={item.title} size={{ xs: 12, sm: 6, lg: 3 }}>
           <MetricCard {...item} />
         </Grid>
@@ -55,7 +56,7 @@ export default function StationExceptionsPage() {
       <Grid size={{ xs: 12, xl: 4 }}>
         <TaskQueueCard
           title="恢复动作提醒"
-          items={exceptionDetailRows.map((item) => ({
+          items={stationRecoveryRows.map((item) => ({
             id: item.id,
             title: `${item.id} · ${item.type}`,
             description: item.recoveryAction,
@@ -87,7 +88,7 @@ export default function StationExceptionsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {exceptionDetailRows.map((item) => (
+              {stationExceptions.map((item) => (
                 <TableRow key={item.id} hover>
                   <TableCell>{item.id}</TableCell>
                   <TableCell>{item.type}</TableCell>
@@ -101,7 +102,7 @@ export default function StationExceptionsPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                      <Button component={RouterLink} to={`/station/exceptions/${item.id}`} size="small" variant="outlined">
+                      <Button component={RouterLink} to={item.detailTo} size="small" variant="outlined">
                         详情
                       </Button>
                       <Button component={RouterLink} to={item.objectTo} size="small" variant="outlined">

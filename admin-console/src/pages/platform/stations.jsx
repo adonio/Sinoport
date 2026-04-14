@@ -14,9 +14,11 @@ import { Link as RouterLink } from 'react-router-dom';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { stationCatalog } from 'data/sinoport';
+import { useGetPlatformStations } from 'api/platform';
 
 export default function PlatformStationsPage() {
+  const { stationCatalog } = useGetPlatformStations();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

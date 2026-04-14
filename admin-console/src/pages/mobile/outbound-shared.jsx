@@ -21,12 +21,123 @@ import MetricCard from 'components/sinoport/MetricCard';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
-import { ffmForecastRows, masterAwbRows, outboundFlights } from 'data/sinoport';
-import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
-import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
+import {
+  acceptMobileTask,
+  completeMobileTask,
+  saveOutboundContainer,
+  saveOutboundReceipt,
+  startMobileTask,
+  uploadMobileTaskEvidence,
+  useGetMobileOutboundDetail,
+  useGetMobileTasks
+} from 'api/station';
+import { openSnackbar } from 'api/snackbar';
+import { getMobileRoleKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
+
+const EMPTY_MOBILE_OUTBOUND_ROLE_VIEW = Object.freeze({
+  label: '',
+  taskRoles: [],
+  inboundTabs: [],
+  outboundTabs: [],
+  flowKeys: [],
+  actionTypes: []
+});
+
+const EMPTY_MOBILE_OUTBOUND_PAGE_CONFIG = Object.freeze({
+  taskCards: {}
+});
+
+function toArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function cloneOutboundContainer(container) {
+  return {
+    ...container,
+    entries: toArray(container.entries).map((entry) => ({ ...entry }))
+  };
+}
+
+function cloneOutboundReceiptMap(receipts) {
+  return Object.fromEntries(Object.entries(receipts || {}).map(([awbNo, value]) => [awbNo, { ...value }]));
+}
+
+function createOutboundFlight(flightNo) {
+  return {
+    flightId: '',
+    flight_id: '',
+    flightNo,
+    flight_no: flightNo,
+    source: '--',
+    etd: '--',
+    step: '--',
+    stage: '--',
+    priority: 'P2',
+    cargo: '--',
+    status: '待处理',
+    manifest: '--',
+    taskCount: 0,
+    tasks: []
+  };
+}
+
+const outboundFlightStores = new Map();
+
+function getOutboundStore(flightNo) {
+  const key = String(flightNo || '').trim();
+  if (!key) return null;
+
+  if (!outboundFlightStores.has(key)) {
+    outboundFlightStores.set(key, {
+      flight: createOutboundFlight(key),
+      waybills: []
+    });
+  }
+
+  return outboundFlightStores.get(key);
+}
+
+function syncOutboundStore(flightNo, detail) {
+  const store = getOutboundStore(flightNo);
+  if (!store) return null;
+
+  if (detail?.flight) {
+    Object.assign(store.flight, createOutboundFlight(flightNo), detail.flight, {
+      flightNo: detail.flight.flightNo || detail.flight.flight_no || flightNo,
+      flight_no: detail.flight.flight_no || detail.flight.flightNo || flightNo,
+      flightId: detail.flight.flightId || detail.flight.flight_id || '',
+      flight_id: detail.flight.flight_id || detail.flight.flightId || ''
+    });
+  }
+
+  const waybills = toArray(detail?.waybills).map((item) => ({ ...item }));
+  store.waybills.splice(0, store.waybills.length, ...waybills);
+
+  return store;
+}
+
+function useOutboundDetailData(flightNo) {
+  const detailState = useGetMobileOutboundDetail(flightNo);
+  if (flightNo) {
+    syncOutboundStore(flightNo, detailState.mobileOutboundFlightDetail);
+  }
+
+  return detailState;
+}
+
+function bindTaskCardActions(card, runAction) {
+  if (!card) return null;
+
+  return {
+    ...card,
+    actions: toArray(card.actions).map((action) => ({
+      ...action,
+      onClick: () => runAction(action.label, `${card.node} / ${card.role}`)
+    }))
+  };
+}
 
 export function parseNumber(value) {
   const parsed = parseFloat(String(value).replace(/[^\d.]/g, ''));
@@ -37,91 +148,12 @@ export function normalizeCode(value) {
   return value.trim().toUpperCase();
 }
 
-function stationKeyOf(session) {
-  return getMobileStationKey(session);
-}
-
 function mobileLanguage() {
   return readMobileSession()?.language || readMobileLanguage();
 }
 
 function mt(value) {
   return localizeMobileText(mobileLanguage(), value);
-}
-
-function buildOutboundTaskCardConfig(type, flightNo) {
-  const flight = getOutboundFlight(flightNo);
-  const priority = flight?.stage?.includes('装载') ? 'P1' : 'P2';
-
-  const configMap = {
-    overview: {
-      title: '出港货站任务总览',
-      node: '出港机场货站操作',
-      role: 'Export Supervisor',
-      status: '运行中',
-      sla: '飞走前闭环',
-      description: '统一展示出港收货、理货、组板、集装器和装机准备任务。',
-      evidence: ['FFM / UWS / Manifest', 'Origin POD', '主单信息'],
-      blockers: ['Manifest 未冻结前不得飞走归档。'],
-      actions: [{ label: '查看收货', variant: 'contained' }, { label: '上报异常' }]
-    },
-    receipt: {
-      title: '出港收货任务',
-      node: '出港机场货站操作',
-      role: 'Export Receiver',
-      status: '运行中',
-      sla: '收货后 30 分钟',
-      description: '按 AWB 录入收货件数并完成重量复核。',
-      evidence: ['收货件数', '复核重量', 'Origin POD'],
-      blockers: ['未完成收货不得进入组板和机坪放行。'],
-      actions: [{ label: '收货', variant: 'contained' }, { label: '复核' }, { label: '异常' }]
-    },
-    container: {
-      title: '组板与集装器任务',
-      node: '出港机场货站操作',
-      role: 'Build-up Worker',
-      status: '运行中',
-      sla: '装机前 45 分钟',
-      description: '创建集装器、录入提单并准备机坪转运。',
-      evidence: ['集装器号', '提单清单', '重量复核'],
-      blockers: ['无集装器号或复核重量时不得进入装机。'],
-      actions: [{ label: '新建集装器', variant: 'contained' }, { label: '追加提单' }]
-    },
-    loading: {
-      title: '出港装机任务',
-      node: '出港机场机坪操作',
-      role: 'Ramp Loader',
-      status: '待处理',
-      sla: 'ETD 前 30 分钟',
-      description: '在机坪完成转运、Loaded 确认和装机证据上传。',
-      evidence: ['Loaded 照片', 'UWS 复核', '机坪签名'],
-      blockers: ['无 UWS / Manifest 时不得标记已装载。'],
-      actions: [{ label: '记录转运', variant: 'contained' }, { label: '确认 Loaded' }, { label: '上传证据' }]
-    }
-  };
-
-  return {
-    priority,
-    ...(configMap[type] || configMap.overview)
-  };
-}
-
-function roleAwareOutboundTaskCardConfig(type, flightNo, roleKey, roleView, runAction) {
-  const config = buildOutboundTaskCardConfig(type, flightNo);
-  const roleAllowed = isMobileRoleAllowed(roleKey, config.role);
-  const actions = filterMobileActionsByRole(
-    roleKey,
-    (config.actions || []).map((action) => ({
-      ...action,
-      onClick: () => runAction(action.label, `${config.node} / ${config.role}`)
-    }))
-  );
-
-  return {
-    ...config,
-    blockers: roleAllowed ? config.blockers : [...config.blockers, `当前角色 ${roleView.label} 仅可查看，不可执行 ${config.role} 任务。`],
-    actions: roleAllowed ? actions : []
-  };
 }
 
 function recognizeContainerCode(file) {
@@ -131,183 +163,149 @@ function recognizeContainerCode(file) {
   return `ULD${String(Date.now()).slice(-5)}`;
 }
 
-const awbCatalog = (() => {
-  const map = new Map();
-  [...ffmForecastRows, ...masterAwbRows].forEach((item) => {
-    if (!map.has(item.awb)) {
-      const pieces = parseNumber(item.pieces || item.pcs);
-      const weight = parseNumber(item.weight);
-      map.set(item.awb, {
-        awb: item.awb,
-        destination: item.destination || item.route || '-',
-        consignee: item.consignee || item.shipper || item.destination || '-',
-        totalPieces: pieces,
-        totalWeight: weight,
-        unitWeight: pieces ? weight / pieces : 0
-      });
-    }
-  });
-  return Array.from(map.values());
-})();
-
-const DEFAULT_OUTBOUND_CONTAINERS = [
-  {
-    boardCode: 'ULD88001',
-    flightNo: 'URO913',
-    entries: [
-      { awb: '436-10358585', pieces: 24, boxes: 12, weight: '336.0' },
-      { awb: '436-10361352', pieces: 30, boxes: 15, weight: '564.0' }
-    ],
-    totalBoxes: 27,
-    totalWeightKg: 900.0,
-    reviewedWeightKg: 912.4,
-    status: '待装机',
-    createdAt: '2026-04-07T18:10:00.000Z'
-  },
-  {
-    boardCode: 'ULD88002',
-    flightNo: 'URO913',
-    entries: [
-      { awb: '436-10358585', pieces: 10, boxes: 5, weight: '140.0' }
-    ],
-    totalBoxes: 5,
-    totalWeightKg: 140.0,
-    reviewedWeightKg: 142.1,
-    status: '待装机',
-    createdAt: '2026-04-07T18:18:00.000Z'
-  },
-  {
-    boardCode: 'ULD88003',
-    flightNo: 'URO913',
-    entries: [
-      { awb: '436-10358585', pieces: 16, boxes: 8, weight: '224.0' }
-    ],
-    totalBoxes: 8,
-    totalWeightKg: 224.0,
-    reviewedWeightKg: 226.8,
-    status: '已装机',
-    offloadBoxes: 2,
-    offloadStatus: '已拉货',
-    loadedAt: '2026-04-07T19:02:00.000Z',
-    createdAt: '2026-04-07T17:56:00.000Z'
-  },
-  {
-    boardCode: 'ULD88004',
-    flightNo: 'URO913',
-    entries: [
-      { awb: '436-10359044', pieces: 40, boxes: 10, weight: '604.7' },
-      { awb: '436-10359218', pieces: 18, boxes: 6, weight: '324.0' }
-    ],
-    totalBoxes: 16,
-    totalWeightKg: 928.7,
-    reviewedWeightKg: 934.1,
-    status: '待装机',
-    createdAt: '2026-04-07T18:32:00.000Z'
-  },
-  {
-    boardCode: 'ULD88005',
-    flightNo: 'URO913',
-    entries: [
-      { awb: '436-10359301', pieces: 20, boxes: 5, weight: '340.0' }
-    ],
-    totalBoxes: 5,
-    totalWeightKg: 340.0,
-    reviewedWeightKg: 342.5,
-    status: '待装机',
-    createdAt: '2026-04-07T18:41:00.000Z'
-  },
-  {
-    boardCode: 'ULD91001',
-    flightNo: 'SE913',
-    entries: [
-      { awb: '436-10357583', pieces: 80, boxes: 18, weight: '1267.0' },
-      { awb: '436-10357896', pieces: 55, boxes: 13, weight: '904.0' }
-    ],
-    totalBoxes: 31,
-    totalWeightKg: 2171.0,
-    reviewedWeightKg: 2180.5,
-    status: '待装机',
-    createdAt: '2026-04-07T19:10:00.000Z'
-  },
-  {
-    boardCode: 'ULD91002',
-    flightNo: 'SE913',
-    entries: [
-      { awb: '436-10359477', pieces: 30, boxes: 8, weight: '474.0' },
-      { awb: '436-10359512', pieces: 24, boxes: 6, weight: '360.0' }
-    ],
-    totalBoxes: 14,
-    totalWeightKg: 834.0,
-    reviewedWeightKg: 840.2,
-    status: '已装机',
-    loadedAt: '2026-04-07T19:18:00.000Z',
-    createdAt: '2026-04-07T18:58:00.000Z'
-  }
-];
-
 export function getOutboundFlight(flightNo) {
-  return outboundFlights.find((item) => item.flightNo === flightNo) || null;
-}
-
-export function getFlightAwbCatalog(flightNo) {
-  if (!flightNo) return awbCatalog;
-  if (flightNo.startsWith('SE')) return awbCatalog.filter((item) => item.destination === 'MST');
-  if (flightNo.startsWith('URO')) return awbCatalog.filter((item) => item.destination === 'MME');
-  return awbCatalog;
+  const store = getOutboundStore(flightNo);
+  return store?.flight || null;
 }
 
 export function buildOutboundWaybills(flightNo) {
-  return getFlightAwbCatalog(flightNo).map((item) => ({
-    awb: item.awb,
-    consignee: item.consignee,
-    pieces: String(item.totalPieces),
-    weight: `${item.totalWeight} kg`,
-    expectedBoxes: item.totalPieces,
-    totalWeightKg: item.totalWeight,
-    barcode: normalizeCode(item.awb),
-    currentNode: '出港收货',
-    noaStatus: '待处理',
-    podStatus: '待处理',
-    transferStatus: '待装机'
-  }));
+  const store = getOutboundStore(flightNo);
+  return store?.waybills || [];
 }
 
 export function getOutboundSummary(flight) {
-  const plannedAwbs = getFlightAwbCatalog(flight?.flightNo);
+  const plannedAwbs = buildOutboundWaybills(flight?.flightNo);
   return {
     plannedAwbCount: plannedAwbs.length,
-    plannedPieces: plannedAwbs.reduce((sum, item) => sum + item.totalPieces, 0),
-    plannedWeight: plannedAwbs.reduce((sum, item) => sum + item.totalWeight, 0)
+    plannedPieces: plannedAwbs.reduce((sum, item) => sum + Number(item.expectedBoxes ?? item.pieces ?? 0), 0),
+    plannedWeight: plannedAwbs.reduce((sum, item) => sum + Number(item.totalWeightKg ?? item.totalWeight ?? 0), 0)
   };
 }
 
-export function useOutboundStorage() {
-  const session = readMobileSession();
-  const stationKey = stationKeyOf(session);
-  const containers = useLocalStorage(`sinoport-mobile-outbound-containers-${stationKey}`, DEFAULT_OUTBOUND_CONTAINERS);
-  const receipts = useLocalStorage(`sinoport-mobile-outbound-receipts-${stationKey}`, {});
+export function useOutboundStorage(flightNo) {
+  const { mobileOutboundFlightDetail } = useOutboundDetailData(flightNo);
+  const [pmcBoards, setPmcBoardsState] = useState([]);
+  const [receiptMap, setReceiptMapState] = useState({});
 
   useEffect(() => {
-    const current = Array.isArray(containers.state) ? containers.state : [];
-    const missingDefaults = DEFAULT_OUTBOUND_CONTAINERS.filter(
-      (seed) => !current.some((item) => item.boardCode === seed.boardCode && item.flightNo === seed.flightNo)
-    );
+    if (!flightNo) return;
+    const serverBoards = toArray(mobileOutboundFlightDetail?.containers).map(cloneOutboundContainer);
+    const serverReceipts = cloneOutboundReceiptMap(mobileOutboundFlightDetail?.receipts);
 
-    if (missingDefaults.length) {
-      containers.setState([...current, ...missingDefaults]);
-    }
-  }, [containers.state, containers.setState]);
+    setPmcBoardsState((prev) => {
+      const prevByCode = new Map((prev || []).map((item) => [item.boardCode, item]));
+      return serverBoards.map((item) => {
+        const previous = prevByCode.get(item.boardCode);
+        return previous ? { ...item, ...previous, entries: previous.entries || item.entries } : item;
+      });
+    });
+
+    setReceiptMapState((prev) =>
+      Object.fromEntries(
+        Object.entries(serverReceipts).map(([awbNo, item]) => {
+          const previous = prev?.[awbNo] || {};
+          return [
+            awbNo,
+            {
+              ...item,
+              ...previous,
+              reviewStatus: previous.reviewStatus || item.reviewStatus,
+              reviewedWeight: previous.reviewedWeight ?? item.reviewedWeight,
+              reviewedAt: previous.reviewedAt || item.reviewedAt
+            }
+          ];
+        })
+      )
+    );
+  }, [flightNo, mobileOutboundFlightDetail?.containers, mobileOutboundFlightDetail?.receipts]);
+
+  const setPmcBoards = (updater) => {
+    setPmcBoardsState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        (next || []).forEach((item) => {
+          void saveOutboundContainer(flightNo, {
+            container_id: item.containerId,
+            boardCode: item.boardCode,
+            totalBoxes: item.totalBoxes,
+            totalWeightKg: item.totalWeightKg,
+            reviewedWeightKg: item.reviewedWeightKg,
+            status: item.status,
+            loadedAt: item.loadedAt,
+            note: item.note,
+            entries: item.entries
+          });
+        });
+      }
+      return next;
+    });
+  };
+
+  const setReceiptMap = (updater) => {
+    setReceiptMapState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (flightNo) {
+        Object.entries(next || {}).forEach(([awbNo, value]) => {
+          void saveOutboundReceipt(flightNo, awbNo, {
+            received_pieces: value?.receivedPieces || 0,
+            received_weight: value?.receivedWeight || 0,
+            status: value?.status || '已收货',
+            note: value?.note || ''
+          });
+        });
+      }
+      return next;
+    });
+  };
 
   return {
-    pmcBoards: containers.state,
-    setPmcBoards: containers.setState,
-    receiptMap: receipts.state,
-    setReceiptMap: receipts.setState
+    pmcBoards,
+    setPmcBoards,
+    receiptMap,
+    setReceiptMap
+  };
+}
+
+function useOutboundTaskContext(flightNo) {
+  const session = readMobileSession();
+  const { mobileOutboundFlightDetail } = useOutboundDetailData(flightNo);
+  const detail = mobileOutboundFlightDetail || {};
+  const roleView = detail.roleView || EMPTY_MOBILE_OUTBOUND_ROLE_VIEW;
+  const taskCards = detail.pageConfig?.taskCards || EMPTY_MOBILE_OUTBOUND_PAGE_CONFIG.taskCards;
+  const availableTabs = toArray(detail.availableTabs);
+  const availableActions = toArray(detail.availableActions);
+  const liveFlight = detail.flight || getOutboundFlight(flightNo) || createOutboundFlight(flightNo);
+  const opsStorage = useMobileOpsStorage(`outbound-flight-${flightNo}`);
+
+  const runScopedAction = (label, taskLabel) => {
+    opsStorage.setState((prev) =>
+      recordMobileAction(
+        prev,
+        buildMobileQueueEntry(session, {
+          label,
+          taskLabel,
+          payloadSummary: `${flightNo} / ${taskLabel}`,
+          roleLabel: roleView.label
+        })
+      )
+    );
+  };
+
+  return {
+    roleView,
+    taskCards,
+    availableTabs,
+    availableActions,
+    liveFlight,
+    runScopedAction,
+    opsState: opsStorage.state,
+    setOpsState: opsStorage.setState
   };
 }
 
 export function OutboundFlightHeroCard({ flight }) {
-  const summary = getOutboundSummary(flight);
+  const liveFlight = getOutboundFlight(flight?.flightNo) || flight;
+  const summary = getOutboundSummary(liveFlight);
 
   return (
     <MainCard>
@@ -318,13 +316,13 @@ export function OutboundFlightHeroCard({ flight }) {
               当前航班
             </Typography>
             <Typography variant="h3" sx={{ mt: 0.5 }}>
-              {flight.flightNo}
+              {liveFlight.flightNo}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              ETD {flight.etd} · 当前阶段 {flight.stage} · Manifest {flight.manifest}
+              ETD {liveFlight.etd} · 当前阶段 {liveFlight.stage} · Manifest {liveFlight.manifest}
             </Typography>
           </div>
-          <StatusChip label={flight.status} />
+          <StatusChip label={liveFlight.status} />
         </Stack>
 
         <Grid container spacing={1.5}>
@@ -344,15 +342,16 @@ export function OutboundFlightHeroCard({ flight }) {
 }
 
 export function OutboundOverviewPanel({ flight, pmcBoards = [], receiptMap = {} }) {
-  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flight.flightNo);
+  const { taskCards, runScopedAction } = useOutboundTaskContext(flight.flightNo);
   const summary = getOutboundSummary(flight);
   const flightContainers = pmcBoards.filter((item) => item.flightNo === flight.flightNo);
   const flightReceipts = Object.values(receiptMap).filter((item) => item.flightNo === flight.flightNo);
-  const flightAwbs = getFlightAwbCatalog(flight.flightNo);
+  const flightAwbs = buildOutboundWaybills(flight.flightNo);
+  const overviewTaskCard = bindTaskCardActions(taskCards.overview, runScopedAction);
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareOutboundTaskCardConfig('overview', flight.flightNo, roleKey, roleView, runScopedAction)} />
+      {overviewTaskCard ? <TaskCard {...overviewTaskCard} /> : null}
 
       <MainCard title="航班概览">
         <Grid container spacing={1.5}>
@@ -384,33 +383,39 @@ export function OutboundOverviewPanel({ flight, pmcBoards = [], receiptMap = {} 
   );
 }
 
-function useOutboundTaskContext(flightNo) {
-  const session = readMobileSession();
-  const roleKey = getMobileRoleKey(session);
-  const roleView = getMobileRoleView(roleKey);
-  const opsStorage = useMobileOpsStorage(`outbound-flight-${flightNo}`);
-
-  const runScopedAction = (label, taskLabel) => {
-    opsStorage.setState((prev) =>
-      recordMobileAction(
-        prev,
-        buildMobileQueueEntry(session, {
-          label,
-          taskLabel,
-          payloadSummary: `${flightNo} / ${taskLabel}`,
-          roleLabel: roleView.label
-        })
-      )
-    );
-  };
-
-  return { roleKey, roleView, runScopedAction, opsState: opsStorage.state, setOpsState: opsStorage.setState };
-}
-
 export function OutboundFlightAppShell({ flight, children, showHero = true, showOps = showHero }) {
   const navigate = useNavigate();
-  const session = readMobileSession();
-  const roleView = getMobileRoleView(getMobileRoleKey(session));
+  const { roleView, liveFlight } = useOutboundTaskContext(flight.flightNo);
+  const { mobileTasks } = useGetMobileTasks();
+  const liveTasks = mobileTasks.filter((task) => task.flight_no === flight.flightNo);
+
+  const handleLiveTaskAction = async (task, action) => {
+    try {
+      if (action === 'accept') await acceptMobileTask(task.task_id, { note: 'Accepted from outbound TaskOpsPanel' });
+      if (action === 'start') await startMobileTask(task.task_id, { note: 'Started from outbound TaskOpsPanel' });
+      if (action === 'evidence') {
+        await uploadMobileTaskEvidence(task.task_id, {
+          note: 'Evidence from outbound TaskOpsPanel',
+          evidence_summary: 'TaskOpsPanel outbound evidence'
+        });
+      }
+      if (action === 'complete') await completeMobileTask(task.task_id, { note: 'Completed from outbound TaskOpsPanel' });
+
+      openSnackbar({
+        open: true,
+        message: `任务 ${task.task_id} 已执行 ${action}`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || `任务 ${action} 失败`,
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    }
+  };
 
   return (
     <Box>
@@ -420,11 +425,13 @@ export function OutboundFlightAppShell({ flight, children, showHero = true, show
           <TaskOpsPanel
             scopeKey={`outbound-flight-${flight.flightNo}`}
             currentLabel={flight.flightNo}
-            contextChips={[`角色 ${mt(roleView.label)}`, `当前阶段 ${flight.stage}`, `Manifest ${flight.manifest}`]}
+            contextChips={[`角色 ${mt(roleView.label)}`, `当前阶段 ${liveFlight.stage}`, `Manifest ${liveFlight.manifest}`]}
             quickLinks={[
               { label: '节点选择', onClick: () => navigate('/mobile/select') },
               { label: '航班列表', onClick: () => navigate('/mobile/outbound') }
             ]}
+            liveTasks={liveTasks}
+            onTaskAction={handleLiveTaskAction}
           />
         ) : null}
         {children}
@@ -434,7 +441,7 @@ export function OutboundFlightAppShell({ flight, children, showHero = true, show
 }
 
 export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
-  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -448,8 +455,9 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
     scanInputRef.current?.focus();
   }, [flightNo]);
 
-  const flightAwbs = getFlightAwbCatalog(flightNo);
+  const flightAwbs = buildOutboundWaybills(flightNo);
   const receivedItems = flightAwbs.filter((item) => receiptMap[item.awb]?.flightNo === flightNo);
+  const receiptTaskCard = bindTaskCardActions(taskCards.receipt, runScopedAction);
 
   const attachReceipt = (rawCode) => {
     const code = normalizeCode(rawCode);
@@ -587,7 +595,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareOutboundTaskCardConfig('receipt', flightNo, roleKey, roleView, runScopedAction)} />
+      {receiptTaskCard ? <TaskCard {...receiptTaskCard} /> : null}
 
       <Dialog open={!!reviewAwb} fullWidth maxWidth="xs" onClose={() => setReviewAwb('')}>
         <DialogTitle>重量复核</DialogTitle>
@@ -609,9 +617,10 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
 }
 
 export function ContainerListPanel({ flightNo, pmcBoards }) {
-  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightContainers = pmcBoards.filter((item) => item.flightNo === flightNo);
+  const containerTaskCard = bindTaskCardActions(taskCards.container, runScopedAction);
 
   return (
     <Stack sx={{ gap: 2 }}>
@@ -653,22 +662,23 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
+      {containerTaskCard ? <TaskCard {...containerTaskCard} /> : null}
     </Stack>
   );
 }
 
 export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
-  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
   const [message, setMessage] = useState('输入集装器号码或拍照识别后，点击完成即可创建。');
   const [form, setForm] = useState({ boardCode: '', photoName: '' });
 
   const canSubmit = form.boardCode.trim();
+  const containerTaskCard = bindTaskCardActions(taskCards.container, runScopedAction);
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareOutboundTaskCardConfig('container', flightNo, roleKey, roleView, runScopedAction)} />
+      {containerTaskCard ? <TaskCard {...containerTaskCard} /> : null}
 
       <MainCard title={mt('新建集装器')}>
         <Stack sx={{ gap: 2 }}>
@@ -745,7 +755,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
   const [message, setMessage] = useState('使用条码枪扫描提单号后，会按件数逐件累加到当前集装器。');
   const [entry, setEntry] = useState({ awb: '', boxes: '', pieces: '' });
 
-  const flightAwbs = getFlightAwbCatalog(flightNo);
+  const flightAwbs = buildOutboundWaybills(flightNo);
   const container = pmcBoards.find((item) => item.flightNo === flightNo && item.boardCode === containerCode);
 
   useEffect(() => {
@@ -924,12 +934,13 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
 }
 
 export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
-  const { roleKey, roleView, runScopedAction } = useOutboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useOutboundTaskContext(flightNo);
   const [activeContainerCode, setActiveContainerCode] = useState('');
   const [offloadBoxes, setOffloadBoxes] = useState('');
   const containers = pmcBoards.filter((item) => item.flightNo === flightNo);
   const pendingContainers = containers.filter((item) => item.status !== '已装机');
   const loadedContainers = containers.filter((item) => item.status === '已装机');
+  const loadingTaskCard = bindTaskCardActions(taskCards.loading, runScopedAction);
 
   return (
     <Stack sx={{ gap: 2 }}>
@@ -1029,7 +1040,7 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareOutboundTaskCardConfig('loading', flightNo, roleKey, roleView, runScopedAction)} />
+      {loadingTaskCard ? <TaskCard {...loadingTaskCard} /> : null}
     </Stack>
   );
 }

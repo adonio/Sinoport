@@ -5,7 +5,7 @@ import { buildFlightWaybills, getInboundFlight, InboundFlightAppShell, PalletPan
 export default function MobileInboundPalletPage() {
   const { flightNo } = useParams();
   const flight = getInboundFlight(flightNo);
-  const { taskMap, pallets } = useInboundStorage();
+  const { taskMap, pallets } = useInboundStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;

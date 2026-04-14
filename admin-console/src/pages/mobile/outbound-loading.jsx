@@ -5,7 +5,7 @@ import { getOutboundFlight, LoadingPanel, OutboundFlightAppShell, useOutboundSto
 export default function MobileOutboundLoadingPage() {
   const { flightNo } = useParams();
   const flight = getOutboundFlight(flightNo);
-  const { pmcBoards, setPmcBoards } = useOutboundStorage();
+  const { pmcBoards, setPmcBoards } = useOutboundStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/outbound" replace />;

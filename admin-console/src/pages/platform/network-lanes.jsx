@@ -9,10 +9,12 @@ import TableRow from '@mui/material/TableRow';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
-import { networkLaneTemplateRows } from 'data/sinoport-adapters';
+import { useGetPlatformNetwork } from 'api/platform';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformNetworkLanesPage() {
+  const { networkLaneTemplateRows } = useGetPlatformNetwork();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

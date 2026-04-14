@@ -14,7 +14,7 @@ import CloseOutlined from '@ant-design/icons/CloseOutlined';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { platformStationCapabilityRows, stationCapabilityColumns } from 'data/sinoport-adapters';
+import { useGetPlatformStations } from 'api/platform';
 import { Link as RouterLink } from 'react-router-dom';
 
 function renderCapabilitySymbol(status) {
@@ -28,6 +28,8 @@ function renderCapabilitySymbol(status) {
 }
 
 export default function PlatformStationsCapabilitiesPage() {
+  const { platformStationCapabilityRows, stationCapabilityColumns } = useGetPlatformStations();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

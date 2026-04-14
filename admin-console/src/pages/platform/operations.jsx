@@ -15,9 +15,12 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { platformAlerts, platformOperationKpis, platformPendingActions, stationAuditFeed, stationHealthRows } from 'data/sinoport-adapters';
+import { useGetPlatformOperationsOverview } from 'api/platform';
 
 export default function PlatformOperationsPage() {
+  const { platformAlerts, platformOperationKpis, platformPendingActions, stationAuditFeed, stationHealthRows } =
+    useGetPlatformOperationsOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

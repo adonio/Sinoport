@@ -5,7 +5,7 @@ import { getOutboundFlight, OutboundFlightAppShell, ReceiptPanel, useOutboundSto
 export default function MobileOutboundReceiptPage() {
   const { flightNo } = useParams();
   const flight = getOutboundFlight(flightNo);
-  const { receiptMap, setReceiptMap } = useOutboundStorage();
+  const { receiptMap, setReceiptMap } = useOutboundStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/outbound" replace />;

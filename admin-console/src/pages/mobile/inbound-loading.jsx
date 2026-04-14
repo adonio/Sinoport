@@ -5,8 +5,8 @@ import { buildFlightWaybills, getInboundFlight, InboundFlightAppShell, LoadingPa
 export default function MobileInboundLoadingPage() {
   const { flightNo } = useParams();
   const flight = getInboundFlight(flightNo);
-  const { taskMap } = useInboundStorage();
-  const { loadingPlans, setLoadingPlans } = useInboundLoadingStorage();
+  const { taskMap } = useInboundStorage(flightNo);
+  const { loadingPlans, setLoadingPlans } = useInboundLoadingStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;

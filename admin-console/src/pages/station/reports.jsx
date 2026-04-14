@@ -10,9 +10,11 @@ import { Link as RouterLink } from 'react-router-dom';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
-import { pdaKpiRows, shiftReportRows, stationFileReportRows, stationReportCards } from 'data/sinoport-adapters';
+import { useGetStationReportsOverview } from 'api/station';
 
 export default function StationReportsPage() {
+  const { pdaKpiRows, shiftReportRows, stationFileReportRows, stationReportCards } = useGetStationReportsOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

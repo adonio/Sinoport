@@ -20,16 +20,18 @@ import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import {
-  filterMobileActionsByRole,
-  getMobileNodeDetail,
-  getMobileNodeItems,
-  getMobileRoleView,
-  isMobileFlowAllowed,
-  isMobileRoleAllowed
-} from 'data/sinoport-adapters';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+  acceptMobileTask,
+  completeMobileTask,
+  startMobileTask,
+  uploadMobileTaskEvidence,
+  useGetMobileNodeDetail,
+  useGetMobileNodeFlow,
+  useGetMobileTasks
+} from 'api/station';
+import { openSnackbar } from 'api/snackbar';
+import { useMobileState } from 'hooks/useMobileState';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
-import { getMobileFlowStorageKey, getMobileRoleKey, readMobileSession } from 'utils/mobile/session';
+import { getMobileFlowStorageKey, readMobileSession } from 'utils/mobile/session';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
 function defaultActionState(detail) {
@@ -71,32 +73,39 @@ function buildActionPatch(label, title) {
   return { status: '运行中', note: `${label} 已记录。` };
 }
 
-function useNodeRoleContext(flowKey) {
-  const session = readMobileSession();
-  const roleKey = getMobileRoleKey(session);
-  const roleView = getMobileRoleView(roleKey);
-  const language = session?.language || readMobileLanguage();
+function matchNodeTask(task, flowKey, itemId) {
+  if (task.task_id === itemId || task.related_object_id === itemId || task.flight_no === itemId || task.awb_no === itemId) {
+    return true;
+  }
 
-  return { session, roleKey, roleView, language, flowAllowed: isMobileFlowAllowed(roleKey, flowKey) };
+  const executionNode = task.execution_node || '';
+
+  if (flowKey === 'flightRuntime') return executionNode.includes('Runtime') || task.flight_no === itemId;
+  if (flowKey === 'destinationRamp') return executionNode.includes('Ramp') || task.flight_no === itemId;
+  if (flowKey === 'exportRamp') return executionNode.includes('Ramp') || task.flight_no === itemId;
+  if (flowKey === 'delivery') return executionNode.includes('Delivery');
+  if (flowKey === 'tailhaul') return executionNode.includes('Tail') || executionNode.includes('Truck');
+  if (flowKey === 'headhaul') return executionNode.includes('Truck') || executionNode.includes('Headhaul');
+  if (flowKey === 'preWarehouse') return executionNode.includes('Warehouse') || executionNode.includes('Receiving');
+
+  return false;
 }
 
 export function MobileNodeListPage({ flowKey, pathOf }) {
   const navigate = useNavigate();
-  const { roleKey, roleView, language, flowAllowed } = useNodeRoleContext(flowKey);
+  const { session: mobileSession, roleView, items, mobileNodeLoading } = useGetMobileNodeFlow(flowKey);
+  const session = mobileSession?.roleKey ? mobileSession : readMobileSession();
+  const language = session?.language || readMobileLanguage();
 
-  const items = getMobileNodeItems(flowKey)
-    .map((item) => {
-      const detail = getMobileNodeDetail(flowKey, item.id);
-      const allowed = detail ? isMobileRoleAllowed(roleKey, detail.role) || flowAllowed : flowAllowed;
-
-      return {
-        ...item,
-        title: localizeMobileText(language, item.title),
-        subtitle: localizeMobileText(language, item.subtitle),
-        allowed
-      };
-    })
-    .filter((item) => item.allowed);
+  if (mobileNodeLoading && !items.length) {
+    return (
+      <MainCard>
+        <Typography variant="body2" color="text.secondary">
+          正在加载节点数据...
+        </Typography>
+      </MainCard>
+    );
+  }
 
   if (!items.length) {
     return (
@@ -144,11 +153,27 @@ export function MobileNodeListPage({ flowKey, pathOf }) {
 
 export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const navigate = useNavigate();
-  const { session, roleKey, roleView, language, flowAllowed } = useNodeRoleContext(flowKey);
+  const nodeData = useGetMobileNodeDetail(flowKey, itemId);
+  const session = nodeData.session?.roleKey ? nodeData.session : readMobileSession();
+  const roleView = nodeData.roleView;
+  const language = session?.language || readMobileLanguage();
   const [activeSection, setActiveSection] = useState(flowKey === 'flightRuntime' ? 'summary' : 'ops');
-  const detail = getMobileNodeDetail(flowKey, itemId);
-  const storage = useLocalStorage(getMobileFlowStorageKey(session, `${flowKey}-${itemId}`), {});
+  const storage = useMobileState(getMobileFlowStorageKey(session, `${flowKey}-${itemId}`), {});
   const opsStorage = useMobileOpsStorage(`node-${flowKey}-${itemId}`);
+  const { mobileTasks } = useGetMobileTasks();
+  const loading = nodeData.mobileNodeDetailLoading && !nodeData.detail;
+  const detail = nodeData.detail;
+  const taskCard = nodeData.taskCard || detail;
+
+  if (loading) {
+    return (
+      <MainCard>
+        <Typography variant="body2" color="text.secondary">
+          正在加载任务详情...
+        </Typography>
+      </MainCard>
+    );
+  }
 
   const state = useMemo(() => {
     if (!detail) return null;
@@ -159,7 +184,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
     return null;
   }
 
-  const roleAllowed = isMobileRoleAllowed(roleKey, detail.role) || flowAllowed;
+  const liveTasks = mobileTasks.filter((task) => matchNodeTask(task, flowKey, itemId));
 
   const setCurrentState = (updater) => {
     storage.setState((prev) => {
@@ -196,21 +221,46 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
     );
   };
 
-  const taskActions = filterMobileActionsByRole(
-    roleKey,
-    detail.actions.map((action) => ({
-      ...action,
-      onClick: () => runTaskAction(action.label)
-    }))
-  );
+  const taskActions = (taskCard.actions || []).map((action) => ({
+    ...action,
+    onClick: () => runTaskAction(action.label)
+  }));
 
-  const blockers = roleAllowed ? detail.blockers : [...detail.blockers, `当前角色 ${roleView.label} 仅可查看，不可执行 ${detail.role} 任务。`];
+  const blockers = taskCard.blockers || [];
   const sectionItems = [
     { key: 'ops', label: '操作', icon: ToolOutlined },
     { key: 'task', label: '任务', icon: ProfileOutlined },
     { key: 'summary', label: '摘要', icon: AppstoreOutlined },
     { key: 'records', label: '记录', icon: FileTextOutlined }
   ];
+
+  const handleLiveTaskAction = async (task, action) => {
+    try {
+      if (action === 'accept') await acceptMobileTask(task.task_id, { note: `Accepted from ${flowKey} detail` });
+      if (action === 'start') await startMobileTask(task.task_id, { note: `Started from ${flowKey} detail` });
+      if (action === 'evidence') {
+        await uploadMobileTaskEvidence(task.task_id, {
+          note: `Evidence from ${flowKey} detail`,
+          evidence_summary: `${detail.title} evidence summary`
+        });
+      }
+      if (action === 'complete') await completeMobileTask(task.task_id, { note: `Completed from ${flowKey} detail` });
+
+      openSnackbar({
+        open: true,
+        message: `任务 ${task.task_id} 已执行 ${action}`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || `任务 ${action} 失败`,
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    }
+  };
 
   return (
     <Box sx={{ pb: 12 }}>
@@ -249,6 +299,8 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
             scopeKey={`node-${flowKey}-${itemId}`}
             currentLabel={detail.title}
             contextChips={[`节点 ${detail.node}`, `角色 ${roleView.label}`, `SLA ${detail.sla}`]}
+            liveTasks={liveTasks}
+            onTaskAction={handleLiveTaskAction}
             quickLinks={[
               { label: '返回列表', variant: 'outlined', onClick: () => navigate(backPath) },
               { label: '节点选择', variant: 'outlined', onClick: () => navigate('/mobile/select') }
@@ -345,16 +397,16 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
             ) : null}
 
             <TaskCard
-              title={localizeMobileText(language, detail.title)}
-              node={localizeMobileText(language, detail.node)}
-              role={localizeMobileText(language, detail.role)}
+              title={localizeMobileText(language, taskCard.title)}
+              node={localizeMobileText(language, taskCard.node)}
+              role={localizeMobileText(language, taskCard.role)}
               status={state.status}
-              priority={detail.priority}
-              sla={detail.sla}
-              description={localizeMobileText(language, detail.description)}
-              evidence={detail.evidence.map((item) => localizeMobileText(language, item))}
+              priority={taskCard.priority}
+              sla={taskCard.sla}
+              description={localizeMobileText(language, taskCard.description)}
+              evidence={taskCard.evidence.map((item) => localizeMobileText(language, item))}
               blockers={blockers.map((item) => localizeMobileText(language, item))}
-              actions={roleAllowed ? taskActions : []}
+              actions={taskActions}
             />
           </>
         ) : null}
@@ -392,17 +444,17 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
               status={state.status}
               rows={[
                 { label: '当前角色', value: localizeMobileText(language, roleView.label) },
-                ...detail.summaryRows.map((item) => ({
+                ...taskCard.summaryRows.map((item) => ({
                   label: localizeMobileText(language, item.label),
                   value: localizeMobileText(language, item.value)
                 }))
               ]}
             />
 
-            {detail.forecastWaybills?.length ? (
+            {taskCard.forecastWaybills?.length ? (
               <TaskQueueCard
                 title="车载提单预报"
-                items={detail.forecastWaybills.map((item) => ({
+                items={taskCard.forecastWaybills.map((item) => ({
                   id: `${itemId}-${item.awb}`,
                   title: item.awb,
                   description: item.consignee,
@@ -432,7 +484,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
             <TaskQueueCard
               title="关键检查项"
-              items={detail.records.map((item, index) => ({
+              items={taskCard.records.map((item, index) => ({
                 id: `${itemId}-${index}`,
                 title: localizeMobileText(language, item),
                 status: index === 0 ? state.status : '待处理'

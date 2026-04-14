@@ -5,7 +5,7 @@ import { buildFlightWaybills, CountingPanel, getInboundFlight, InboundFlightAppS
 export default function MobileInboundBreakdownPage() {
   const { flightNo } = useParams();
   const flight = getInboundFlight(flightNo);
-  const { taskMap, setTaskMap } = useInboundStorage();
+  const { taskMap, setTaskMap } = useInboundStorage(flightNo);
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;

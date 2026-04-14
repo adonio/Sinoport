@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
@@ -10,30 +10,78 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'components/MainCard';
 import sinoportLogo from 'assets/images/sinoport-logo.png';
-import { mobileRoleOptions } from 'data/sinoport-adapters';
+import { openSnackbar } from 'api/snackbar';
+import { fetchMobileLoginOptions, mobileLogin } from 'api/station';
 import { writeMobileSession } from 'utils/mobile/session';
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, writeMobileLanguage } from 'utils/mobile/i18n';
 
-const stationOptions = [
-  { value: 'mme', code: 'MME', label: 'MME 样板站' },
-  { value: 'urc', code: 'URC', label: 'URC 前置站' },
-  { value: 'mst', code: 'MST', label: 'MST 分拨站' },
-  { value: 'boh', code: 'BOH', label: 'BoH 航站' },
-  { value: 'rze', code: 'RZE', label: 'RZE 协同站' }
-];
+function normalizeOptions(value) {
+  return Array.isArray(value) ? value : [];
+}
 
 export default function MobileLoginPage() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState(readMobileLanguage());
-  const languageOptions = getMobileLanguageOptions(language);
+  const [submitting, setSubmitting] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [optionsError, setOptionsError] = useState('');
+  const [loginOptions, setLoginOptions] = useState({
+    stationOptions: [],
+    roleOptions: []
+  });
   const [form, setForm] = useState({
     operator: '',
     employeeId: '',
-    station: stationOptions[0].value,
-    roleKey: mobileRoleOptions[0].value
+    station: '',
+    roleKey: ''
   });
+  const languageOptions = getMobileLanguageOptions(language);
 
-  const canSubmit = form.operator.trim() && form.employeeId.trim() && form.station && form.roleKey;
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        const response = await fetchMobileLoginOptions();
+        if (!active) return;
+
+        const data = response?.data || {};
+        const stationOptions = normalizeOptions(data.station_options);
+        const roleOptions = normalizeOptions(data.role_options);
+        const defaults = data.defaults || {};
+
+        setLoginOptions({ stationOptions, roleOptions });
+        setForm((prev) => ({
+          ...prev,
+          station: prev.station || defaults.station || stationOptions[0]?.value || '',
+          roleKey: prev.roleKey || defaults.role_key || roleOptions[0]?.value || ''
+        }));
+        setOptionsError('');
+      } catch {
+        if (active) {
+          setOptionsError('登录选项加载失败');
+        }
+      } finally {
+        if (active) {
+          setOptionsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedStation = loginOptions.stationOptions.find((item) => item.value === form.station) || loginOptions.stationOptions[0];
+  const selectedRole = loginOptions.roleOptions.find((item) => item.value === form.roleKey) || loginOptions.roleOptions[0];
+  const canSubmit =
+    !optionsLoading &&
+    Boolean(form.operator.trim()) &&
+    Boolean(form.employeeId.trim()) &&
+    Boolean(form.station) &&
+    Boolean(form.roleKey);
+  const loadingLabel = localizeMobileText(language, '登录中…');
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100', py: { xs: 2, sm: 6 } }}>
@@ -84,49 +132,98 @@ export default function MobileLoginPage() {
               select
               label={t(language, 'station')}
               value={form.station}
+              disabled={optionsLoading || !loginOptions.stationOptions.length}
               onChange={(event) => setForm((prev) => ({ ...prev, station: event.target.value }))}
+              helperText={optionsError || undefined}
             >
-              {stationOptions.map((item) => (
-                <MenuItem key={item.value} value={item.value}>
-                  {localizeMobileText(language, item.label)}
+              {optionsLoading ? (
+                <MenuItem value="" disabled>
+                  {t(language, 'login_subtitle')}
                 </MenuItem>
-                ))}
-              </TextField>
+              ) : (
+                loginOptions.stationOptions.map((item) => (
+                  <MenuItem key={item.value} value={item.value}>
+                    {localizeMobileText(language, item.label)}
+                  </MenuItem>
+                ))
+              )}
+            </TextField>
             <TextField
               name="demo_role"
               select
               label={localizeMobileText(language, 'Demo 角色')}
               value={form.roleKey}
+              disabled={optionsLoading || !loginOptions.roleOptions.length}
               onChange={(event) => setForm((prev) => ({ ...prev, roleKey: event.target.value }))}
             >
-              {mobileRoleOptions.map((item) => (
-                <MenuItem key={item.value} value={item.value}>
-                  {localizeMobileText(language, item.label)}
+              {optionsLoading ? (
+                <MenuItem value="" disabled>
+                  {loadingLabel}
                 </MenuItem>
-              ))}
+              ) : (
+                loginOptions.roleOptions.map((item) => (
+                  <MenuItem key={item.value} value={item.value}>
+                    {localizeMobileText(language, item.label)}
+                  </MenuItem>
+                ))
+              )}
             </TextField>
             <Button
               size="large"
               variant="contained"
-              disabled={!canSubmit}
-              onClick={() => {
-                const selectedRole = mobileRoleOptions.find((item) => item.value === form.roleKey) || mobileRoleOptions[0];
-                writeMobileSession({
-                  operator: form.operator.trim(),
-                  employeeId: form.employeeId.trim(),
-                  stationCode: stationOptions.find((item) => item.value === form.station)?.code || stationOptions[0].code,
-                  station: stationOptions.find((item) => item.value === form.station)?.label || stationOptions[0].label,
-                  roleKey: selectedRole.value,
-                  roleLabel: selectedRole.label,
-                  role: selectedRole.label,
-                  language,
-                  businessType: '',
-                  loginAt: new Date().toISOString()
-                });
-                navigate('/mobile/select', { replace: true });
+              disabled={!canSubmit || submitting}
+              onClick={async () => {
+                const station = selectedStation || loginOptions.stationOptions[0];
+                const role = selectedRole || loginOptions.roleOptions[0];
+
+                try {
+                  setSubmitting(true);
+                  const response = await mobileLogin({
+                    operator: form.operator.trim(),
+                    employeeId: form.employeeId.trim(),
+                    stationCode: station.code,
+                    roleKey: role.value,
+                    language
+                  });
+
+                  if (response?.data?.token) {
+                    localStorage.setItem('serviceToken', response.data.token);
+                  }
+
+                  writeMobileSession({
+                    operator: form.operator.trim(),
+                    employeeId: form.employeeId.trim(),
+                    stationCode: station.code,
+                    station: station.label,
+                    roleKey: role.value,
+                    roleLabel: role.label,
+                    role: role.label,
+                    language,
+                    businessType: '',
+                    loginAt: new Date().toISOString()
+                  });
+
+                  openSnackbar({
+                    open: true,
+                    message: '移动端登录成功',
+                    variant: 'alert',
+                    alert: { color: 'success' }
+                  });
+
+                  navigate('/mobile/select', { replace: true });
+                } catch (error) {
+                  openSnackbar({
+                    open: true,
+                    message: error?.error?.message || '移动端登录失败',
+                    variant: 'alert',
+                    alert: { color: 'error' }
+                  });
+                } finally {
+                  setSubmitting(false);
+                }
               }}
             >
-              {t(language, 'login_continue')}
+              {submitting ? loadingLabel : t(language, 'login_continue')}
             </Button>
           </Stack>
         </MainCard>

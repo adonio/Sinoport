@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -17,7 +17,9 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
 import { Link as RouterLink } from 'react-router-dom';
 
 import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
@@ -26,19 +28,16 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { openSnackbar } from 'api/snackbar';
 import {
-  getDocumentVersions,
-  getGateEvaluationsForDocument,
-  getStationDocument,
-  inboundDocumentGates,
-  instructionTemplateRows,
-  outboundDocumentGates,
-  stationDocumentRows
-} from 'data/sinoport-adapters';
-
-function buildInitialVersionState() {
-  return Object.fromEntries(stationDocumentRows.map((item) => [item.documentId, item.activeVersionId]));
-}
+  createStationDocument,
+  createStationUploadTicket,
+  downloadStationDocument,
+  getDocumentPreviewUrl,
+  getStationDocumentPreview,
+  uploadStationFileByTicket,
+  useGetStationDocuments
+} from 'api/station';
 
 function getVersionLabel(versions, versionId) {
   return versions.find((item) => item.versionId === versionId)?.version || versions.at(-1)?.version || '-';
@@ -58,50 +57,106 @@ function buildActivityEntry(id, title, description, status, bindingTargets = [])
   };
 }
 
-export default function StationDocumentsPage() {
-  const [selectedDocumentId, setSelectedDocumentId] = useState(stationDocumentRows[0]?.documentId || '');
-  const [activeVersionByDoc, setActiveVersionByDoc] = useState(buildInitialVersionState);
-  const [previewVersionId, setPreviewVersionId] = useState('');
-  const [activityLog, setActivityLog] = useState([
-    buildActivityEntry(
-      'DOC-ACT-001',
-      'Manifest 最终版待冻结',
-      'SE913 当前仍命中 HG-01，需冻结最终版后才能解除机坪放行阻断。',
-      '警戒',
-      stationDocumentRows.find((item) => item.documentId === 'DOC-MANIFEST-SE913')?.bindingTargets || []
-    )
-  ]);
+const EMPTY_DOCUMENT = {
+  documentId: '',
+  type: '--',
+  name: '--',
+  linkedTo: '--',
+  version: '--',
+  updatedAt: '--',
+  status: 'Pending',
+  activeVersionId: '',
+  previewType: 'file',
+  nextStep: '--',
+  gateIds: [],
+  bindingTargets: []
+};
 
-  const selectedDocument = getStationDocument(selectedDocumentId);
-  const selectedVersions = useMemo(() => getDocumentVersions(selectedDocumentId), [selectedDocumentId]);
-  const activeVersionId = activeVersionByDoc[selectedDocumentId] || selectedDocument?.activeVersionId;
+export default function StationDocumentsPage() {
+  const {
+    stationDocuments,
+    documentVersionsByDocumentId,
+    inboundDocumentGates,
+    outboundDocumentGates,
+    instructionTemplateRows,
+    documentGateEvaluationsByDocumentId,
+    stationDocumentsUsingMock
+  } = useGetStationDocuments();
+  const [selectedDocumentId, setSelectedDocumentId] = useState('');
+  const [activeVersionByDoc, setActiveVersionByDoc] = useState({});
+  const [previewVersionId, setPreviewVersionId] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createFile, setCreateFile] = useState(null);
+  const [previewPayload, setPreviewPayload] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    documentType: 'POD',
+    documentName: 'sample-pod.pdf',
+    relatedObjectType: 'AWB',
+    relatedObjectId: 'AWB-436-10358585',
+    storageKey: 'station/MME/manual/sample-pod.pdf'
+  });
+  const [activityLog, setActivityLog] = useState([]);
+  const activitySeededRef = useRef(false);
+
+  const selectedDocument = useMemo(
+    () => stationDocuments.find((item) => item.documentId === selectedDocumentId) || stationDocuments[0] || EMPTY_DOCUMENT,
+    [selectedDocumentId, stationDocuments]
+  );
+  const selectedVersions = useMemo(() => {
+    const matchedVersions = documentVersionsByDocumentId[selectedDocument?.documentId || selectedDocumentId] || [];
+
+    if (matchedVersions.length) {
+      return matchedVersions;
+    }
+
+    if (!selectedDocument) {
+      return [];
+    }
+
+    return [
+      {
+        versionId: selectedDocument.activeVersionId,
+        version: selectedDocument.version,
+        status: selectedDocument.status,
+        updatedAt: selectedDocument.updatedAt,
+        diffSummary: '当前来自 API 汇总，仅保留台账与版本摘要。',
+        previewSummary: '当前来自 API 汇总，仅保留元数据与版本摘要。',
+        previewType: selectedDocument.previewType,
+        sortOrder: 1,
+        rollbackTarget: null,
+        replacedBy: null
+      }
+    ];
+  }, [documentVersionsByDocumentId, selectedDocument, selectedDocumentId]);
+  const activeVersionId = activeVersionByDoc[selectedDocumentId] || selectedDocument?.activeVersionId || selectedVersions.at(-1)?.versionId;
   const activeVersion = selectedVersions.find((item) => item.versionId === activeVersionId) || selectedVersions.at(-1);
   const previewOpen = Boolean(previewVersionId);
   const previewVersion = selectedVersions.find((item) => item.versionId === previewVersionId) || activeVersion;
   const selectedGateItems = useMemo(
-    () =>
-      getGateEvaluationsForDocument(selectedDocumentId).map((item) => ({
-        gateId: item.gateId,
-        node: item.node,
-        required: item.required,
-        impact: item.impact,
-        status: item.status,
-        blocker: item.blockingReason,
-        recovery: item.recoveryAction,
-        releaseRole: item.releaseRole
-      })),
-    [selectedDocumentId]
+    () => (documentGateEvaluationsByDocumentId[selectedDocument?.documentId || selectedDocumentId] || []).map((item) => ({
+      gateId: item.gateId,
+      node: item.node,
+      required: item.required,
+      impact: item.impact,
+      status: item.status,
+      blocker: item.blocker,
+      recovery: item.recovery,
+      releaseRole: item.releaseRole
+    })),
+    [documentGateEvaluationsByDocumentId, selectedDocument, selectedDocumentId]
   );
 
   const metrics = [
-    { title: '文件台账', value: `${stationDocumentRows.length}`, helper: '统一回连 Flight / AWB / Truck / POD', chip: 'Documents', color: 'primary' },
+    { title: '文件台账', value: `${stationDocuments.length}`, helper: '统一回连 Flight / AWB / Truck / POD', chip: 'Documents', color: 'primary' },
     { title: '进港放行门槛', value: `${inboundDocumentGates.length}`, helper: '从 gate evaluation 统一映射', chip: 'Inbound', color: 'secondary' },
     { title: '出港放行门槛', value: `${outboundDocumentGates.length}`, helper: 'Loaded / Airborne 前必须校验', chip: 'Outbound', color: 'success' },
     { title: '指令模板', value: `${instructionTemplateRows.length}`, helper: '文件模板与任务模板绑定', chip: 'Templates', color: 'warning' }
   ];
 
-  const rowsWithVersionState = stationDocumentRows.map((item) => {
-    const versions = getDocumentVersions(item.documentId);
+  const rowsWithVersionState = stationDocuments.map((item) => {
+    const versions = documentVersionsByDocumentId[item.documentId] || [];
     const currentVersionId = activeVersionByDoc[item.documentId] || item.activeVersionId;
     const currentVersion = versions.find((entry) => entry.versionId === currentVersionId) || versions.at(-1);
 
@@ -111,18 +166,66 @@ export default function StationDocumentsPage() {
     };
   });
 
+  useEffect(() => {
+    if (!stationDocuments.length) return;
+
+    setSelectedDocumentId((prev) => {
+      if (prev && stationDocuments.some((item) => item.documentId === prev)) {
+        return prev;
+      }
+
+      return stationDocuments[0].documentId;
+    });
+  }, [stationDocuments]);
+
+  useEffect(() => {
+    if (activitySeededRef.current || !selectedDocument?.documentId) return;
+
+    activitySeededRef.current = true;
+    setActivityLog([
+      buildActivityEntry(
+        'DOC-ACT-001',
+        'Manifest 最终版待冻结',
+        'SE913 当前仍命中 HG-01，需冻结最终版后才能解除机坪放行阻断。',
+        '警戒',
+        selectedDocument.bindingTargets || []
+      )
+    ]);
+  }, [selectedDocument]);
+
   function pushActivity(title, description, status) {
     setActivityLog((prev) => [
-      buildActivityEntry(`DOC-ACT-${Date.now()}`, title, description, status, selectedDocument.bindingTargets),
+      buildActivityEntry(`DOC-ACT-${Date.now()}`, title, description, status, selectedDocument?.bindingTargets || []),
       ...prev
     ].slice(0, 6));
   }
 
   function handlePreview(versionId = activeVersion?.versionId) {
+    if (!versionId) return;
+
+    setPreviewLoading(true);
     setPreviewVersionId(versionId);
+    if (!selectedDocument?.documentId) {
+      setPreviewPayload(null);
+      setPreviewLoading(false);
+      return;
+    }
+
+    void getStationDocumentPreview(selectedDocument.documentId)
+      .then((response) => {
+        setPreviewPayload(response?.data || null);
+      })
+      .catch(() => {
+        setPreviewPayload(null);
+      })
+      .finally(() => {
+        setPreviewLoading(false);
+      });
   }
 
   function handleReplace() {
+    if (!selectedDocument?.documentId) return;
+
     const candidate =
       selectedVersions.find((item) => item.status === '待发布' && item.versionId !== activeVersion?.versionId) ||
       selectedVersions.at(-1);
@@ -135,12 +238,14 @@ export default function StationDocumentsPage() {
     }));
     pushActivity(
       `${selectedDocument.type} 替换为 ${candidate.version}`,
-      `${selectedDocument.name} 已切换到待发布版本，当前页 mock 口径会据此展示最新差异摘要。`,
+      `${selectedDocument.name} 已切换到待发布版本，当前页会据此展示最新差异摘要。`,
       '运行中'
     );
   }
 
   function handleRollback() {
+    if (!selectedDocument?.documentId) return;
+
     const rollbackVersionId =
       activeVersion?.rollbackTarget ||
       [...selectedVersions].reverse().find((item) => item.sortOrder < (activeVersion?.sortOrder || 0))?.versionId;
@@ -156,6 +261,76 @@ export default function StationDocumentsPage() {
       `${selectedDocument.name} 已回退到前一版，便于演示版本审计与恢复动作。`,
       '待处理'
     );
+  }
+
+  async function handleCreateDocument() {
+    if (stationDocumentsUsingMock) {
+      openSnackbar({
+        open: true,
+        message: '当前仍在使用 mock 文档数据，未连接真实登记接口。',
+        variant: 'alert',
+        alert: { color: 'warning' }
+      });
+      return;
+    }
+
+    try {
+      setCreateLoading(true);
+      let storageKey = createForm.storageKey;
+      let documentName = createForm.documentName;
+      let uploadId;
+
+      if (createFile) {
+        const ticket = await createStationUploadTicket({
+          station_id: 'MME',
+          related_object_type: createForm.relatedObjectType,
+          document_name: createFile.name,
+          content_type: createFile.type || 'application/octet-stream',
+          size_bytes: createFile.size,
+          retention_class: ['POD', 'Manifest'].includes(createForm.documentType) ? 'compliance' : 'operational'
+        });
+
+        await uploadStationFileByTicket(ticket, createFile);
+        storageKey = ticket?.data?.storage_key || storageKey;
+        documentName = ticket?.data?.document_name || createFile.name;
+
+        uploadId = ticket?.data?.upload_id;
+      }
+
+      const response = await createStationDocument({
+        document_type: createForm.documentType,
+        document_name: documentName,
+        related_object_type: createForm.relatedObjectType,
+        related_object_id: createForm.relatedObjectId,
+        station_id: 'MME',
+        storage_key: storageKey,
+        upload_id: uploadId,
+        content_type: createFile?.type,
+        size_bytes: createFile?.size,
+        required_for_release: ['POD', 'Manifest', 'CBA'].includes(createForm.documentType),
+        version_mode: 'new',
+        trigger_parse: true,
+        note: 'Created from station document center'
+      });
+      setCreateOpen(false);
+      setCreateFile(null);
+      setSelectedDocumentId(response?.data?.document_id || selectedDocumentId);
+      openSnackbar({
+        open: true,
+        message: `${createForm.documentType} 已登记。`,
+        variant: 'alert',
+        alert: { color: 'success' }
+      });
+    } catch (error) {
+      openSnackbar({
+        open: true,
+        message: error?.error?.message || '登记文档失败',
+        variant: 'alert',
+        alert: { color: 'error' }
+      });
+    } finally {
+      setCreateLoading(false);
+    }
   }
 
   return (
@@ -179,6 +354,9 @@ export default function StationDocumentsPage() {
               </Button>
               <Button component={RouterLink} to="/station/documents/pod" variant="outlined">
                 POD
+              </Button>
+              <Button variant="contained" onClick={() => setCreateOpen(true)}>
+                登记文档
               </Button>
             </Stack>
           }
@@ -378,12 +556,97 @@ export default function StationDocumentsPage() {
               版本差异：{previewVersion?.diffSummary}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              这是当前阶段的前端 demo 预览态，不连接真实文件存储。
+              当前预览已连接真实文件元数据与预览入口；若浏览器不支持 inline，则直接回退下载。
             </Typography>
+            {previewPayload?.inline_supported && selectedDocument?.documentId ? (
+              <Alert severity="info" action={<Button size="small" href={getDocumentPreviewUrl(selectedDocument.documentId)} target="_blank">新窗口打开</Button>}>
+                已启用真实预览：{previewPayload?.preview_type || previewVersion?.previewType}
+              </Alert>
+            ) : null}
+            {!previewPayload?.inline_supported && previewPayload ? (
+              <Alert severity="warning">当前文件类型不支持 inline，已回退到下载或元数据预览。</Alert>
+            ) : null}
+            {previewLoading ? (
+              <Typography variant="body2" color="text.secondary">
+                正在加载预览…
+              </Typography>
+            ) : null}
+            {previewPayload?.inline_supported && selectedDocument?.documentId ? (
+              <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', minHeight: 420 }}>
+                <iframe
+                  title={`preview-${selectedDocument.documentId}`}
+                  src={getDocumentPreviewUrl(selectedDocument.documentId)}
+                  style={{ width: '100%', minHeight: 420, border: 0 }}
+                />
+              </Box>
+            ) : null}
+            {selectedDocument?.documentId ? (
+              <Button variant="outlined" onClick={() => downloadStationDocument(selectedDocument.documentId, selectedDocument.name)}>
+                下载当前文件
+              </Button>
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPreviewVersionId('')}>关闭</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>登记文档</DialogTitle>
+        <DialogContent dividers>
+          <Stack sx={{ gap: 1.5, pt: 0.5 }}>
+            <TextField
+              label="文件类型"
+              value={createForm.documentType}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, documentType: event.target.value }))}
+            />
+            <TextField
+              label="文件名"
+              value={createForm.documentName}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, documentName: event.target.value }))}
+            />
+            <TextField
+              label="关联对象类型"
+              value={createForm.relatedObjectType}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, relatedObjectType: event.target.value }))}
+            />
+            <TextField
+              label="关联对象主键"
+              value={createForm.relatedObjectId}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, relatedObjectId: event.target.value }))}
+            />
+            <TextField
+              label="Storage Key"
+              value={createForm.storageKey}
+              onChange={(event) => setCreateForm((prev) => ({ ...prev, storageKey: event.target.value }))}
+            />
+            <Button variant="outlined" component="label">
+              {createFile ? `已选择文件：${createFile.name}` : '选择文件并上传到 R2'}
+              <input
+                hidden
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  setCreateFile(file);
+                  if (file) {
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      documentName: file.name
+                    }));
+                  }
+                }}
+              />
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)} disabled={createLoading}>
+            取消
+          </Button>
+          <Button onClick={handleCreateDocument} variant="contained" disabled={createLoading}>
+            {createLoading ? '提交中…' : '提交'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Grid>

@@ -1,32 +1,46 @@
-import { useState } from 'react';
-
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
-import TextField from '@mui/material/TextField';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 
+import { useGetObjectAudit, useGetOutboundWaybillDetail } from 'api/station';
+import DocumentStatusCard from 'components/sinoport/DocumentStatusCard';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
+import ObjectAuditTrail from 'components/sinoport/ObjectAuditTrail';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { outboundWaybillRows } from 'data/sinoport';
-import { useLocalStorage } from 'hooks/useLocalStorage';
+import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { buildStationCopilotUrl } from 'utils/copilot';
 
-const OFFICE_AWB_OUTBOUND_KEY = 'sinoport-station-awb-office-outbound-v1';
+function buildGateItems(detail) {
+  return detail.documents.map((item) => {
+    const blocking = item.required_for_release && !['Released', 'Approved', 'Validated'].includes(item.document_status);
+    return {
+      gateId: item.required_for_release ? `DOC-${item.document_type}` : undefined,
+      node: item.document_type,
+      required: item.required_for_release ? '必须达到可放行状态' : '仅要求文件存在并留痕',
+      impact: blocking ? '仍阻断收货 / 装载 / Manifest 链路' : '当前不阻断主链',
+      status: item.document_status,
+      blocker: blocking ? `${item.document_type} 仍未完成校验` : '',
+      recovery: blocking ? '补传或批准后重试对应动作' : '',
+      releaseRole: item.required_for_release ? 'document_desk / station_supervisor' : ''
+    };
+  });
+}
 
 export default function StationOutboundWaybillDetailPage() {
   const { awb } = useParams();
-  const [activeTab, setActiveTab] = useState('overview');
-  const { state: officeState, setState: setOfficeState } = useLocalStorage(OFFICE_AWB_OUTBOUND_KEY, {});
-  const detail = outboundWaybillRows.find((item) => item.awb === awb);
+  const { outboundWaybillDetail } = useGetOutboundWaybillDetail(awb);
+  const { objectAuditEvents, objectAuditTransitions } = useGetObjectAudit('AWB', awb);
 
-  if (!detail) {
+  if (!outboundWaybillDetail) {
     return (
       <Grid container rowSpacing={3} columnSpacing={3}>
         <Grid size={12}>
@@ -45,34 +59,24 @@ export default function StationOutboundWaybillDetailPage() {
     );
   }
 
-  const office = officeState[detail.awb] || {
-    planStatus: '待排计划',
-    dispatchStatus: '未下发',
-    reviewStatus: '待复核',
-    note: '办公室尚未补充该票的收货 / 主单 / 装载 / Manifest 办公动作。'
-  };
-
-  const updateOffice = (patch) =>
-    setOfficeState((prev) => ({
-      ...prev,
-      [detail.awb]: {
-        ...office,
-        ...patch
-      }
-    }));
+  const { awb: awbDetail, documents, tasks, exceptions } = outboundWaybillDetail;
+  const gateItems = buildGateItems(outboundWaybillDetail);
 
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
           eyebrow="出港 / 提单 / 详情"
-          title={`提单详情 / ${detail.awb}`}
-          description="后台围绕单票货管理收货、主单、装载、Manifest 和 PDA 下发状态。"
-          chips={[detail.flightNo, detail.destination, detail.loading]}
+          title={`提单详情 / ${awbDetail.awb_no}`}
+          description="出港提单详情页直接读取真实 AWB、Document、Task、Exception 与对象审计。"
+          chips={[awbDetail.flight_no, awbDetail.destination_code, awbDetail.loading_status]}
           action={
-            <Stack direction="row" sx={{ gap: 1 }}>
-              <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`out-${detail.awb}`)}`} variant="outlined">
+            <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button component={RouterLink} to={`/station/shipments/${encodeURIComponent(`out-${awbDetail.awb_no}`)}`} variant="outlined">
                 履约链路
+              </Button>
+              <Button component={RouterLink} to={buildStationCopilotUrl('AWB', awbDetail.awb_no)} variant="outlined">
+                Copilot
               </Button>
               <Button component={RouterLink} to="/station/outbound/waybills" variant="outlined">
                 返回提单列表
@@ -83,96 +87,110 @@ export default function StationOutboundWaybillDetailPage() {
       </Grid>
 
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="预报" value={detail.forecast} helper={detail.flightNo} chip="FFM" color="primary" />
+        <MetricCard title="预报" value={awbDetail.forecast_status} helper={awbDetail.flight_no} chip="FFM" color="primary" />
       </Grid>
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="收货" value={detail.receipt} helper={detail.destination} chip="Receipt" color="warning" />
+        <MetricCard title="收货" value={awbDetail.receipt_status} helper={awbDetail.destination_code} chip="Receipt" color="warning" />
       </Grid>
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="装载" value={detail.loading} helper={detail.manifest} chip="Loading" color="secondary" />
+        <MetricCard title="主单" value={awbDetail.master_status} helper={`${awbDetail.pieces} pcs / ${awbDetail.gross_weight} kg`} chip="MAWB" color="secondary" />
       </Grid>
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="办公室状态" value={office.planStatus} helper={office.dispatchStatus} chip="Office" color="success" />
+        <MetricCard title="装载 / Manifest" value={awbDetail.loading_status} helper={awbDetail.manifest_status} chip="Load" color="success" />
+      </Grid>
+
+      <Grid size={{ xs: 12, xl: 4 }}>
+        <MainCard title="AWB 基础信息">
+          <Stack sx={{ gap: 1.25 }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+              <Typography color="text.secondary">AWB ID</Typography>
+              <Typography fontWeight={600}>{awbDetail.awb_id}</Typography>
+            </Stack>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+              <Typography color="text.secondary">Shipment ID</Typography>
+              <Typography fontWeight={600}>{awbDetail.shipment_id}</Typography>
+            </Stack>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+              <Typography color="text.secondary">目的站</Typography>
+              <Typography fontWeight={600}>{awbDetail.destination_code}</Typography>
+            </Stack>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+              <Typography color="text.secondary">件重体</Typography>
+              <Typography fontWeight={600}>
+                {awbDetail.pieces} pcs / {awbDetail.gross_weight} kg
+              </Typography>
+            </Stack>
+          </Stack>
+        </MainCard>
+      </Grid>
+
+      <Grid size={{ xs: 12, xl: 4 }}>
+        <TaskQueueCard
+          title="任务摘要"
+          emptyText="当前提单没有关联任务。"
+          items={tasks.map((item) => ({
+            id: item.task_id,
+            title: item.task_type,
+            description: item.task_id,
+            meta: item.blocker_code ? `Blocker ${item.blocker_code}` : '无阻断码',
+            status: item.task_status,
+            actions: [{ label: '打开任务中心', to: '/station/tasks', variant: 'outlined' }]
+          }))}
+        />
+      </Grid>
+
+      <Grid size={{ xs: 12, xl: 4 }}>
+        <TaskQueueCard
+          title="异常摘要"
+          emptyText="当前提单没有开放异常。"
+          items={exceptions.map((item) => ({
+            id: item.exception_id,
+            title: item.exception_type,
+            description: `${item.exception_id} · ${item.severity}`,
+            meta: item.blocker_flag ? '当前阻断主链' : '仅需跟进',
+            status: item.exception_status,
+            actions: [{ label: '打开异常中心', to: `/station/exceptions/${item.exception_id}`, variant: 'outlined' }]
+          }))}
+        />
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="详情视图" contentSX={{ p: 0 }}>
-          <Tabs value={activeTab} onChange={(_, nextTab) => setActiveTab(nextTab)} variant="scrollable" scrollButtons="auto" sx={{ px: 2.5, pt: 1 }}>
-            <Tab label="概览" value="overview" />
-            <Tab label="办公室动作" value="office" />
-          </Tabs>
-          <Divider />
-          <Box sx={{ p: 2.5 }}>
-            {activeTab === 'overview' ? (
-              <Grid container rowSpacing={3} columnSpacing={3}>
-                <Grid size={{ xs: 12, lg: 5 }}>
-                  <MainCard title="提单基础信息">
-                    <Stack sx={{ gap: 2 }}>
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
-                        <Typography color="text.secondary">AWB</Typography>
-                        <Typography fontWeight={600}>{detail.awb}</Typography>
-                      </Stack>
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
-                        <Typography color="text.secondary">航班</Typography>
-                        <Typography fontWeight={600}>{detail.flightNo}</Typography>
-                      </Stack>
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
-                        <Typography color="text.secondary">目的站</Typography>
-                        <Typography fontWeight={600}>{detail.destination}</Typography>
-                      </Stack>
-                      <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
-                        <Typography color="text.secondary">主单</Typography>
-                        <Typography fontWeight={600}>{detail.master}</Typography>
-                      </Stack>
-                    </Stack>
-                  </MainCard>
-                </Grid>
-                <Grid size={{ xs: 12, lg: 7 }}>
-                  <MainCard title="办公室应补动作">
-                    <Stack sx={{ gap: 1.5 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        这票货的办公室动作应先完成：收货窗口确认、主单套打、ULD/机位绑定和 Manifest 对账，再下发给 PDA 执行。
-                      </Typography>
-                      <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-                        <StatusChip label={office.planStatus} color={office.planStatus === '已排计划' ? 'success' : 'warning'} />
-                        <StatusChip label={office.dispatchStatus} color={office.dispatchStatus === '已下发 PDA' ? 'success' : 'secondary'} />
-                        <StatusChip label={office.reviewStatus} color={office.reviewStatus === '已复核' ? 'success' : 'info'} />
-                      </Stack>
-                    </Stack>
-                  </MainCard>
-                </Grid>
-              </Grid>
-            ) : null}
+        <DocumentStatusCard title="文件门槛摘要" items={gateItems} />
+      </Grid>
 
-            {activeTab === 'office' ? (
-              <MainCard title="办公室动作">
-                <Stack sx={{ gap: 1.5 }}>
-                  <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-                    <Button variant="outlined" onClick={() => updateOffice({ planStatus: '已排计划' })}>
-                      标记已排计划
+      <Grid size={12}>
+        <MainCard title="关联文件">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>文件类型</TableCell>
+                <TableCell>状态</TableCell>
+                <TableCell>放行要求</TableCell>
+                <TableCell align="right">操作</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {documents.map((item) => (
+                <TableRow key={item.document_id} hover>
+                  <TableCell>{item.document_type}</TableCell>
+                  <TableCell>
+                    <StatusChip label={item.document_status} />
+                  </TableCell>
+                  <TableCell>{item.required_for_release ? '必须' : '可选'}</TableCell>
+                  <TableCell align="right">
+                    <Button component={RouterLink} to="/station/documents" size="small" variant="outlined">
+                      打开单证中心
                     </Button>
-                    <Button variant="outlined" onClick={() => updateOffice({ dispatchStatus: '已下发 PDA' })}>
-                      下发到 PDA
-                    </Button>
-                    <Button variant="outlined" onClick={() => updateOffice({ reviewStatus: '已复核' })}>
-                      完成复核
-                    </Button>
-                    <Button variant="outlined" color="warning" onClick={() => updateOffice({ planStatus: '已撤回', dispatchStatus: '未下发' })}>
-                      撤回
-                    </Button>
-                  </Stack>
-                  <TextField
-                    multiline
-                    minRows={4}
-                    label="办公室备注"
-                    value={office.note}
-                    onChange={(event) => updateOffice({ note: event.target.value })}
-                  />
-                </Stack>
-              </MainCard>
-            ) : null}
-          </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </MainCard>
+      </Grid>
+
+      <Grid size={12}>
+        <ObjectAuditTrail events={objectAuditEvents} transitions={objectAuditTransitions} title="出港提单对象审计" />
       </Grid>
     </Grid>
   );

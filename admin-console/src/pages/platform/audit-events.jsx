@@ -7,13 +7,15 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 
+import { useGetPlatformAuditLogs } from 'api/platform';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { auditEventDetailRows } from 'data/sinoport-adapters';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformAuditEventsPage() {
+  const { auditLogs } = useGetPlatformAuditLogs();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
@@ -48,7 +50,7 @@ export default function PlatformAuditEventsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {auditEventDetailRows.map((item) => (
+              {auditLogs.map((item) => (
                 <TableRow key={item.id} hover>
                   <TableCell>{item.time}</TableCell>
                   <TableCell>{item.action}</TableCell>
