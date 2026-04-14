@@ -429,6 +429,42 @@ interface FlightLookupRow {
   actual_takeoff_at: string | null;
 }
 
+interface OutboundFlightActionAwbRow {
+  awb_id: string;
+  shipment_id: string;
+  current_node: string;
+}
+
+interface OutboundFlightActionShipmentRow {
+  shipment_id: string;
+  current_node: string;
+  fulfillment_status: string;
+}
+
+interface OutboundFlightActionDocumentRow {
+  document_id: string;
+  document_type: string;
+  document_status: string;
+  related_object_type: string;
+  related_object_id: string;
+}
+
+interface OutboundFlightActionTaskRow {
+  task_id: string;
+  task_type: string;
+  task_status: TaskStatus;
+  related_object_type: string;
+  related_object_id: string;
+}
+
+interface OutboundFlightActionState {
+  flight: FlightLookupRow;
+  awbs: OutboundFlightActionAwbRow[];
+  shipments: OutboundFlightActionShipmentRow[];
+  documents: OutboundFlightActionDocumentRow[];
+  tasks: OutboundFlightActionTaskRow[];
+}
+
 class BaseD1Repository {
   constructor(
     protected readonly db: D1DatabaseLike,
@@ -875,7 +911,7 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
         runtime_status: row.runtime_status,
         service_level: row.service_level ?? undefined,
         summary: {
-          stage: row.stage,
+          stage: row.runtime_status === 'Airborne' ? '飞走归档' : row.stage,
           manifest_status: row.manifest_status,
           total_awb_count: Number(row.total_awb_count ?? 0),
           total_pieces: Number(row.total_pieces ?? 0),
@@ -958,13 +994,17 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
           `
             SELECT document_id, document_type, document_status, required_for_release
             FROM documents
-            WHERE related_object_type = 'Flight'
-              AND related_object_id = ?
-              AND document_status != 'Replaced'
+            WHERE document_status != 'Replaced'
+              AND (
+                (related_object_type = 'Flight' AND related_object_id = ?)
+                OR (related_object_type = 'Shipment' AND related_object_id IN (
+                  SELECT shipment_id FROM awbs WHERE flight_id = ?
+                ))
+              )
             ORDER BY uploaded_at DESC, document_id DESC
           `
         )
-        .bind(flightId)
+        .bind(flightId, flightId)
         .all<DocumentSummaryRow>(),
       this.db
         .prepare(
@@ -1046,43 +1086,117 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
 
   async markOutboundLoaded(flightId: string, input: OutboundFlightActionInput): Promise<OutboundFlightActionResult> {
     const actor = this.ensureActor();
-    const flight = await this.db
-      .prepare(
-        `
-          SELECT flight_id, station_id, runtime_status, etd_at, actual_takeoff_at
-          FROM flights
-          WHERE flight_id = ?
-          LIMIT 1
-        `
-      )
-      .bind(flightId)
-      .first<FlightLookupRow>();
-
-    if (!flight) {
-      throw new RepositoryOperationError(404, 'FLIGHT_NOT_FOUND', 'Outbound flight does not exist', { flight_id: flightId });
-    }
+    const state = await loadOutboundFlightActionState(this.db, flightId);
+    const flight = state.flight;
 
     this.assertActorStation(flight.station_id);
 
+    if (flight.actual_takeoff_at || flight.runtime_status === 'Airborne') {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_ALREADY_DEPARTED', 'Outbound flight has already departed', {
+        flight_id: flightId,
+        runtime_status: flight.runtime_status,
+        actual_takeoff_at: flight.actual_takeoff_at
+      });
+    }
+
+    if (!state.awbs.length) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_EMPTY', 'Outbound flight must have at least one AWB before loaded', {
+        flight_id: flightId
+      });
+    }
+
+    const loadingTasks = state.tasks.filter((task) => task.related_object_type === 'Flight' && task.task_type === '装机复核');
+    if (!loadingTasks.length) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_LOADING_TASK_MISSING', 'Loaded confirmation task is missing for this flight', {
+        flight_id: flightId
+      });
+    }
+
+    if (loadingTasks.some((task) => task.task_status === 'Completed')) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_ALREADY_LOADED', 'Outbound flight has already been marked loaded', {
+        flight_id: flightId,
+        task_id: loadingTasks.find((task) => task.task_status === 'Completed')?.task_id
+      });
+    }
+
+    const receiptTasks = state.tasks.filter(
+      (task) => task.related_object_type === 'AWB' && task.task_type === '出港收货'
+    );
+    if (!receiptTasks.length) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_RECEIPT_TASK_MISSING', 'Outbound receipt tasks are missing for this flight', {
+        flight_id: flightId
+      });
+    }
+
+    const incompleteReceiptTask = receiptTasks.find((task) => task.task_status !== 'Completed');
+    if (incompleteReceiptTask) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_RECEIPT_INCOMPLETE', 'All outbound receipt tasks must be completed before loaded', {
+        flight_id: flightId,
+        task_id: incompleteReceiptTask.task_id,
+        current_status: incompleteReceiptTask.task_status
+      });
+    }
+
+    const flightDocuments = state.documents.filter((document) => document.related_object_type === 'Flight');
+    const requiredDocumentTypes = ['FFM', 'UWS'];
+    const missingDocumentTypes = requiredDocumentTypes.filter(
+      (documentType) =>
+        !flightDocuments.some(
+          (document) =>
+            document.document_type === documentType &&
+            ['Uploaded', 'Validated', 'Approved', 'Released'].includes(document.document_status)
+        )
+    );
+
+    if (missingDocumentTypes.length) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_LOADING_DOCUMENTS_INCOMPLETE', 'Required flight documents must be ready before loaded', {
+        flight_id: flightId,
+        missing_document_types: missingDocumentTypes
+      });
+    }
+
+    const now = isoNow();
     await this.db
       .prepare(
         `
           UPDATE tasks
-          SET task_status = CASE
-              WHEN task_status IN ('Created', 'Assigned', 'Accepted', 'Started', 'Evidence Uploaded') THEN 'Completed'
-              ELSE task_status
-            END,
-              completed_at = CASE
-                WHEN task_status IN ('Created', 'Assigned', 'Accepted', 'Started', 'Evidence Uploaded') THEN ?
-                ELSE completed_at
-              END,
+          SET task_status = 'Completed',
+              completed_at = COALESCE(completed_at, ?),
               updated_at = ?
           WHERE related_object_type = 'Flight'
             AND related_object_id = ?
             AND task_type = '装机复核'
         `
       )
-      .bind(isoNow(), isoNow(), flightId)
+      .bind(now, now, flightId)
+      .run();
+
+    await this.db
+      .prepare(
+        `
+          UPDATE awbs
+          SET current_node = 'Loaded',
+              updated_at = ?
+          WHERE flight_id = ?
+        `
+      )
+      .bind(now, flightId)
+      .run();
+
+    await this.db
+      .prepare(
+        `
+          UPDATE shipments
+          SET current_node = 'Loaded',
+              updated_at = ?
+          WHERE shipment_id IN (
+            SELECT DISTINCT shipment_id
+            FROM awbs
+            WHERE flight_id = ?
+          )
+        `
+      )
+      .bind(now, flightId)
       .run();
 
     const auditId = await this.writeAudit({
@@ -1093,14 +1207,16 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       summary: `Outbound flight ${flightId} marked as loaded`,
       payload: {
         note: input.note ?? null,
-        document_id: input.document_id ?? null
+        document_id: input.document_id ?? null,
+        awb_count: state.awbs.length,
+        shipment_count: state.shipments.length
       }
     });
 
     if (flight.runtime_status !== 'Pre-Departure') {
       await this.db
         .prepare(`UPDATE flights SET runtime_status = 'Pre-Departure', updated_at = ? WHERE flight_id = ?`)
-        .bind(isoNow(), flightId)
+        .bind(now, flightId)
         .run();
 
       await this.writeStateTransition({
@@ -1116,6 +1232,22 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       });
     }
 
+    for (const shipment of state.shipments) {
+      if (shipment.current_node !== 'Loaded') {
+        await this.writeStateTransition({
+          stationId: flight.station_id,
+          objectType: 'Shipment',
+          objectId: shipment.shipment_id,
+          stateField: 'current_node',
+          fromValue: shipment.current_node,
+          toValue: 'Loaded',
+          triggeredBy: actor.userId,
+          auditId,
+          reason: input.note
+        });
+      }
+    }
+
     return {
       flight_id: flightId,
       runtime_status: 'Pre-Departure',
@@ -1125,17 +1257,71 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
 
   async finalizeOutboundManifest(flightId: string, input: OutboundFlightActionInput): Promise<OutboundFlightActionResult> {
     const actor = this.ensureActor();
-    const flight = await this.db
-      .prepare(`SELECT flight_id, station_id, runtime_status FROM flights WHERE flight_id = ? LIMIT 1`)
-      .bind(flightId)
-      .first<FlightLookupRow>();
-
-    if (!flight) {
-      throw new RepositoryOperationError(404, 'FLIGHT_NOT_FOUND', 'Outbound flight does not exist', { flight_id: flightId });
-    }
+    const state = await loadOutboundFlightActionState(this.db, flightId);
+    const flight = state.flight;
 
     this.assertActorStation(flight.station_id);
 
+    if (flight.actual_takeoff_at || flight.runtime_status === 'Airborne') {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_ALREADY_DEPARTED', 'Outbound flight has already departed', {
+        flight_id: flightId,
+        runtime_status: flight.runtime_status,
+        actual_takeoff_at: flight.actual_takeoff_at
+      });
+    }
+
+    const loadingTask = state.tasks.find((task) => task.related_object_type === 'Flight' && task.task_type === '装机复核');
+    if (!loadingTask || loadingTask.task_status !== 'Completed') {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_NOT_LOADED', 'Loaded confirmation must be completed before manifest finalize', {
+        flight_id: flightId,
+        task_id: loadingTask?.task_id ?? null,
+        task_status: loadingTask?.task_status ?? null
+      });
+    }
+
+    const flightDocuments: OutboundFlightActionDocumentRow[] = state.documents.filter(
+      (document) => document.related_object_type === 'Flight'
+    ) as OutboundFlightActionDocumentRow[];
+    const manifestDocuments: OutboundFlightActionDocumentRow[] = state.documents.filter(
+      (document) => document.document_type === 'Manifest'
+    ) as OutboundFlightActionDocumentRow[];
+    const requiredDocumentTypes = ['FFM', 'UWS'];
+    const missingDocumentTypes = requiredDocumentTypes.filter(
+      (documentType) =>
+        !flightDocuments.some(
+          (document) =>
+            document.document_type === documentType &&
+            ['Uploaded', 'Validated', 'Approved', 'Released'].includes(document.document_status)
+        )
+    );
+    if (missingDocumentTypes.length) {
+      throw new RepositoryOperationError(409, 'OUTBOUND_MANIFEST_DOCUMENTS_INCOMPLETE', 'Required flight documents must be ready before manifest finalize', {
+        flight_id: flightId,
+        missing_document_types: missingDocumentTypes
+      });
+    }
+
+    if (!manifestDocuments.length) {
+      throw new RepositoryOperationError(409, 'MANIFEST_DOCUMENT_MISSING', 'Manifest document must exist before finalize', {
+        flight_id: flightId
+      });
+    }
+
+    const finalizedManifest = manifestDocuments.find((document) => ['Released', 'Approved'].includes(document.document_status)) as
+      | OutboundFlightActionDocumentRow
+      | undefined;
+    if (finalizedManifest) {
+      throw new RepositoryOperationError(409, 'MANIFEST_ALREADY_FINALIZED', 'Manifest is already finalized', {
+        flight_id: flightId,
+        document_id: finalizedManifest.document_id,
+        document_status: finalizedManifest.document_status
+      });
+    }
+
+    const manifestDocument = (finalizedManifest || (manifestDocuments[0] as OutboundFlightActionDocumentRow | undefined)) ?? null;
+    const manifestDocumentId = manifestDocument?.document_id ?? null;
+    const manifestDocumentStatus = manifestDocument?.document_status ?? 'Uploaded';
+    const now = isoNow();
     await this.db
       .prepare(
         `
@@ -1155,7 +1341,19 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
             )
         `
       )
-      .bind(isoNow(), flightId, flightId)
+      .bind(now, flightId, flightId)
+      .run();
+
+    await this.db
+      .prepare(
+        `
+          UPDATE awbs
+          SET manifest_status = 'Released',
+              updated_at = ?
+          WHERE flight_id = ?
+        `
+      )
+      .bind(now, flightId)
       .run();
 
     const auditId = await this.writeAudit({
@@ -1166,7 +1364,8 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       summary: `Manifest finalized for outbound flight ${flightId}`,
       payload: {
         note: input.note ?? null,
-        document_id: input.document_id ?? null
+        document_id: input.document_id ?? null,
+        manifest_document_id: manifestDocumentId
       }
     });
 
@@ -1175,7 +1374,7 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       objectType: 'Flight',
       objectId: flightId,
       stateField: 'manifest_status',
-      fromValue: 'Pending',
+      fromValue: manifestDocumentStatus,
       toValue: 'Released',
       triggeredBy: actor.userId,
       auditId,
@@ -1192,42 +1391,54 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
 
   async markOutboundAirborne(flightId: string, input: OutboundFlightActionInput): Promise<OutboundFlightActionResult> {
     const actor = this.ensureActor();
-    const flight = await this.db
-      .prepare(`SELECT flight_id, station_id, runtime_status, actual_takeoff_at FROM flights WHERE flight_id = ? LIMIT 1`)
-      .bind(flightId)
-      .first<FlightLookupRow>();
-
-    if (!flight) {
-      throw new RepositoryOperationError(404, 'FLIGHT_NOT_FOUND', 'Outbound flight does not exist', { flight_id: flightId });
-    }
+    const state = await loadOutboundFlightActionState(this.db, flightId);
+    const flight = state.flight;
 
     this.assertActorStation(flight.station_id);
 
-    const manifestBlocker = await this.db
-      .prepare(
-        `
-          SELECT document_id
-          FROM documents
-          WHERE document_status != 'Replaced'
-            AND (
-              (related_object_type = 'Flight' AND related_object_id = ? AND document_type IN ('FFM', 'UWS', 'Manifest') AND document_status NOT IN ('Released', 'Approved', 'Validated'))
-              OR (related_object_type = 'Shipment' AND related_object_id IN (
-                SELECT shipment_id FROM awbs WHERE flight_id = ?
-              ) AND document_type = 'Manifest' AND document_status NOT IN ('Released', 'Approved', 'Validated'))
-            )
-          LIMIT 1
-        `
-      )
-      .bind(flightId, flightId)
-      .first<{ document_id: string }>();
+    if (flight.actual_takeoff_at || flight.runtime_status === 'Airborne') {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_ALREADY_DEPARTED', 'Outbound flight has already departed', {
+        flight_id: flightId,
+        runtime_status: flight.runtime_status,
+        actual_takeoff_at: flight.actual_takeoff_at
+      });
+    }
+
+    const loadingTask = state.tasks.find((task) => task.related_object_type === 'Flight' && task.task_type === '装机复核');
+    if (!loadingTask || loadingTask.task_status !== 'Completed') {
+      throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_NOT_LOADED', 'Loaded confirmation must be completed before airborne', {
+        flight_id: flightId,
+        task_id: loadingTask?.task_id ?? null,
+        task_status: loadingTask?.task_status ?? null
+      });
+    }
+
+    const manifestBlocker = state.documents.find(
+      (document) =>
+        document.document_status !== 'Replaced' &&
+        ((document.related_object_type === 'Flight' &&
+          document.related_object_id === flightId &&
+          ['FFM', 'UWS', 'Manifest'].includes(document.document_type) &&
+          !['Released', 'Approved', 'Validated'].includes(document.document_status)) ||
+          (document.related_object_type === 'Shipment' &&
+            document.document_type === 'Manifest' &&
+            !['Released', 'Approved', 'Validated'].includes(document.document_status)))
+    );
 
     if (manifestBlocker?.document_id) {
       throw new RepositoryOperationError(409, 'MANIFEST_NOT_FINALIZED', 'Manifest must be finalized before airborne', {
         flight_id: flightId,
-        blocker_document_id: manifestBlocker.document_id
+        blocker_document_id: manifestBlocker.document_id,
+        blocker_document_type: manifestBlocker.document_type,
+        blocker_document_status: manifestBlocker.document_status
       });
     }
 
+    const finalizedManifestDocument =
+      (state.documents.find((document) => document.related_object_type === 'Flight' && document.document_type === 'Manifest') as
+        | OutboundFlightActionDocumentRow
+        | undefined) ||
+      (state.documents.find((document) => document.document_type === 'Manifest') as OutboundFlightActionDocumentRow | undefined);
     const now = isoNow();
     await this.db
       .prepare(
@@ -1240,6 +1451,34 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
         `
       )
       .bind(now, now, flightId)
+      .run();
+
+    await this.db
+      .prepare(
+        `
+          UPDATE awbs
+          SET current_node = 'Airborne',
+              updated_at = ?
+          WHERE flight_id = ?
+        `
+      )
+      .bind(now, flightId)
+      .run();
+
+    await this.db
+      .prepare(
+        `
+          UPDATE shipments
+          SET current_node = 'Airborne',
+              updated_at = ?
+          WHERE shipment_id IN (
+            SELECT DISTINCT shipment_id
+            FROM awbs
+            WHERE flight_id = ?
+          )
+        `
+      )
+      .bind(now, flightId)
       .run();
 
     await this.db
@@ -1270,7 +1509,10 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       summary: `Outbound flight ${flightId} marked airborne`,
       payload: {
         note: input.note ?? null,
-        document_id: input.document_id ?? null
+        document_id: input.document_id ?? null,
+        awb_count: state.awbs.length,
+        shipment_count: state.shipments.length,
+        manifest_document_id: finalizedManifestDocument?.document_id ?? null
       }
     });
 
@@ -1285,6 +1527,22 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       auditId,
       reason: input.note
     });
+
+    for (const shipment of state.shipments) {
+      if (shipment.current_node !== 'Airborne') {
+        await this.writeStateTransition({
+          stationId: flight.station_id,
+          objectType: 'Shipment',
+          objectId: shipment.shipment_id,
+          stateField: 'current_node',
+          fromValue: shipment.current_node,
+          toValue: 'Airborne',
+          triggeredBy: actor.userId,
+          auditId,
+          reason: input.note
+        });
+      }
+    }
 
     return {
       flight_id: flightId,
@@ -2057,7 +2315,7 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
         direction: mapShipmentDirection(row.shipment_type),
         flight_no: row.flight_no ?? '--',
         route: inferShipmentRoute(row),
-        primary_status: row.fulfillment_status || row.current_node,
+        primary_status: inferOutboundShipmentPrimaryStatus(row),
         task_status: inferShipmentTaskStatus(row),
         document_status: inferShipmentDocumentStatus(row),
         blocker: inferShipmentBlocker(row),
@@ -2179,6 +2437,18 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
       shipment.shipment_type === 'export'
         ? `${shipment.origin_code ?? shipment.station_id} -> ${shipment.destination_code ?? '--'}`
         : `${shipment.origin_code ?? '--'} -> ${shipment.station_id} -> Delivery`;
+    const outboundLoadingTask = tasks.results.find(
+      (row) => row.task_type === '装机复核' || row.task_type === '飞走归档'
+    );
+    const outboundManifestDocument = documents.results.find((row) => row.document_type === 'Manifest');
+    const outboundViewState = {
+      shipment_type: shipment.shipment_type,
+      runtime_status: shipment.runtime_status ?? null,
+      task_status: outboundLoadingTask?.task_status ?? null,
+      document_status: outboundManifestDocument?.document_status ?? null,
+      current_node: shipment.current_node,
+      fulfillment_status: shipment.fulfillment_status
+    };
 
     return {
       id: getShipmentSlug(shipment.shipment_type, shipment.awb_no),
@@ -2197,7 +2467,7 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
           ? [
               { label: 'Forecast', note: '出港预报与收货准备。', status: '运行中' },
               { label: 'Receipt', note: '按主单完成收货与核对。', status: '运行中' },
-              { label: 'Loaded', note: '待文件齐全和装机复核后放行。', status: inferShipmentDocumentStatus(shipment) },
+              { label: 'Loaded', note: '待文件齐全和装机复核后放行。', status: inferOutboundShipmentTimelineStatus(outboundViewState) },
               { label: 'Airborne', note: '飞走归档后进入闭环。', status: shipment.runtime_status ?? 'Scheduled' }
             ]
           : [
@@ -4173,11 +4443,57 @@ function deriveOutboundStatuses(row: {
   };
 }
 
-function deriveOutboundStage(statuses: ReturnType<typeof deriveOutboundStatuses>) {
+function deriveOutboundStage(
+  row: {
+    runtime_status: string | null;
+  },
+  statuses: ReturnType<typeof deriveOutboundStatuses>
+) {
+  if (row.runtime_status === 'Airborne') return '飞走归档';
+  if (row.runtime_status === 'Cancelled') return '已取消';
   if (statuses.loading_status === '已装载') return '装载中';
   if (statuses.manifest_status === '待生成') return '待 Manifest';
   if (statuses.master_status === '主单完成') return '主单完成';
   return '待处理';
+}
+
+function inferOutboundShipmentPrimaryStatus(row: {
+  shipment_type: string | null;
+  runtime_status: string | null;
+  task_status: string | null;
+  document_status: string | null;
+  current_node: string;
+  fulfillment_status: string;
+}) {
+  if (row.shipment_type !== 'export') {
+    return row.fulfillment_status || row.current_node;
+  }
+
+  if (row.runtime_status === 'Airborne') return 'Airborne';
+  if (row.document_status === 'Released' || row.document_status === 'Approved') return 'Manifest Released';
+  if (row.task_status === 'Completed') return 'Loaded';
+  if (row.document_status === 'Uploaded') return 'Manifest Pending';
+
+  return row.current_node || row.fulfillment_status;
+}
+
+function inferOutboundShipmentTimelineStatus(row: {
+  shipment_type: string | null;
+  runtime_status: string | null;
+  task_status: string | null;
+  document_status: string | null;
+  current_node: string;
+}) {
+  if (row.shipment_type !== 'export') {
+    return row.current_node;
+  }
+
+  if (row.runtime_status === 'Airborne') return '已飞走';
+  if (row.task_status === 'Completed') return '已装载';
+  if (row.document_status === 'Released' || row.document_status === 'Approved') return '主单已冻结';
+  if (row.document_status === 'Uploaded') return '待主单冻结';
+
+  return row.current_node;
 }
 
 function inferShipmentLinkedTask(documentType: string, shipmentType: string | null | undefined) {
@@ -4211,6 +4527,100 @@ function parseShipmentSlug(shipmentId: string) {
   }
 
   return { awbNo: shipmentId, shipmentType: null };
+}
+
+async function loadOutboundFlightActionState(db: D1DatabaseLike, flightId: string): Promise<OutboundFlightActionState> {
+  const [flight, awbs, shipments, documents, tasks] = await Promise.all([
+    db
+      .prepare(
+        `
+          SELECT flight_id, station_id, runtime_status, etd_at, actual_takeoff_at
+          FROM flights
+          WHERE flight_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(flightId)
+      .first<FlightLookupRow>(),
+    db
+      .prepare(
+        `
+          SELECT awb_id, shipment_id, current_node
+          FROM awbs
+          WHERE flight_id = ?
+          ORDER BY awb_no ASC
+        `
+      )
+      .bind(flightId)
+      .all<OutboundFlightActionAwbRow>(),
+    db
+      .prepare(
+        `
+          SELECT DISTINCT s.shipment_id, s.current_node, s.fulfillment_status
+          FROM shipments s
+          INNER JOIN awbs a ON a.shipment_id = s.shipment_id
+          WHERE a.flight_id = ?
+          ORDER BY s.shipment_id ASC
+        `
+      )
+      .bind(flightId)
+      .all<OutboundFlightActionShipmentRow>(),
+    db
+      .prepare(
+        `
+          SELECT
+            d.document_id,
+            d.document_type,
+            d.document_status,
+            d.related_object_type,
+            d.related_object_id
+          FROM documents d
+          WHERE d.document_status != 'Replaced'
+            AND (
+              (d.related_object_type = 'Flight' AND d.related_object_id = ? AND d.document_type IN ('FFM', 'UWS', 'Manifest'))
+              OR (d.related_object_type = 'Shipment' AND d.related_object_id IN (
+                SELECT DISTINCT shipment_id FROM awbs WHERE flight_id = ?
+              ) AND d.document_type = 'Manifest')
+            )
+          ORDER BY d.uploaded_at DESC, d.document_id DESC
+        `
+      )
+      .bind(flightId, flightId)
+      .all<OutboundFlightActionDocumentRow>(),
+    db
+      .prepare(
+        `
+          SELECT
+            t.task_id,
+            t.task_type,
+            t.task_status,
+            t.related_object_type,
+            t.related_object_id
+          FROM tasks t
+          WHERE (
+            (t.related_object_type = 'Flight' AND t.related_object_id = ? AND t.task_type IN ('装机复核', '飞走归档'))
+            OR (t.related_object_type = 'AWB' AND t.related_object_id IN (
+              SELECT awb_id FROM awbs WHERE flight_id = ?
+            ) AND t.task_type = '出港收货')
+          )
+          ORDER BY t.due_at ASC, t.task_id ASC
+        `
+      )
+      .bind(flightId, flightId)
+      .all<OutboundFlightActionTaskRow>()
+  ]);
+
+  if (!flight) {
+    throw new RepositoryOperationError(404, 'FLIGHT_NOT_FOUND', 'Outbound flight does not exist', { flight_id: flightId });
+  }
+
+  return {
+    flight,
+    awbs: awbs.results,
+    shipments: shipments.results,
+    documents: documents.results,
+    tasks: tasks.results
+  };
 }
 
 function booleanFromRow(value: number | string | null | undefined) {

@@ -11,9 +11,11 @@ import Stack from '@mui/material/Stack';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
-import { platformDailyReportRows, platformReportCards, platformStationReportRows } from 'data/sinoport-adapters';
+import { useGetPlatformReports } from 'api/platform';
 
 export default function PlatformReportsPage() {
+  const { platformDailyReportRows, platformReportCards, platformStationReportRows } = useGetPlatformReports();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

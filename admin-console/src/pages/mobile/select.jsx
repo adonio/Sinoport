@@ -19,21 +19,9 @@ import TruckOutlined from '@ant-design/icons/TruckOutlined';
 import RightOutlined from '@ant-design/icons/RightOutlined';
 
 import MainCard from 'components/MainCard';
-import { getMobileRoleView, mobileNodeOptions } from 'data/sinoport-adapters';
+import { useGetMobileSelect } from 'api/station';
 import { readMobileSession, writeMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, t } from 'utils/mobile/i18n';
-
-const nodeFlowMap = {
-  pre_warehouse: 'preWarehouse',
-  headhaul: 'headhaul',
-  outbound_station: 'exportRamp',
-  export_ramp: 'exportRamp',
-  flight_runtime: 'runtime',
-  destination_ramp: 'destinationRamp',
-  inbound_station: 'destinationRamp',
-  tailhaul: 'tailhaul',
-  delivery: 'delivery'
-};
 
 const nodeIconMap = {
   pre_warehouse: InboxOutlined,
@@ -51,18 +39,18 @@ export default function MobileSelectPage() {
   const navigate = useNavigate();
   const session = readMobileSession();
   const language = session?.language || 'zh';
-  const roleView = getMobileRoleView(session?.roleKey);
-  const nodeOptions = mobileNodeOptions.map((item) => ({
+  const { mobileSelectRoleView, mobileSelectNodeOptions, mobileSelectLoading } = useGetMobileSelect(session?.roleKey);
+  const roleView = mobileSelectRoleView || {};
+  const nodeOptions = (mobileSelectNodeOptions || []).map((item) => ({
     ...item,
     title: localizeMobileText(language, item.title),
     description: localizeMobileText(language, item.description),
-    enterLabel: t(language, 'open_node'),
-    recommended: roleView.flowKeys.includes(nodeFlowMap[item.key] || item.key)
+    enterLabel: t(language, 'open_node')
   }));
   const recommendedNodeOptions = nodeOptions.filter((item) => item.recommended);
-  const otherNodeOptions = nodeOptions.filter((item) => !item.recommended);
-  const inboundCapability = roleView.inboundTabs.length ? roleView.inboundTabs.join(' / ') : '-';
-  const outboundCapability = roleView.outboundTabs.length ? roleView.outboundTabs.join(' / ') : '-';
+  const inboundCapability = roleView.inboundTabs?.length ? roleView.inboundTabs.join(' / ') : '-';
+  const outboundCapability = roleView.outboundTabs?.length ? roleView.outboundTabs.join(' / ') : '-';
+  const roleLabel = localizeMobileText(language, roleView.label || session?.roleLabel || session?.role || '');
 
   const renderNodeCard = (option) => (
     <Grid key={option.key} size={6}>
@@ -146,11 +134,20 @@ export default function MobileSelectPage() {
           {session?.station} · {session?.operator}
         </Typography>
         <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 2 }}>
-          <Chip label={`角色 ${localizeMobileText(language, roleView.label)}`} size="small" color="secondary" variant="light" />
+          <Chip label={`角色 ${roleLabel || '-'}`} size="small" color="secondary" variant="light" />
           <Chip label={`进港能力 ${inboundCapability}`} size="small" variant="outlined" />
           <Chip label={`出港能力 ${outboundCapability}`} size="small" variant="outlined" />
         </Stack>
       </MainCard>
+
+      {mobileSelectLoading && !nodeOptions.length ? (
+        <MainCard contentSX={{ p: 2.5 }}>
+          <Typography variant="subtitle1">正在加载节点配置</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+            正在从后端读取当前角色可用的节点列表和推荐入口。
+          </Typography>
+        </MainCard>
+      ) : null}
 
       {recommendedNodeOptions.length ? (
         <MainCard contentSX={{ p: 2.5 }}>
@@ -171,7 +168,15 @@ export default function MobileSelectPage() {
         </Typography>
         <Divider sx={{ my: 2 }} />
         <Grid container spacing={2}>
-          {otherNodeOptions.map(renderNodeCard)}
+          {nodeOptions.length ? (
+            nodeOptions.map(renderNodeCard)
+          ) : (
+            <Grid size={12}>
+              <Typography variant="body2" color="text.secondary">
+                暂无可展示的节点配置。
+              </Typography>
+            </Grid>
+          )}
         </Grid>
       </MainCard>
     </Stack>

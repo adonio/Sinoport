@@ -13,16 +13,10 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { useGetStationShipments } from 'api/station';
-import { exceptionDetailRows, shipmentRows } from 'data/sinoport-adapters';
-
-function getShipmentExceptionPath(shipmentId) {
-  const matched = exceptionDetailRows.find((item) => item.objectTo === `/station/shipments/${shipmentId}`);
-  return matched ? `/station/exceptions/${matched.id}` : '/station/exceptions';
-}
 
 export default function StationShipmentsPage() {
   const { stationShipments } = useGetStationShipments();
-  const rows = stationShipments?.length ? stationShipments : shipmentRows;
+  const rows = stationShipments || [];
   const metrics = [
     { title: '履约对象总数', value: `${rows.length}`, helper: '统一按 Shipment / AWB 观察进港与出港链路', chip: 'Objects', color: 'primary' },
     { title: '进港对象', value: `${rows.filter((item) => item.direction === '进港').length}`, helper: '重点跟踪 Inbound Handling 与 NOA', chip: 'Inbound', color: 'secondary' },
@@ -96,7 +90,7 @@ export default function StationShipmentsPage() {
                       <Button component={RouterLink} to="/station/tasks" size="small" variant="outlined">
                         任务
                       </Button>
-                      <Button component={RouterLink} to={getShipmentExceptionPath(item.id)} size="small" variant="outlined">
+                      <Button component={RouterLink} to="/station/exceptions" size="small" variant="outlined">
                         异常
                       </Button>
                     </Stack>

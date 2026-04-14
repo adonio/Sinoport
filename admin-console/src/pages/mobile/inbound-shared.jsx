@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JsBarcode from 'jsbarcode';
 
@@ -29,19 +29,15 @@ import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import {
   acceptMobileTask,
   completeMobileTask,
-  getInboundCountRecords,
-  getInboundLoadingPlans,
-  getInboundPallets,
   saveInboundCountRecord,
   saveInboundLoadingPlan,
   saveInboundPallet,
   startMobileTask,
   uploadMobileTaskEvidence,
+  useGetMobileInboundDetail,
   useGetMobileTasks
 } from 'api/station';
 import { openSnackbar } from 'api/snackbar';
-import { inboundFlightWaybillDetails, inboundFlights } from 'data/sinoport';
-import { filterMobileActionsByRole, getMobileRoleView, isMobileRoleAllowed } from 'data/sinoport-adapters';
 import { getMobileRoleKey, getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
@@ -95,6 +91,19 @@ const HAOXUE_VEHICLES = [
   { plate: 'HX-TRK-318', model: '17.5m 挂车', driver: 'Hao Xue 03' },
   { plate: 'HX-TRK-426', model: '9.6m 冷链厢车', driver: 'Hao Xue 04' }
 ];
+
+const EMPTY_MOBILE_INBOUND_ROLE_VIEW = Object.freeze({
+  label: '',
+  taskRoles: [],
+  inboundTabs: [],
+  outboundTabs: [],
+  flowKeys: [],
+  actionTypes: []
+});
+
+const EMPTY_MOBILE_INBOUND_PAGE_CONFIG = Object.freeze({
+  taskCards: {}
+});
 
 function buildInboundTaskCardConfig(type, flightNo) {
   const flight = getInboundFlight(flightNo);
@@ -164,21 +173,16 @@ function buildInboundTaskCardConfig(type, flightNo) {
   };
 }
 
-function roleAwareInboundTaskCardConfig(type, flightNo, roleKey, roleView, runAction) {
-  const config = buildInboundTaskCardConfig(type, flightNo);
-  const roleAllowed = isMobileRoleAllowed(roleKey, config.role);
-  const actions = filterMobileActionsByRole(
-    roleKey,
-    (config.actions || []).map((action) => ({
-      ...action,
-      onClick: () => runAction(action.label, `${config.node} / ${config.role}`)
-    }))
-  );
+function roleAwareInboundTaskCardConfig(type, flightNo, taskCards, runAction) {
+  const fallbackConfig = buildInboundTaskCardConfig(type, flightNo);
+  const config = taskCards?.[type] || { ...fallbackConfig, actions: [] };
 
   return {
     ...config,
-    blockers: roleAllowed ? config.blockers : [...config.blockers, `当前角色 ${roleView.label} 仅可查看，不可执行 ${config.role} 任务。`],
-    actions: roleAllowed ? actions : []
+    actions: (config.actions || []).map((action) => ({
+      ...action,
+      onClick: () => runAction(action.label, `${config.node} / ${config.role}`)
+    }))
   };
 }
 
@@ -429,17 +433,27 @@ const DEFAULT_INBOUND_PALLETS = [
 ];
 
 export function getInboundFlight(flightNo) {
-  return inboundFlights.find((item) => item.flightNo === flightNo) || null;
+  if (!flightNo) return null;
+
+  return {
+    flightNo,
+    source: '--',
+    eta: '--',
+    etd: '--',
+    step: '--',
+    priority: 'P2',
+    cargo: '--',
+    status: '待加载',
+    taskCount: 0,
+    blocked: false,
+    blockerReason: ''
+  };
 }
 
 export function buildFlightWaybills(flightNo) {
-  const entries = inboundFlightWaybillDetails[flightNo] || [];
-  return entries.map((item) => ({
-    ...item,
-    expectedBoxes: parseIntSafe(item.pieces),
-    totalWeightKg: parseWeight(item.weight),
-    barcode: normalizeCode(item.awb)
-  }));
+  if (!flightNo) return [];
+
+  return [];
 }
 
 export function getInboundSummary(waybills, taskMap) {
@@ -453,23 +467,27 @@ export function getInboundSummary(waybills, taskMap) {
 }
 
 export function useInboundStorage(flightNo) {
+  const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading, mobileInboundFlightDetailError } = useGetMobileInboundDetail(flightNo);
   const [taskMap, setTaskMapState] = useState({});
   const [pallets, setPalletsState] = useState(DEFAULT_INBOUND_PALLETS.filter((item) => !flightNo || item.flightNo === flightNo));
+  const hydratedStateRef = useRef({ flightNo: '', mode: '' });
 
   useEffect(() => {
     if (!flightNo) return;
+    if (mobileInboundFlightDetailLoading) return;
 
-    void getInboundCountRecords(flightNo)
-      .then((response) => setTaskMapState(response?.data?.records || {}))
-      .catch(() => setTaskMapState({}));
+    const mode = mobileInboundFlightDetailError ? 'error' : 'loaded';
+    if (hydratedStateRef.current.flightNo === flightNo && hydratedStateRef.current.mode === mode) return;
 
-    void getInboundPallets(flightNo)
-      .then((response) => {
-        const livePallets = response?.data?.pallets || [];
-        setPalletsState(livePallets.length ? livePallets.map((item) => ({ ...item, flightNo })) : DEFAULT_INBOUND_PALLETS.filter((item) => item.flightNo === flightNo));
-      })
-      .catch(() => setPalletsState(DEFAULT_INBOUND_PALLETS.filter((item) => item.flightNo === flightNo)));
-  }, [flightNo]);
+    const detailTaskMap = mobileInboundFlightDetailError ? {} : mobileInboundFlightDetail?.taskMap || {};
+    const detailPallets = mobileInboundFlightDetailError
+      ? DEFAULT_INBOUND_PALLETS.filter((item) => item.flightNo === flightNo)
+      : mobileInboundFlightDetail?.pallets || [];
+
+    hydratedStateRef.current = { flightNo, mode };
+    setTaskMapState(detailTaskMap);
+    setPalletsState(detailPallets);
+  }, [flightNo, mobileInboundFlightDetail, mobileInboundFlightDetailError, mobileInboundFlightDetailLoading]);
 
   const setTaskMap = (updater) => {
     setTaskMapState((prev) => {
@@ -518,18 +536,24 @@ export function useInboundStorage(flightNo) {
 }
 
 export function useInboundLoadingStorage(flightNo) {
+  const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading, mobileInboundFlightDetailError } = useGetMobileInboundDetail(flightNo);
   const [loadingPlans, setLoadingPlansState] = useState(DEFAULT_LOADING_PLANS.filter((item) => !flightNo || item.flightNo === flightNo));
+  const hydratedStateRef = useRef({ flightNo: '', mode: '' });
 
   useEffect(() => {
     if (!flightNo) return;
+    if (mobileInboundFlightDetailLoading) return;
 
-    void getInboundLoadingPlans(flightNo)
-      .then((response) => {
-        const plans = response?.data?.plans || [];
-        setLoadingPlansState(plans.length ? plans.map((item) => ({ ...item, flightNo })) : DEFAULT_LOADING_PLANS.filter((item) => item.flightNo === flightNo));
-      })
-      .catch(() => setLoadingPlansState(DEFAULT_LOADING_PLANS.filter((item) => item.flightNo === flightNo)));
-  }, [flightNo]);
+    const mode = mobileInboundFlightDetailError ? 'error' : 'loaded';
+    if (hydratedStateRef.current.flightNo === flightNo && hydratedStateRef.current.mode === mode) return;
+
+    const detailLoadingPlans = mobileInboundFlightDetailError
+      ? DEFAULT_LOADING_PLANS.filter((item) => item.flightNo === flightNo)
+      : mobileInboundFlightDetail?.loadingPlans || [];
+
+    hydratedStateRef.current = { flightNo, mode };
+    setLoadingPlansState(detailLoadingPlans);
+  }, [flightNo, mobileInboundFlightDetail, mobileInboundFlightDetailError, mobileInboundFlightDetailLoading]);
 
   const setLoadingPlans = (updater) => {
     setLoadingPlansState((prev) => {
@@ -567,7 +591,14 @@ export function useInboundLoadingStorage(flightNo) {
 function useInboundTaskContext(flightNo) {
   const session = readMobileSession();
   const roleKey = getMobileRoleKey(session);
-  const roleView = getMobileRoleView(roleKey);
+  const { mobileInboundFlightDetail } = useGetMobileInboundDetail(flightNo);
+  const roleView =
+    mobileInboundFlightDetail?.roleView ||
+    ({
+      ...EMPTY_MOBILE_INBOUND_ROLE_VIEW,
+      label: session?.roleLabel || session?.role || roleKey
+    });
+  const taskCards = mobileInboundFlightDetail?.pageConfig?.taskCards || EMPTY_MOBILE_INBOUND_PAGE_CONFIG.taskCards;
   const opsStorage = useMobileOpsStorage(`inbound-flight-${flightNo}`);
 
   const runScopedAction = (label, taskLabel) => {
@@ -578,13 +609,22 @@ function useInboundTaskContext(flightNo) {
           label,
           taskLabel,
           payloadSummary: `${flightNo} / ${taskLabel}`,
-          roleLabel: roleView.label
+          roleLabel: roleView.label || session?.role_label || session?.roleLabel || ''
         })
       )
     );
   };
 
-  return { session, roleKey, roleView, opsState: opsStorage.state, runScopedAction, setOpsState: opsStorage.setState };
+  return {
+    session,
+    roleKey,
+    roleView,
+    taskCards,
+    mobileInboundFlightDetail,
+    opsState: opsStorage.state,
+    runScopedAction,
+    setOpsState: opsStorage.setState
+  };
 }
 
 export function InboundFlightHeroCard({ flight, waybills, taskMap }) {
@@ -636,11 +676,11 @@ export function InboundFlightHeroCard({ flight, waybills, taskMap }) {
 
 export function InboundOverviewPanel({ flight, waybills, taskMap }) {
   const summary = getInboundSummary(waybills, taskMap);
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flight.flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flight.flightNo);
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('overview', flight.flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('overview', flight.flightNo, taskCards, runScopedAction)} />
 
       <MainCard title={mt('航班概览')}>
         <Grid container spacing={1.5}>
@@ -710,7 +750,15 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
   const navigate = useNavigate();
   const session = readMobileSession();
   const roleKey = getMobileRoleKey(session);
-  const roleView = getMobileRoleView(roleKey);
+  const { mobileInboundFlightDetail } = useGetMobileInboundDetail(flight.flightNo);
+  const roleView =
+    mobileInboundFlightDetail?.roleView ||
+    ({
+      ...EMPTY_MOBILE_INBOUND_ROLE_VIEW,
+      label: session?.roleLabel || session?.role || roleKey
+    });
+  const resolvedFlight = mobileInboundFlightDetail?.flight || flight;
+  const resolvedWaybills = mobileInboundFlightDetail?.waybills?.length ? mobileInboundFlightDetail.waybills : waybills;
   const opsStorage = useMobileOpsStorage(`inbound-flight-${flight.flightNo}`);
   const { mobileTasks } = useGetMobileTasks();
   const liveTasks = mobileTasks.filter((task) => task.flight_no === flight.flightNo);
@@ -760,12 +808,12 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
   return (
     <Box>
       <Stack sx={{ gap: 1.5 }}>
-        {showHero ? <InboundFlightHeroCard flight={flight} waybills={waybills} taskMap={taskMap} /> : null}
+        {showHero ? <InboundFlightHeroCard flight={resolvedFlight} waybills={resolvedWaybills} taskMap={taskMap} /> : null}
         {showOps ? (
           <TaskOpsPanel
             scopeKey={`inbound-flight-${flight.flightNo}`}
-            currentLabel={flight.flightNo}
-            contextChips={[`角色 ${mt(roleView.label)}`, `优先级 ${flight.priority}`, `当前节点 ${mt(flight.step)}`]}
+            currentLabel={resolvedFlight.flightNo}
+            contextChips={[`角色 ${mt(roleView.label)}`, `优先级 ${resolvedFlight.priority}`, `当前节点 ${mt(resolvedFlight.step)}`]}
             quickLinks={[
               { label: '节点选择', onClick: () => navigate('/mobile/select') },
               { label: '航班列表', onClick: () => navigate('/mobile/inbound') }
@@ -774,14 +822,21 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
             onTaskAction={handleLiveTaskAction}
           />
         ) : null}
-        {typeof children === 'function' ? children({ roleKey, roleView, runScopedAction, opsState: opsStorage.state }) : children}
+        {typeof children === 'function'
+          ? children({ roleKey, roleView, runScopedAction, opsState: opsStorage.state, mobileInboundFlightDetail })
+          : isValidElement(children)
+            ? cloneElement(children, {
+                flight: resolvedFlight,
+                waybills: resolvedWaybills
+              })
+            : children}
       </Stack>
     </Box>
   );
 }
 
 export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const scanInputRef = useRef(null);
   const flashTimerRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -1042,7 +1097,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareInboundTaskCardConfig('counting', flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('counting', flightNo, taskCards, runScopedAction)} />
 
       <Dialog open={!!pendingWaybill} fullWidth maxWidth="xs" disableEscapeKeyDown onClose={() => {}}>
         {pendingWaybill ? (
@@ -1237,7 +1292,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 }
 
 export function PalletPanel({ flightNo, pallets }) {
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightPallets = pallets.filter((item) => item.flightNo === flightNo);
 
@@ -1368,13 +1423,13 @@ export function PalletPanel({ flightNo, pallets }) {
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, taskCards, runScopedAction)} />
     </Stack>
   );
 }
 
 export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onCompleted }) {
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
   const [message, setMessage] = useState('当前托盘已自动编号，扫码枪每扫一次就会为对应提单加 1 箱。');
@@ -1493,7 +1548,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, taskCards, runScopedAction)} />
 
       <MainCard title="当前托盘">
         <Stack sx={{ gap: 2 }}>
@@ -1628,7 +1683,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
 }
 
 export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightPlans = loadingPlans.filter((item) => item.flightNo === flightNo);
 
@@ -1683,13 +1738,13 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, taskCards, runScopedAction)} />
     </Stack>
   );
 }
 
 export function LoadingPlanCreatePanel({ flightNo, onStart }) {
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const [form, setForm] = useState({
     truckPlate: '',
     driverName: '',
@@ -1704,7 +1759,7 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, taskCards, runScopedAction)} />
 
       <MainCard title="装车前准备">
         <Grid container spacing={1.5}>
@@ -1768,7 +1823,7 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
 }
 
 export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, setLoadingPlans, onCompleted }) {
-  const { roleKey, roleView, runScopedAction } = useInboundTaskContext(flightNo);
+  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const availablePallets = pallets.filter((item) => item.flightNo === flightNo && !item.loadedPlate);
   const [scanValue, setScanValue] = useState('');
   const [message, setMessage] = useState('开始扫描托盘号或提单号，系统会把对应托盘加入当前车辆。');
@@ -1998,7 +2053,7 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
         </Stack>
       </MainCard>
 
-      <TaskCard {...roleAwareInboundTaskCardConfig('loadingExecution', flightNo, roleKey, roleView, runScopedAction)} />
+      <TaskCard {...roleAwareInboundTaskCardConfig('loadingExecution', flightNo, taskCards, runScopedAction)} />
     </Stack>
   );
 }

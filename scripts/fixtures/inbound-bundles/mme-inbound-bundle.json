@@ -1,0 +1,74 @@
+{
+  "request_id": "W6-03-MME-INBOUND-BUNDLE-20260414",
+  "source": "integration-test",
+  "station_id": "MME",
+  "station": {
+    "station_name": "MME Trial Station",
+    "region": "APAC",
+    "control_level": "Tier 1",
+    "phase": "Inbound"
+  },
+  "flight": {
+    "flight_id": "FLIGHT-SE999-2026-04-14-MME",
+    "flight_no": "SE999",
+    "flight_date": "2026-04-14",
+    "origin_code": "HKG",
+    "destination_code": "MME",
+    "runtime_status": "Landed",
+    "service_level": "Express",
+    "aircraft_type": "B77F",
+    "actual_landed_at": "2026-04-14T02:00:00Z"
+  },
+  "awbs": [
+    {
+      "awb_id": "AWB-436-99000001",
+      "awb_no": "436-99000001",
+      "shipment": {
+        "shipment_id": "SHIP-MME-436-99000001",
+        "current_node": "Inbound Handling",
+        "fulfillment_status": "Inbound Handling",
+        "service_level": "Express",
+        "total_pieces": 5,
+        "total_weight": 52.5
+      },
+      "pieces": 5,
+      "gross_weight": 52.5,
+      "task_template": {
+        "task_id": "TASK-MME-436-99000001-1",
+        "task_type": "到港收货",
+        "execution_node": "Inbound Handling",
+        "related_object_type": "AWB",
+        "related_object_id": "AWB-436-99000001",
+        "task_status": "Created",
+        "assigned_role": "document_desk",
+        "evidence_required": 1
+      }
+    },
+    {
+      "awb_id": "AWB-436-99000002",
+      "awb_no": "436-99000002",
+      "shipment": {
+        "shipment_id": "SHIP-MME-436-99000002",
+        "current_node": "Inbound Handling",
+        "fulfillment_status": "Inbound Handling",
+        "service_level": "Express",
+        "total_pieces": 3,
+        "total_weight": 31.2
+      },
+      "pieces": 3,
+      "gross_weight": 31.2,
+      "tasks": [
+        {
+          "task_id": "TASK-MME-436-99000002-1",
+          "task_type": "理货复核",
+          "execution_node": "Inbound Handling",
+          "related_object_type": "AWB",
+          "related_object_id": "AWB-436-99000002",
+          "task_status": "Created",
+          "assigned_role": "document_desk",
+          "evidence_required": true
+        }
+      ]
+    }
+  ]
+}

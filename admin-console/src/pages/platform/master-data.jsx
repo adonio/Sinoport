@@ -11,9 +11,17 @@ import { Link as RouterLink } from 'react-router-dom';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { demoPermissionMatrixRows, importJobRows, interfaceGovernanceRows, masterDataRows, nonFunctionalDemoRows } from 'data/sinoport-adapters';
+import { useGetPlatformMasterData } from 'api/platform';
 
 export default function PlatformMasterDataPage() {
+  const {
+    masterDataRows,
+    interfaceGovernanceRows,
+    importJobRows,
+    demoPermissionMatrixRows,
+    nonFunctionalDemoRows
+  } = useGetPlatformMasterData();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

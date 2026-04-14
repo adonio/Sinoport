@@ -16,7 +16,6 @@ import ObjectAuditTrail from 'components/sinoport/ObjectAuditTrail';
 import ObjectSummaryCard from 'components/sinoport/ObjectSummaryCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { getHardGatePolicy } from 'data/sinoport-adapters';
 import { buildStationCopilotUrl } from 'utils/copilot';
 
 function getRelationshipActions(target, shipmentId) {
@@ -26,30 +25,6 @@ function getRelationshipActions(target, shipmentId) {
   if (target.startsWith('Flight / ')) return [{ label: '航班详情', to: `/station/inbound/flights/${encodeURIComponent(target.replace('Flight / ', ''))}` }];
   if (target.startsWith('AWB / ')) return [{ label: '提单详情', to: `/station/inbound/waybills/${encodeURIComponent(target.replace('AWB / ', ''))}` }];
   return [{ label: '当前对象', to: `/station/shipments/${shipmentId}` }];
-}
-
-function buildGateItems(detail) {
-  const gateIds = new Set();
-
-  detail.documents.forEach((item) => (item.gateIds || []).forEach((gateId) => gateIds.add(gateId)));
-  detail.tasks.forEach((item) => (item.gateIds || []).forEach((gateId) => gateIds.add(gateId)));
-  detail.exceptions.forEach((item) => {
-    if (item.gateId) gateIds.add(item.gateId);
-  });
-
-  return Array.from(gateIds).map((gateId) => {
-    const policy = getHardGatePolicy(gateId);
-    return {
-      gateId,
-      node: policy?.triggerNode || 'Shipment Gate',
-      required: policy?.rule || '需补齐文件、任务或异常恢复动作',
-      impact: policy?.blocker || '会影响履约链路推进',
-      status: detail.exceptions.some((item) => item.gateId === gateId && !['Resolved', 'Closed'].includes(item.status)) ? 'Open' : 'Tracked',
-      blocker: detail.exceptions.find((item) => item.gateId === gateId)?.note || '',
-      recovery: policy?.recovery || detail.exceptions.find((item) => item.gateId === gateId)?.note || '',
-      releaseRole: policy?.releaseRole || ''
-    };
-  });
 }
 
 export default function ShipmentDetailPage() {
@@ -77,7 +52,7 @@ export default function ShipmentDetailPage() {
   }
 
   const detail = stationShipmentDetail;
-  const gateItems = buildGateItems(detail);
+  const gateItems = detail.gatePolicySummary || [];
 
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>

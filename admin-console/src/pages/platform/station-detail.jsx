@@ -17,14 +17,7 @@ import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import {
-  platformStationCapabilityRows,
-  platformStationDeviceRows,
-  platformStationTeamRows,
-  platformStationZoneRows,
-  stationCapabilityColumns
-} from 'data/sinoport-adapters';
-import { stationCatalog } from 'data/sinoport';
+import { useGetPlatformStationDetail } from 'api/platform';
 
 function renderCapabilitySymbol(status) {
   if (status === 'yes') {
@@ -68,22 +61,31 @@ function buildScheduleRows(teamRows) {
   }));
 }
 
+function buildFallbackCapability(columns) {
+  return {
+    promise: '-',
+    risk: '-',
+    capabilityMatrix: columns.reduce((acc, column) => {
+      acc[column.key] = 'no';
+      return acc;
+    }, {})
+  };
+}
+
 export default function PlatformStationDetailPage() {
   const { stationCode } = useParams();
-  const station = stationCatalog.find((item) => item.code === stationCode) || stationCatalog[0];
-  const capability = platformStationCapabilityRows.find((item) => item.code === station.code) || platformStationCapabilityRows[0];
-  const teamRows = platformStationTeamRows.filter((item) => item.station === station.code);
-  const zoneRows = platformStationZoneRows.filter((item) => item.station === station.code);
-  const deviceRows = platformStationDeviceRows.filter((item) => item.station === station.code);
-  const effectiveTeams = teamRows.length ? teamRows : buildFallbackTeams(station.code);
-  const effectiveZones = zoneRows.length ? zoneRows : buildFallbackZones(station.code);
-  const effectiveDevices = deviceRows.length ? deviceRows : buildFallbackDevices(station.code);
+  const { station, capability, teamRows, zoneRows, deviceRows, stationCapabilityColumns } = useGetPlatformStationDetail(stationCode);
+  const effectiveStation = station || { code: stationCode || '--', name: '未找到站点', region: '-', control: '-', phase: '-', scope: '-' };
+  const effectiveCapability = capability || buildFallbackCapability(stationCapabilityColumns);
+  const effectiveTeams = teamRows.length ? teamRows : buildFallbackTeams(effectiveStation.code);
+  const effectiveZones = zoneRows.length ? zoneRows : buildFallbackZones(effectiveStation.code);
+  const effectiveDevices = deviceRows.length ? deviceRows : buildFallbackDevices(effectiveStation.code);
   const scheduleRows = buildScheduleRows(effectiveTeams);
 
   const metrics = [
-    { title: '控制层级', value: station.control, helper: station.name, chip: 'Control', color: 'primary' },
-    { title: '当前阶段', value: station.phase, helper: station.region, chip: 'Phase', color: 'secondary' },
-    { title: '服务口径', value: capability.promise, helper: station.scope, chip: 'SLA', color: 'success' },
+    { title: '控制层级', value: effectiveStation.control, helper: effectiveStation.name, chip: 'Control', color: 'primary' },
+    { title: '当前阶段', value: effectiveStation.phase, helper: effectiveStation.region, chip: 'Phase', color: 'secondary' },
+    { title: '服务口径', value: effectiveCapability.promise, helper: effectiveStation.scope, chip: 'SLA', color: 'success' },
     { title: '班组数量', value: `${effectiveTeams.length}`, helper: '当前站点已配置班组', chip: 'Teams', color: 'warning' }
   ];
 
@@ -92,9 +94,9 @@ export default function PlatformStationDetailPage() {
       <Grid size={12}>
         <PageHeader
           eyebrow="Station Detail"
-          title={`站点详情 / ${station.code}`}
+          title={`站点详情 / ${effectiveStation.code}`}
           description="平台侧查看单个站点的能力状态、区位映射、设备映射和班组排班情况，作为站点接入和样板站管理的统一详情页。"
-          chips={[station.name, station.region, station.control, station.phase]}
+          chips={[effectiveStation.name, effectiveStation.region, effectiveStation.control, effectiveStation.phase]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component={RouterLink} to="/platform/stations/capabilities" variant="outlined">
@@ -135,13 +137,13 @@ export default function PlatformStationDetailPage() {
             <TableBody>
               <TableRow hover>
                 {stationCapabilityColumns.map((column) => (
-                  <TableCell key={`${station.code}-${column.key}`} align="center">
+                  <TableCell key={`${effectiveStation.code}-${column.key}`} align="center">
                     <Stack sx={{ alignItems: 'center', gap: 0.75 }}>
-                      {renderCapabilitySymbol(capability.capabilityMatrix[column.key])}
+                      {renderCapabilitySymbol(effectiveCapability.capabilityMatrix[column.key])}
                       <Typography variant="caption" color="text.secondary">
-                        {capability.capabilityMatrix[column.key] === 'yes'
+                        {effectiveCapability.capabilityMatrix[column.key] === 'yes'
                           ? '有'
-                          : capability.capabilityMatrix[column.key] === 'building'
+                          : effectiveCapability.capabilityMatrix[column.key] === 'building'
                             ? '建设中'
                             : '无'}
                       </Typography>
@@ -231,7 +233,7 @@ export default function PlatformStationDetailPage() {
             </TableHead>
             <TableBody>
               {scheduleRows.map((item) => (
-                <TableRow key={`${station.code}-${item.team}`} hover>
+                <TableRow key={`${effectiveStation.code}-${item.team}`} hover>
                   <TableCell>{item.team}</TableCell>
                   <TableCell>{item.shift}</TableCell>
                   <TableCell>{item.slot}</TableCell>

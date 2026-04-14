@@ -14,10 +14,18 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { inboundFlights, outboundFlights } from 'data/sinoport';
-import { stationBlockerQueue, stationDashboardCards, stationReviewQueue, stationTransferRows } from 'data/sinoport-adapters';
+import { useGetStationDashboardOverview } from 'api/station';
 
 export default function StationDashboardPage() {
+  const {
+    inboundFlights,
+    outboundFlights,
+    stationBlockerQueue,
+    stationDashboardCards,
+    stationReviewQueue,
+    stationTransferRows
+  } = useGetStationDashboardOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

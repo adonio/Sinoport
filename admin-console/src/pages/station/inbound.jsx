@@ -15,10 +15,18 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { inboundFlights } from 'data/sinoport';
-import { inboundDocumentGates, inboundLifecycleRows, stationBlockerQueue, stationReviewQueue, stationTransferRows } from 'data/sinoport-adapters';
+import { useGetStationInboundOverview } from 'api/station';
 
 export default function StationInboundPage() {
+  const {
+    inboundDocumentGates,
+    inboundFlights,
+    inboundLifecycleRows,
+    stationBlockerQueue,
+    stationReviewQueue,
+    stationTransferRows
+  } = useGetStationInboundOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

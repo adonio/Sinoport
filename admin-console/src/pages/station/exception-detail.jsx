@@ -11,7 +11,6 @@ import ObjectAuditTrail from 'components/sinoport/ObjectAuditTrail';
 import ObjectSummaryCard from 'components/sinoport/ObjectSummaryCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { getHardGatePolicy } from 'data/sinoport-adapters';
 import { buildStationCopilotUrl } from 'utils/copilot';
 
 function buildObjectLink(detail) {
@@ -78,16 +77,16 @@ export default function StationExceptionDetailPage() {
     );
   }
 
-  const gatePolicy = getHardGatePolicy(stationExceptionDetail.gate_id || '');
+  const gatePolicy = stationExceptionDetail.gatePolicySummary?.[0];
   const gateItems = [
     {
       gateId: stationExceptionDetail.gate_id || 'EXC',
       node: stationExceptionDetail.exception_type,
-      required: stationExceptionDetail.required_gate || '需完成异常恢复与复核',
-      impact: stationExceptionDetail.blocker_flag ? '当前阻断主链推进' : '当前不阻断主链',
-      status: stationExceptionDetail.exception_status,
-      blocker: stationExceptionDetail.root_cause || '',
-      recovery: stationExceptionDetail.recovery_action || stationExceptionDetail.action_taken || '',
+      required: gatePolicy?.required || stationExceptionDetail.required_gate || '需完成异常恢复与复核',
+      impact: gatePolicy?.impact || (stationExceptionDetail.blocker_flag ? '当前阻断主链推进' : '当前不阻断主链'),
+      status: gatePolicy?.status || stationExceptionDetail.exception_status,
+      blocker: gatePolicy?.blocker || stationExceptionDetail.root_cause || '',
+      recovery: gatePolicy?.recovery || stationExceptionDetail.recovery_action || stationExceptionDetail.action_taken || '',
       releaseRole: gatePolicy?.releaseRole || stationExceptionDetail.owner_role
     }
   ];

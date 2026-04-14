@@ -15,10 +15,9 @@ import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import { useGetStationExceptions } from 'api/station';
-import { exceptionDetailRows, stationBlockerQueue } from 'data/sinoport-adapters';
 
 export default function StationExceptionsPage() {
-  const { stationExceptions, stationExceptionOverview } = useGetStationExceptions();
+  const { stationExceptions, stationExceptionOverview, stationBlockerQueue, stationRecoveryRows } = useGetStationExceptions();
 
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
@@ -57,7 +56,7 @@ export default function StationExceptionsPage() {
       <Grid size={{ xs: 12, xl: 4 }}>
         <TaskQueueCard
           title="恢复动作提醒"
-          items={exceptionDetailRows.map((item) => ({
+          items={stationRecoveryRows.map((item) => ({
             id: item.id,
             title: `${item.id} · ${item.type}`,
             description: item.recoveryAction,

@@ -17,7 +17,7 @@ import 'leaflet/dist/leaflet.css';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
-import { routeMatrix, stationCatalog } from 'data/sinoport';
+import { useGetPlatformNetwork } from 'api/platform';
 
 const stationGeoMap = {
   URC: { lat: 43.8256, lng: 87.6168 },
@@ -35,10 +35,6 @@ const virtualStations = [
   { code: 'LGG', name: '欧洲转运补段', control: '外部协同', phase: '外部节点', scope: '卡转补段 / 协同回传' },
   { code: 'CTU', name: '回程目的节点', control: '外部协同', phase: '外部节点', scope: 'Manifest 回传 / 目的港对账' }
 ];
-
-const allStations = [...stationCatalog, ...virtualStations]
-  .map((station) => ({ ...station, coordinates: stationGeoMap[station.code] }))
-  .filter((station) => station.coordinates);
 
 const networkEdges = [
   { from: 'URC', to: 'MST', label: 'URC → MST / 72h', tone: 'secondary.main' },
@@ -190,6 +186,11 @@ function RouteArcLayer({ edge }) {
 }
 
 export default function PlatformNetworkPage() {
+  const { stationCatalog, routeMatrix } = useGetPlatformNetwork();
+  const allStations = [...stationCatalog, ...virtualStations]
+    .map((station) => ({ ...station, coordinates: stationGeoMap[station.code] }))
+    .filter((station) => station.coordinates);
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

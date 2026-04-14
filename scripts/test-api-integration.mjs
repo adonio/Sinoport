@@ -1,5 +1,6 @@
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
+import { loadMmeInboundBundleFixture } from './replay-mme-inbound.mjs';
 
 const PORT = 8793;
 const INSPECTOR_PORT = 9233;
@@ -55,6 +56,11 @@ async function jsonRequestWithRetry(path, options = {}, attempts = 3, waitMs = 2
   return lastResult;
 }
 
+function assertPositiveCount(result, label) {
+  const total = (result?.created ?? 0) + (result?.updated ?? 0);
+  assert(total > 0, `${label} was not written`);
+}
+
 async function stopWorker(worker) {
   worker.kill('SIGINT');
 
@@ -99,7 +105,16 @@ async function resetIntegrationFixtures() {
     "UPDATE tasks SET task_status = 'Assigned', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-002';",
     "UPDATE awbs SET noa_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10357944';",
     "UPDATE awbs SET pod_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10358585';",
-    "UPDATE exceptions SET exception_status = 'Open', closed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE exception_id = 'EXP-0408-001';"
+    "UPDATE exceptions SET exception_status = 'Open', closed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE exception_id = 'EXP-0408-001';",
+    "UPDATE flights SET runtime_status = 'Pre-Departure', actual_takeoff_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE flight_id = 'FLIGHT-SE913-2026-04-09-MME';",
+    "UPDATE shipments SET current_node = 'Loaded Preparation', fulfillment_status = 'Main AWB Completed', updated_at = CURRENT_TIMESTAMP WHERE shipment_id = 'SHIP-OUT-436-10357583';",
+    "UPDATE awbs SET current_node = 'Loaded Preparation', manifest_status = 'Draft', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10357583';",
+    "UPDATE documents SET document_status = 'Approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = 'DOC-FFM-SE913';",
+    "UPDATE documents SET document_status = 'Uploaded', updated_at = CURRENT_TIMESTAMP WHERE document_id = 'DOC-UWS-SE913';",
+    "UPDATE documents SET document_status = 'Uploaded', updated_at = CURRENT_TIMESTAMP WHERE document_id = 'DOC-MANIFEST-SE913';",
+    "UPDATE documents SET document_status = 'Approved', updated_at = CURRENT_TIMESTAMP WHERE document_id = 'DOC-MAWB-436-10357583';",
+    "UPDATE tasks SET task_status = 'Assigned', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0409-302';",
+    "UPDATE tasks SET task_status = 'Completed', completed_at = '2026-04-09T18:30:00Z', verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0409-301';"
   ].join(' ');
 
   await runCommand('npx', [
@@ -182,6 +197,31 @@ async function main() {
     assert(documents.ok, 'station/documents failed');
     assert(Array.isArray(documents.json?.items), 'station/documents invalid payload');
 
+    const reportDate = '2026-04-08';
+    const stationDailyReport = await jsonRequest(`/api/v1/station/reports/daily?date=${reportDate}`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(stationDailyReport.ok, 'station/reports/daily failed');
+    assert(stationDailyReport.json?.data?.reportMeta?.reportDate === reportDate, 'station/reports/daily report date mismatch');
+    assert(Array.isArray(stationDailyReport.json?.data?.stationReportCards), 'station/reports/daily stationReportCards invalid payload');
+    assert(Array.isArray(stationDailyReport.json?.data?.stationDailyReportRows), 'station/reports/daily stationDailyReportRows invalid payload');
+
+    const platformDailyReport = await jsonRequest(`/api/v1/platform/reports/daily?date=${reportDate}&station_id=MME`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(platformDailyReport.ok, 'platform/reports/daily failed');
+    assert(platformDailyReport.json?.data?.reportMeta?.reportDate === reportDate, 'platform/reports/daily report date mismatch');
+    assert(Array.isArray(platformDailyReport.json?.data?.platformReportCards), 'platform/reports/daily platformReportCards invalid payload');
+    assert(Array.isArray(platformDailyReport.json?.data?.platformDailyReportRows), 'platform/reports/daily platformDailyReportRows invalid payload');
+
+    const exceptionDailyReport = await jsonRequest(`/api/v1/station/exceptions/daily?date=${reportDate}`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(exceptionDailyReport.ok, 'station/exceptions/daily failed');
+    assert(exceptionDailyReport.json?.data?.reportMeta?.reportDate === reportDate, 'station/exceptions/daily report date mismatch');
+    assert(Array.isArray(exceptionDailyReport.json?.data?.exceptionOverviewCards), 'station/exceptions/daily exceptionOverviewCards invalid payload');
+    assert(Array.isArray(exceptionDailyReport.json?.data?.exceptionDailyReportRows), 'station/exceptions/daily exceptionDailyReportRows invalid payload');
+
     const shipments = await jsonRequest('/api/v1/station/shipments', {
       headers: { Authorization: `Bearer ${stationToken}` }
     });
@@ -214,6 +254,82 @@ async function main() {
       headers: { Authorization: `Bearer ${stationToken}` }
     });
     assert(outboundWaybillDetail.ok, 'station/outbound/waybills/:awbId failed');
+
+    const inboundBundlePayload = loadMmeInboundBundleFixture();
+    const inboundBundle = await jsonRequest('/api/v1/station/imports/inbound-bundle', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json',
+        'X-Request-Id': inboundBundlePayload.request_id
+      },
+      body: JSON.stringify(inboundBundlePayload)
+    });
+    assert(inboundBundle.ok, 'station/imports/inbound-bundle failed');
+    assertPositiveCount(inboundBundle.json?.data?.flight, 'flight');
+    assertPositiveCount(inboundBundle.json?.data?.shipments, 'shipments');
+    assertPositiveCount(inboundBundle.json?.data?.awbs, 'awbs');
+    assertPositiveCount(inboundBundle.json?.data?.tasks, 'tasks');
+    assertPositiveCount(inboundBundle.json?.data?.audit_events, 'audit_events');
+
+    const importedFlightId = inboundBundlePayload.flight.flight_id;
+    const importedAwbOneId = inboundBundlePayload.awbs[0].awb_id;
+    const importedAwbTwoId = inboundBundlePayload.awbs[1].awb_id;
+    const importedShipmentOneSlug = `in-${inboundBundlePayload.awbs[0].awb_no}`;
+    const importedShipmentTwoSlug = `in-${inboundBundlePayload.awbs[1].awb_no}`;
+    const importedTaskOneId = inboundBundlePayload.awbs[0].task_template.task_id;
+    const importedTaskTwoId = inboundBundlePayload.awbs[1].tasks[0].task_id;
+
+    const importedFlight = await jsonRequest(`/api/v1/station/inbound/flights/${encodeURIComponent(importedFlightId)}?station_id=MME`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(importedFlight.ok, 'imported inbound flight not readable');
+
+    const importedAwbOne = await jsonRequest(`/api/v1/station/inbound/waybills/${encodeURIComponent(importedAwbOneId)}?station_id=MME`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(importedAwbOne.ok, 'imported inbound waybill #1 not readable');
+
+    const importedAwbTwo = await jsonRequest(`/api/v1/station/inbound/waybills/${encodeURIComponent(importedAwbTwoId)}?station_id=MME`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(importedAwbTwo.ok, 'imported inbound waybill #2 not readable');
+
+    const importedShipmentOne = await jsonRequest(`/api/v1/station/shipments/${encodeURIComponent(importedShipmentOneSlug)}`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(importedShipmentOne.ok, 'imported shipment #1 not readable');
+
+    const importedShipmentTwo = await jsonRequest(`/api/v1/station/shipments/${encodeURIComponent(importedShipmentTwoSlug)}`, {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(importedShipmentTwo.ok, 'imported shipment #2 not readable');
+
+    const importedTasks = await jsonRequest('/api/v1/station/tasks?station_id=MME', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(importedTasks.ok, 'station/tasks failed after inbound import');
+    assert(
+      importedTasks.json?.items?.some((item) => item.task_id === importedTaskOneId),
+      'imported task #1 not found in station/tasks'
+    );
+    assert(
+      importedTasks.json?.items?.some((item) => item.task_id === importedTaskTwoId),
+      'imported task #2 not found in station/tasks'
+    );
+
+    const importedAudit = await jsonRequest(
+      `/api/v1/platform/audit/object?object_type=Flight&object_id=${encodeURIComponent(importedFlightId)}`,
+      {
+        headers: { Authorization: `Bearer ${stationToken}` }
+      }
+    );
+    assert(importedAudit.ok, 'platform/audit/object failed for imported flight');
+    assert(Array.isArray(importedAudit.json?.data?.events), 'platform/audit/object returned invalid events payload');
+    assert(
+      importedAudit.json?.data?.events?.some((item) => item.action === 'STATION_INBOUND_BUNDLE_IMPORTED'),
+      'inbound bundle audit event not found'
+    );
 
     const noa = await jsonRequest('/api/v1/station/inbound/waybills/AWB-436-10357944/noa', {
       method: 'POST',
@@ -389,6 +505,40 @@ async function main() {
     });
     assert(outboundLoaded.ok, 'station/outbound/flights/:flightId/loaded failed');
 
+    const outboundLoadedDetail = await jsonRequest('/api/v1/station/outbound/flights/FLIGHT-SE913-2026-04-09-MME', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(outboundLoadedDetail.ok, 'station/outbound/flights/:flightId not readable after loaded');
+    assert(
+      outboundLoadedDetail.json?.data?.task_summary?.some(
+        (item) => item.task_type === '装机复核' && item.task_status === 'Completed'
+      ),
+      'loaded task status not reflected in outbound flight detail'
+    );
+
+    const outboundLoadedShipment = await jsonRequest('/api/v1/station/shipments/out-436-10357583', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(outboundLoadedShipment.ok, 'station/shipments/out-436-10357583 not readable after loaded');
+    assert(
+      outboundLoadedShipment.json?.data?.timeline?.some((item) => item.label === 'Loaded' && item.status === '已装载'),
+      'loaded shipment timeline not reflected'
+    );
+
+    const outboundAirborneBlocked = await jsonRequest('/api/v1/station/outbound/flights/FLIGHT-SE913-2026-04-09-MME/airborne', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ note: 'integration airborne blocked' })
+    });
+    assert(!outboundAirborneBlocked.ok, 'airborne should be blocked before manifest finalize');
+    assert(
+      outboundAirborneBlocked.status === 409 && outboundAirborneBlocked.json?.error?.code === 'MANIFEST_NOT_FINALIZED',
+      'airborne precondition failure was not returned as MANIFEST_NOT_FINALIZED'
+    );
+
     const outboundManifest = await jsonRequest('/api/v1/station/outbound/flights/FLIGHT-SE913-2026-04-09-MME/manifest/finalize', {
       method: 'POST',
       headers: {
@@ -399,6 +549,17 @@ async function main() {
     });
     assert(outboundManifest.ok, 'station/outbound/flights/:flightId/manifest/finalize failed');
 
+    const outboundManifestDetail = await jsonRequest('/api/v1/station/outbound/flights/FLIGHT-SE913-2026-04-09-MME', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(outboundManifestDetail.ok, 'station/outbound/flights/:flightId not readable after manifest finalize');
+    assert(
+      outboundManifestDetail.json?.data?.document_summary?.some(
+        (item) => item.document_type === 'Manifest' && item.document_status === 'Released'
+      ),
+      'manifest release not reflected in outbound flight detail'
+    );
+
     const outboundAirborne = await jsonRequest('/api/v1/station/outbound/flights/FLIGHT-SE913-2026-04-09-MME/airborne', {
       method: 'POST',
       headers: {
@@ -408,6 +569,40 @@ async function main() {
       body: JSON.stringify({ note: 'integration airborne' })
     });
     assert(outboundAirborne.ok, 'station/outbound/flights/:flightId/airborne failed');
+
+    const outboundAirborneDetail = await jsonRequest('/api/v1/station/outbound/flights/FLIGHT-SE913-2026-04-09-MME', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(outboundAirborneDetail.ok, 'station/outbound/flights/:flightId not readable after airborne');
+    assert(
+      outboundAirborneDetail.json?.data?.flight?.runtime_status === 'Airborne',
+      'airborne runtime status not reflected in outbound flight detail'
+    );
+
+    const outboundAirborneShipment = await jsonRequest('/api/v1/station/shipments/out-436-10357583', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(outboundAirborneShipment.ok, 'station/shipments/out-436-10357583 not readable after airborne');
+    assert(
+      outboundAirborneShipment.json?.data?.timeline?.some((item) => item.label === 'Airborne' && item.status === 'Airborne'),
+      'airborne shipment timeline not reflected'
+    );
+
+    const outboundAudit = await jsonRequest(
+      '/api/v1/platform/audit/object?object_type=Flight&object_id=FLIGHT-SE913-2026-04-09-MME',
+      {
+        headers: { Authorization: `Bearer ${stationToken}` }
+      }
+    );
+    assert(outboundAudit.ok, 'platform/audit/object failed for outbound flight');
+    assert(
+      outboundAudit.json?.data?.transitions?.some((item) => item.action === 'Flight.runtime_status' && item.after === 'Airborne'),
+      'airborne transition not found in audit object'
+    );
+    assert(
+      outboundAudit.json?.data?.events?.some((item) => item.action === 'OUTBOUND_FLIGHT_AIRBORNE' && item.payload?.awb_count >= 1),
+      'audit payload for outbound airborne not exposed'
+    );
 
     const inboundCounts = await jsonRequest('/api/v1/mobile/inbound/SE803/counts/436-10358585', {
       method: 'POST',
@@ -526,6 +721,8 @@ async function main() {
     console.log(`- outbound flights/waybills: ${outboundFlights.status}/${outboundWaybills.status}`);
     console.log(`- NOA/POD: ${noa.status}/${pod.status}`);
     console.log(`- upload ticket & preview: ${uploadTicket.status}/${preview.status}`);
+    console.log(`- inbound bundle import: ${inboundBundle.status}`);
+    console.log(`- imported flight/awb/shipment/task/audit reads: ${importedFlight.status}/${importedAwbOne.status}/${importedShipmentOne.status}/${importedTasks.status}/${importedAudit.status}`);
     console.log(`- mobile task flow: ${accept.status}/${start.status}/${evidence.status}/${complete.status}`);
     console.log(`- task workflow: ${verifyTask.status}/${reworkTask.status}/${escalateTask.status}`);
     console.log(`- exception resolve: ${resolveException.status}`);

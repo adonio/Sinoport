@@ -2,14 +2,15 @@
 
 ## 1. 文档信息
 
-- 文档版本：`v1.0`
+- 文档版本：`v1.1`
 - 文档状态：执行任务表
-- 更新时间：`2026-04-13`
-- 适用阶段：`MME` 进港闭环继续推进阶段
+- 更新时间：`2026-04-14`
+- 适用阶段：`已发布后的收口与运维阶段`
 - 关联文档：
   - [Sinoport_OS_后端一期执行计划_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_后端一期执行计划_v1.0.md)
   - [Sinoport_OS_技术架构_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_技术架构_v1.0.md)
   - [Sinoport_OS_API_Contract_Draft_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_API_Contract_Draft_v1.0.md)
+  - [Sinoport_OS_数据库收口与12个月开发规划_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_数据库收口与12个月开发规划_v1.0.md)
 
 ## 2. 文档目的
 
@@ -24,7 +25,7 @@
 
 ## 3. 当前判断
 
-当前项目已经从“前后端逐步接真”推进到了“本地全链可运行、可回归、可准备发布”的阶段。
+当前项目已经从“本地全链可运行、可回归、可准备发布”的阶段，推进到了“Cloudflare staging / production 已发布”的阶段。
 
 当前已具备：
 
@@ -35,16 +36,26 @@
 - 站内主要页面已开始接真实 API，并保留 mock fallback
 - `shipments` 对象链已具备真实查询能力
 - 已有可重复执行的 API smoke / integration 脚本
+- Cloudflare `staging / production` 已完成发布
+- 默认域名已挂载：
+  - `sinoport.co`
+  - `admin.sinoport.co`
+  - `staging.sinoport.co`
+  - `staging-admin.sinoport.co`
+  - `api.sinoport.co`
+  - `agent.sinoport.co`
+  - `staging-api.sinoport.co`
+  - `staging-agent.sinoport.co`
 
-当前剩余问题已经收敛为外部环境问题：
+当前剩余问题已经收敛为运维治理问题：
 
-- Cloudflare `staging / production` 真实资源 ID 仍未配置
-- GitHub / Cloudflare 发布 secrets 尚未注入
-- 远端发布尚未实际执行
+- 生产 secret 仍是占位值，尚未做正式 secret 管理收口
+- 本地构建产物会污染主工作区，仓库治理未完成
+- PR 远端 checks 仍需以最新提交再确认一次
 
 ## 4. 总体建议
 
-当前建议不再继续扩写本地主链，而是进入“远端部署与验收”阶段。
+当前建议不再继续横向扩模块，而是进入“上线后收口、真实业务数据接入与运维治理”阶段。
 
 ## 5. 任务分阶段
 
@@ -54,11 +65,11 @@
 
 ### Phase 2：底座与交付能力
 
-代码侧已完成，等待真实云资源接入。
+已完成并完成远端发布。
 
-### Phase 3：远端部署与二期主线
+### Phase 3：上线后治理与二期主线
 
-下一步只剩远端发布和后续业务扩展。
+下一步进入生产化治理、真实业务数据接入和二期扩展。
 
 ## 6. 后续开发任务表
 
@@ -78,27 +89,25 @@
 | T-12A | 收口 `shipments` 真实对象链 | 已完成 | P1 | FE + BE | Shipment 查询接口、出港样板数据 | `shipments` 列表与详情已接真实 API，并补了 Shipment 对象审计 |
 | T-12 | 启动二期主线：出港闭环或第一个 Agent | 已完成 | P2 | 产品 + FE + BE | Phase 1 全部通过，Phase 2 基本稳定 | 出港动作链、对象审计、Agent 会话/Copilot 已落地；剩余仅真实云发布 |
 
-## 6.1 剩余阻塞项
+## 6.1 剩余治理项
 
-以下不再属于“代码未完成”，而是“外部环境未就绪”：
+以下不再属于“主链功能未完成”，而是“发布后治理与运营事项”：
 
-| ID | 事项 | 当前状态 | 阻塞点 | 说明 |
-| --- | --- | --- | --- | --- |
-| R-01 | Cloudflare `staging` 资源绑定 | 未完成 | 缺真实 D1 / R2 资源 ID | `wrangler` 已有环境段，但仍是占位值 |
-| R-02 | Cloudflare `production` 资源绑定 | 未完成 | 缺真实 D1 / R2 资源 ID | 同上 |
-| R-03 | GitHub Actions 发布 secrets | 未完成 | 缺 `CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID` | `release` workflow 已写好 |
-| R-04 | 远端 staging 发布验证 | 未完成 | 依赖 R-01 / R-03 | 本地 smoke 已通过，远端尚未执行 |
-| R-05 | 远端 production 发布验证 | 未完成 | 依赖 R-02 / R-03 | 本地 smoke 已通过，远端尚未执行 |
+| ID | 事项 | 当前状态 | 说明 |
+| --- | --- | --- | --- |
+| G-01 | 生产 secret 收口 | 未完成 | `AUTH_TOKEN_SECRET` 仍为占位值，需要切到 Cloudflare secret |
+| G-02 | demo 本地账号治理 | 未完成 | 当前仍保留本地 demo 账号与 bootstrap 逻辑，需按生产策略收紧 |
+| G-03 | 构建产物治理 | 未完成 | `admin-assets/` 和静态路由产物会污染主工作区，需要明确是否入库 |
+| G-04 | PR 远端 checks 最终转绿确认 | 进行中 | 最新修复已推送，需要等 GitHub Actions 刷新 |
 
 ## 7. 推荐执行顺序
 
-建议按以下顺序推进真实发布：
+建议按以下顺序推进上线后治理：
 
-1. `R-01`
-2. `R-03`
-3. `R-04`
-4. `R-02`
-5. `R-05`
+1. `G-01`
+2. `G-02`
+3. `G-03`
+4. `G-04`
 
 ## 8. 负责人建议
 
@@ -142,7 +151,7 @@
 
 ## 9. 完成判断标准
 
-当前代码侧已完成，判断标准已经满足：
+当前主链功能与远端发布均已完成，判断标准已经满足：
 
 1. `MME` 进港与最小出港主链都能真实读写
 2. 文件、任务、异常、审计能够挂到同一条对象链上
@@ -152,13 +161,13 @@
 
 ## 10. 当前最推荐的下一个动作
 
-基于当前进度，建议下一步只盯真实云发布：
+基于当前进度，建议下一步只盯上线后治理：
 
-1. 填 Cloudflare 真实资源 ID
-2. 注入 GitHub 发布 secrets
-3. 跑一次 `staging` 发布
-4. 再跑一次 `production` 发布
+1. 把 `AUTH_TOKEN_SECRET` 改成真正的 Cloudflare secret
+2. 收紧 demo 登录与本地 fallback
+3. 明确 `admin-assets / 静态路由产物` 是否继续入库
+4. 再启动真实业务数据接入
 
 一句话总结：
 
-当前本地开发任务已收口，剩余事项只在远端发布环境。
+当前主链功能与远端发布已完成，剩余事项主要在运维安全与构建产物治理。

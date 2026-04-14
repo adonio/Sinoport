@@ -14,6 +14,8 @@
 - 技术架构：`docs/Sinoport_OS_技术架构_v1.0.md`
 - 后端一期执行计划：`docs/Sinoport_OS_后端一期执行计划_v1.0.md`
 - 后续开发任务表：`docs/Sinoport_OS_后续开发任务表_v1.0.md`
+- 数据库收口与 12 个月开发规划：`docs/Sinoport_OS_数据库收口与12个月开发规划_v1.0.md`
+- 数据库收口执行台账：`docs/Sinoport_OS_数据库收口执行台账_v1.0.md`
 
 ## 后端骨架
 
@@ -26,13 +28,16 @@
 
 - CI：`.github/workflows/ci.yml`
 - 发布：`.github/workflows/release.yml`
-- 发布前需要准备：
-  - `station_api_url`：Pages 构建时注入的站内 API 地址
-  - `api_url`：部署后的 `api-worker` 公网地址
-  - `agent_url`：部署后的 `agent-worker` 公网地址
-  - `CLOUDFLARE_API_TOKEN` 和 `CLOUDFLARE_ACCOUNT_ID`
-  - `staging` / `production` 环境里的 D1、R2 占位值需要先替换成真实资源 ID
-- 发布后校验会自动跑：`health`、`agent/tools`、`audit/events`、浏览器 smoke
+- 远端环境已完成：
+  - 主站生产：`https://sinoport.co`
+  - 主站 staging：`https://staging.sinoport.co`
+  - 后台生产：`https://admin.sinoport.co`
+  - 后台 staging：`https://staging-admin.sinoport.co`
+  - API 生产：`https://api.sinoport.co`
+  - API staging：`https://staging-api.sinoport.co`
+  - Agent 生产：`https://agent.sinoport.co`
+  - Agent staging：`https://staging-agent.sinoport.co`
+- 发布后校验已覆盖：`health`、`agent/tools`、`audit/events`、浏览器 smoke
 
 当前代码侧已完成：
 
@@ -42,12 +47,13 @@
 - PDA 深层对象写链
 - Agent 会话服务与 `station/copilot`
 - CI / smoke / release workflow
+- Cloudflare Pages / Workers / D1 / R2 的 `staging / production` 发布
 
-当前剩余只有真实云环境条件：
+当前剩余主要是治理事项：
 
-- 替换 `wrangler` 里的 `staging / production` D1、R2 占位值
-- 配置 GitHub `CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID`
-- 实际执行 `staging` 与 `production` 发布
+- 将 `AUTH_TOKEN_SECRET` 切换为真正的 Cloudflare secret
+- 收紧 demo 账号与本地 bootstrap 逻辑
+- 处理 `admin-assets / 静态路由产物` 的版本管理策略
 
 建议命令：
 
@@ -57,6 +63,16 @@ npm run dev:api
 npm run dev:agent
 npm run test:smoke:api
 ```
+
+## 产物治理
+
+- 当前发布脚本会在仓库根目录生成：
+  - `admin-assets/`
+  - 根级静态路由目录下的 `index.html`
+- 这些文件用于静态站发布，但会污染日常开发工作区。
+- 建议下一步二选一：
+  - 保留入库：把它们视为正式发布产物，并规范 commit 方式
+  - 改为临时产物：只在 CI / 临时目录中生成，不再在主工作区保留
 
 ## 页面原型
 

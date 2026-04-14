@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -38,19 +38,6 @@ import {
   uploadStationFileByTicket,
   useGetStationDocuments
 } from 'api/station';
-import {
-  getDocumentVersions,
-  getGateEvaluationsForDocument,
-  getStationDocument,
-  inboundDocumentGates,
-  instructionTemplateRows,
-  outboundDocumentGates,
-  stationDocumentRows
-} from 'data/sinoport-adapters';
-
-function buildInitialVersionState() {
-  return Object.fromEntries(stationDocumentRows.map((item) => [item.documentId, item.activeVersionId]));
-}
 
 function getVersionLabel(versions, versionId) {
   return versions.find((item) => item.versionId === versionId)?.version || versions.at(-1)?.version || '-';
@@ -70,10 +57,33 @@ function buildActivityEntry(id, title, description, status, bindingTargets = [])
   };
 }
 
+const EMPTY_DOCUMENT = {
+  documentId: '',
+  type: '--',
+  name: '--',
+  linkedTo: '--',
+  version: '--',
+  updatedAt: '--',
+  status: 'Pending',
+  activeVersionId: '',
+  previewType: 'file',
+  nextStep: '--',
+  gateIds: [],
+  bindingTargets: []
+};
+
 export default function StationDocumentsPage() {
-  const { stationDocuments, stationDocumentsUsingMock } = useGetStationDocuments();
-  const [selectedDocumentId, setSelectedDocumentId] = useState(stationDocumentRows[0]?.documentId || '');
-  const [activeVersionByDoc, setActiveVersionByDoc] = useState(buildInitialVersionState);
+  const {
+    stationDocuments,
+    documentVersionsByDocumentId,
+    inboundDocumentGates,
+    outboundDocumentGates,
+    instructionTemplateRows,
+    documentGateEvaluationsByDocumentId,
+    stationDocumentsUsingMock
+  } = useGetStationDocuments();
+  const [selectedDocumentId, setSelectedDocumentId] = useState('');
+  const [activeVersionByDoc, setActiveVersionByDoc] = useState({});
   const [previewVersionId, setPreviewVersionId] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -87,57 +97,55 @@ export default function StationDocumentsPage() {
     relatedObjectId: 'AWB-436-10358585',
     storageKey: 'station/MME/manual/sample-pod.pdf'
   });
-  const [activityLog, setActivityLog] = useState([
-    buildActivityEntry(
-      'DOC-ACT-001',
-      'Manifest 最终版待冻结',
-      'SE913 当前仍命中 HG-01，需冻结最终版后才能解除机坪放行阻断。',
-      '警戒',
-      stationDocumentRows.find((item) => item.documentId === 'DOC-MANIFEST-SE913')?.bindingTargets || []
-    )
-  ]);
+  const [activityLog, setActivityLog] = useState([]);
+  const activitySeededRef = useRef(false);
 
   const selectedDocument = useMemo(
-    () => stationDocuments.find((item) => item.documentId === selectedDocumentId) || getStationDocument(selectedDocumentId),
+    () => stationDocuments.find((item) => item.documentId === selectedDocumentId) || stationDocuments[0] || EMPTY_DOCUMENT,
     [selectedDocumentId, stationDocuments]
   );
   const selectedVersions = useMemo(() => {
-    const matchedLive = stationDocuments.find((item) => item.documentId === selectedDocumentId);
+    const matchedVersions = documentVersionsByDocumentId[selectedDocument?.documentId || selectedDocumentId] || [];
 
-    if (matchedLive) {
-      return [
-        {
-          versionId: matchedLive.activeVersionId,
-          version: matchedLive.version,
-          status: matchedLive.status,
-          updatedAt: matchedLive.updatedAt,
-          diffSummary: '当前来自真实接口',
-          previewSummary: '当前来自真实接口，仅保留元数据与版本摘要。',
-          previewType: matchedLive.previewType,
-          sortOrder: 1
-        }
-      ];
+    if (matchedVersions.length) {
+      return matchedVersions;
     }
 
-    return getDocumentVersions(selectedDocumentId);
-  }, [selectedDocumentId, stationDocuments]);
-  const activeVersionId = activeVersionByDoc[selectedDocumentId] || selectedDocument?.activeVersionId;
+    if (!selectedDocument) {
+      return [];
+    }
+
+    return [
+      {
+        versionId: selectedDocument.activeVersionId,
+        version: selectedDocument.version,
+        status: selectedDocument.status,
+        updatedAt: selectedDocument.updatedAt,
+        diffSummary: '当前来自 API 汇总，仅保留台账与版本摘要。',
+        previewSummary: '当前来自 API 汇总，仅保留元数据与版本摘要。',
+        previewType: selectedDocument.previewType,
+        sortOrder: 1,
+        rollbackTarget: null,
+        replacedBy: null
+      }
+    ];
+  }, [documentVersionsByDocumentId, selectedDocument, selectedDocumentId]);
+  const activeVersionId = activeVersionByDoc[selectedDocumentId] || selectedDocument?.activeVersionId || selectedVersions.at(-1)?.versionId;
   const activeVersion = selectedVersions.find((item) => item.versionId === activeVersionId) || selectedVersions.at(-1);
   const previewOpen = Boolean(previewVersionId);
   const previewVersion = selectedVersions.find((item) => item.versionId === previewVersionId) || activeVersion;
   const selectedGateItems = useMemo(
-    () =>
-      getGateEvaluationsForDocument(selectedDocumentId).map((item) => ({
-        gateId: item.gateId,
-        node: item.node,
-        required: item.required,
-        impact: item.impact,
-        status: item.status,
-        blocker: item.blockingReason,
-        recovery: item.recoveryAction,
-        releaseRole: item.releaseRole
-      })),
-    [selectedDocumentId]
+    () => (documentGateEvaluationsByDocumentId[selectedDocument?.documentId || selectedDocumentId] || []).map((item) => ({
+      gateId: item.gateId,
+      node: item.node,
+      required: item.required,
+      impact: item.impact,
+      status: item.status,
+      blocker: item.blocker,
+      recovery: item.recovery,
+      releaseRole: item.releaseRole
+    })),
+    [documentGateEvaluationsByDocumentId, selectedDocument, selectedDocumentId]
   );
 
   const metrics = [
@@ -148,7 +156,7 @@ export default function StationDocumentsPage() {
   ];
 
   const rowsWithVersionState = stationDocuments.map((item) => {
-    const versions = getDocumentVersions(item.documentId);
+    const versions = documentVersionsByDocumentId[item.documentId] || [];
     const currentVersionId = activeVersionByDoc[item.documentId] || item.activeVersionId;
     const currentVersion = versions.find((entry) => entry.versionId === currentVersionId) || versions.at(-1);
 
@@ -158,14 +166,43 @@ export default function StationDocumentsPage() {
     };
   });
 
+  useEffect(() => {
+    if (!stationDocuments.length) return;
+
+    setSelectedDocumentId((prev) => {
+      if (prev && stationDocuments.some((item) => item.documentId === prev)) {
+        return prev;
+      }
+
+      return stationDocuments[0].documentId;
+    });
+  }, [stationDocuments]);
+
+  useEffect(() => {
+    if (activitySeededRef.current || !selectedDocument?.documentId) return;
+
+    activitySeededRef.current = true;
+    setActivityLog([
+      buildActivityEntry(
+        'DOC-ACT-001',
+        'Manifest 最终版待冻结',
+        'SE913 当前仍命中 HG-01，需冻结最终版后才能解除机坪放行阻断。',
+        '警戒',
+        selectedDocument.bindingTargets || []
+      )
+    ]);
+  }, [selectedDocument]);
+
   function pushActivity(title, description, status) {
     setActivityLog((prev) => [
-      buildActivityEntry(`DOC-ACT-${Date.now()}`, title, description, status, selectedDocument.bindingTargets),
+      buildActivityEntry(`DOC-ACT-${Date.now()}`, title, description, status, selectedDocument?.bindingTargets || []),
       ...prev
     ].slice(0, 6));
   }
 
   function handlePreview(versionId = activeVersion?.versionId) {
+    if (!versionId) return;
+
     setPreviewLoading(true);
     setPreviewVersionId(versionId);
     if (!selectedDocument?.documentId) {
@@ -187,6 +224,8 @@ export default function StationDocumentsPage() {
   }
 
   function handleReplace() {
+    if (!selectedDocument?.documentId) return;
+
     const candidate =
       selectedVersions.find((item) => item.status === '待发布' && item.versionId !== activeVersion?.versionId) ||
       selectedVersions.at(-1);
@@ -199,12 +238,14 @@ export default function StationDocumentsPage() {
     }));
     pushActivity(
       `${selectedDocument.type} 替换为 ${candidate.version}`,
-      `${selectedDocument.name} 已切换到待发布版本，当前页 mock 口径会据此展示最新差异摘要。`,
+      `${selectedDocument.name} 已切换到待发布版本，当前页会据此展示最新差异摘要。`,
       '运行中'
     );
   }
 
   function handleRollback() {
+    if (!selectedDocument?.documentId) return;
+
     const rollbackVersionId =
       activeVersion?.rollbackTarget ||
       [...selectedVersions].reverse().find((item) => item.sortOrder < (activeVersion?.sortOrder || 0))?.versionId;

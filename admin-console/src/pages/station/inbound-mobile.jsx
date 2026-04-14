@@ -4,26 +4,16 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { Link as RouterLink } from 'react-router-dom';
 
-import { useGetMobileTasks } from 'api/station';
+import { useGetStationInboundMobileOverview } from 'api/station';
 import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { inboundFlights } from 'data/sinoport';
-
-function buildTaskSummary(tasks) {
-  return {
-    total: tasks.length,
-    queued: tasks.filter((item) => ['Created', 'Assigned', 'Accepted'].includes(item.task_status)).length,
-    active: tasks.filter((item) => ['Started', 'Evidence Uploaded'].includes(item.task_status)).length,
-    completed: tasks.filter((item) => ['Completed', 'Verified', 'Closed'].includes(item.task_status)).length
-  };
-}
 
 export default function StationInboundMobilePage() {
-  const { mobileTasks } = useGetMobileTasks();
-  const inboundTasks = mobileTasks.filter((item) => item.flight_no);
-  const summary = buildTaskSummary(inboundTasks);
+  const { inboundFlights, mobileTasks, inboundMobileSummary } = useGetStationInboundMobileOverview();
+  const inboundTasks = mobileTasks.filter((item) => item.flightNo);
+  const summary = inboundMobileSummary;
 
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
@@ -47,20 +37,20 @@ export default function StationInboundMobilePage() {
       </Grid>
 
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="任务总数" value={`${summary.total}`} helper="当前进港移动任务" chip="All" color="primary" />
+        <MetricCard title="任务总数" value={`${summary.totalTasks}`} helper="当前进港移动任务" chip="All" color="primary" />
       </Grid>
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="待领取/待开始" value={`${summary.queued}`} helper="Created / Assigned / Accepted" chip="Queue" color="warning" />
+        <MetricCard title="待领取/待开始" value={`${summary.queuedTasks}`} helper="Created / Assigned / Accepted" chip="Queue" color="warning" />
       </Grid>
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="执行中" value={`${summary.active}`} helper="Started / Evidence Uploaded" chip="Active" color="secondary" />
+        <MetricCard title="执行中" value={`${summary.activeTasks}`} helper="Started / Evidence Uploaded" chip="Active" color="secondary" />
       </Grid>
       <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-        <MetricCard title="已完成" value={`${summary.completed}`} helper="Completed / Verified / Closed" chip="Done" color="success" />
+        <MetricCard title="已完成" value={`${summary.completedTasks}`} helper="Completed / Verified / Closed" chip="Done" color="success" />
       </Grid>
 
       {inboundFlights.map((flight) => {
-        const flightTasks = inboundTasks.filter((item) => item.flight_no === flight.flightNo);
+        const flightTasks = inboundTasks.filter((item) => item.flightNo === flight.flightNo);
 
         return (
           <Grid key={flight.flightNo} size={{ xs: 12, xl: 6 }}>
@@ -73,7 +63,7 @@ export default function StationInboundMobilePage() {
                 {flightTasks.length ? (
                   flightTasks.map((task) => (
                     <Stack
-                      key={task.task_id}
+                      key={task.taskId}
                       direction="row"
                       sx={{
                         justifyContent: 'space-between',
@@ -86,12 +76,12 @@ export default function StationInboundMobilePage() {
                       }}
                     >
                       <Stack sx={{ gap: 0.35, minWidth: 0 }}>
-                        <Typography variant="subtitle2">{task.task_type}</Typography>
+                        <Typography variant="subtitle2">{task.taskType}</Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {task.task_id} · {task.execution_node}
+                          {task.taskId} · {task.executionNode}
                         </Typography>
                       </Stack>
-                      <StatusChip label={task.task_status} />
+                      <StatusChip label={task.taskStatus} />
                     </Stack>
                   ))
                 ) : (

@@ -10,10 +10,12 @@ import TableRow from '@mui/material/TableRow';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { platformStationTeamRows } from 'data/sinoport-adapters';
+import { useGetPlatformStations } from 'api/platform';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function PlatformStationsTeamsPage() {
+  const { platformStationTeamRows } = useGetPlatformStations();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

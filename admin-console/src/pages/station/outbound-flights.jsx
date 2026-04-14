@@ -17,8 +17,7 @@ import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { useGetOutboundFlights } from 'api/station';
-import { ffmForecastRows, manifestSummary, outboundFlights } from 'data/sinoport';
+import { useGetStationOutboundOverview } from 'api/station';
 import { useMobileState } from 'hooks/useMobileState';
 import { getMobileStationKey, readMobileSession } from 'utils/mobile/session';
 
@@ -36,7 +35,7 @@ const officeOutboundPlans = [
 ];
 
 export default function StationOutboundFlightsPage() {
-  const { outboundFlights: liveOutboundFlights, outboundFlightsUsingMock } = useGetOutboundFlights();
+  const { outboundFlights, ffmForecastRows, manifestSummary } = useGetStationOutboundOverview();
   const stationKey = getMobileStationKey(readMobileSession() || { stationCode: 'MME' });
   const { state: pmcBoards, setState: setPmcBoards } = useMobileState(`sinoport-mobile-outbound-containers-${stationKey}`, []);
   const [uldForm, setUldForm] = useState({
@@ -45,8 +44,8 @@ export default function StationOutboundFlightsPage() {
     awbs: '436-10357583, 436-10357896',
     aircraftPosition: '15L'
   });
+  const rows = outboundFlights;
 
-  const rows = outboundFlightsUsingMock ? outboundFlights : liveOutboundFlights;
   const metrics = [
     { title: '待飞走航班', value: `${rows.length}`, helper: '当前在本站处理的出港航班', chip: 'Flights', color: 'primary' },
     { title: 'Manifest 版本', value: manifestSummary.version, helper: manifestSummary.exchange, chip: 'Manifest', color: 'secondary' },

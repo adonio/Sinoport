@@ -17,10 +17,22 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
-import { ffmForecastRows, manifestRows, manifestSummary, masterAwbRows, outboundFlights, receiptRows, uwsRows } from 'data/sinoport';
-import { outboundDocumentGates, outboundLifecycleRows, stationBlockerQueue } from 'data/sinoport-adapters';
+import { useGetStationOutboundOverview } from 'api/station';
 
 export default function StationOutboundPage() {
+  const {
+    outboundFlights,
+    ffmForecastRows,
+    manifestRows,
+    manifestSummary,
+    masterAwbRows,
+    receiptRows,
+    uwsRows,
+    outboundDocumentGates,
+    outboundLifecycleRows,
+    stationBlockerQueue
+  } = useGetStationOutboundOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

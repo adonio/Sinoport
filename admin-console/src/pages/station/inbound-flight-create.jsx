@@ -10,17 +10,20 @@ import { Link as RouterLink } from 'react-router-dom';
 
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
-import { inboundFlightSourceOptions } from 'data/sinoport';
+import { useGetInboundFlightCreateOptions } from 'api/station';
 
-const initialForm = {
-  flightNo: '',
-  source: inboundFlightSourceOptions[0],
-  eta: '',
-  etd: ''
-};
+function createInitialForm(source = '') {
+  return {
+    flightNo: '',
+    source,
+    eta: '',
+    etd: ''
+  };
+}
 
 export default function StationInboundFlightCreatePage() {
-  const [form, setForm] = useState(initialForm);
+  const { inboundFlightCreateOptions } = useGetInboundFlightCreateOptions();
+  const [form, setForm] = useState(() => createInitialForm(inboundFlightCreateOptions[0] || ''));
   const [submitted, setSubmitted] = useState(null);
 
   const isComplete = useMemo(
@@ -67,7 +70,7 @@ export default function StationInboundFlightCreatePage() {
           <Stack component="form" onSubmit={handleSubmit} sx={{ gap: 2.5 }}>
             <TextField label="航班号" value={form.flightNo} onChange={handleChange('flightNo')} placeholder="例如：SE803" />
             <TextField select label="来源" value={form.source} onChange={handleChange('source')}>
-              {inboundFlightSourceOptions.map((item) => (
+              {inboundFlightCreateOptions.map((item) => (
                 <MenuItem key={item} value={item}>
                   {item}
                 </MenuItem>
@@ -93,7 +96,7 @@ export default function StationInboundFlightCreatePage() {
                 type="button"
                 variant="outlined"
                 onClick={() => {
-                  setForm(initialForm);
+                  setForm(createInitialForm(inboundFlightCreateOptions[0] || ''));
                   setSubmitted(null);
                 }}
               >

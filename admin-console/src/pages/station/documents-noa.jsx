@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
@@ -18,17 +18,12 @@ import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import { openSnackbar } from 'api/snackbar';
 import { processInboundNoa, useGetNoaNotifications } from 'api/station';
-import { getGateEvaluationsByGateId, getHardGatePolicy, noaNotificationRows } from 'data/sinoport-adapters';
-
-function buildInitialState() {
-  return Object.fromEntries(noaNotificationRows.map((item) => [item.id, { status: item.status, note: item.note }]));
-}
 
 export default function StationDocumentsNoaPage() {
-  const { noaNotifications } = useGetNoaNotifications();
-  const [selectedId, setSelectedId] = useState(noaNotificationRows[0]?.id || '');
+  const { noaNotifications, noaGateEvaluationsByGateId, noaHardGatePoliciesByGateId } = useGetNoaNotifications();
+  const [selectedId, setSelectedId] = useState('');
   const [activeAction, setActiveAction] = useState('');
-  const [rowState, setRowState] = useState(buildInitialState);
+  const [rowState, setRowState] = useState({});
   const [actionLog, setActionLog] = useState([
     {
       id: 'NOA-ACT-001',
@@ -38,21 +33,34 @@ export default function StationDocumentsNoaPage() {
     }
   ]);
 
-  const selectedRow = noaNotifications.find((item) => item.id === selectedId) || noaNotifications[0] || noaNotificationRows[0];
-  const gatePolicy = getHardGatePolicy(selectedRow.gateId);
+  useEffect(() => {
+    if (!noaNotifications.length) {
+      return;
+    }
+
+    const selectedExists = noaNotifications.some((item) => item.id === selectedId);
+    if (!selectedId || !selectedExists) {
+      setSelectedId(noaNotifications[0].id);
+    }
+  }, [noaNotifications, selectedId]);
+
+  const selectedRow = noaNotifications.find((item) => item.id === selectedId) || noaNotifications[0] || null;
+  const gatePolicy = selectedRow ? noaHardGatePoliciesByGateId[selectedRow.gateId] || null : null;
   const gateItems = useMemo(
     () =>
-      getGateEvaluationsByGateId(selectedRow.gateId).map((item) => ({
-        gateId: item.gateId,
-        node: item.node,
-        required: item.required,
-        impact: item.impact,
-        status: item.status,
-        blocker: item.blockingReason,
-        recovery: item.recoveryAction,
-        releaseRole: item.releaseRole
-      })),
-    [selectedRow.gateId]
+      selectedRow
+        ? (noaGateEvaluationsByGateId[selectedRow.gateId] || []).map((item) => ({
+            gateId: item.gateId,
+            node: item.node,
+            required: item.required,
+            impact: item.impact,
+            status: item.status,
+            blocker: item.blocker,
+            recovery: item.recovery,
+            releaseRole: item.releaseRole
+          }))
+        : [],
+    [noaGateEvaluationsByGateId, selectedRow]
   );
 
   function pushLog(title, description, status) {
@@ -68,6 +76,8 @@ export default function StationDocumentsNoaPage() {
   }
 
   function updateRow(nextStatus, nextNote) {
+    if (!selectedRow) return;
+
     setRowState((prev) => ({
       ...prev,
       [selectedRow.id]: {
@@ -78,7 +88,7 @@ export default function StationDocumentsNoaPage() {
   }
 
   async function handleValidate() {
-    if (!selectedRow.awbId) return;
+    if (!selectedRow?.awbId) return;
 
     try {
       setActiveAction('validate');
@@ -104,7 +114,7 @@ export default function StationDocumentsNoaPage() {
   }
 
   async function handleRetry() {
-    if (!selectedRow.awbId) {
+    if (!selectedRow?.awbId) {
       return;
     }
 
@@ -126,7 +136,7 @@ export default function StationDocumentsNoaPage() {
   }
 
   async function handleManualSend() {
-    if (!selectedRow.awbId) {
+    if (!selectedRow?.awbId) {
       return;
     }
 
@@ -215,10 +225,10 @@ export default function StationDocumentsNoaPage() {
           <Stack sx={{ gap: 1.5 }}>
             <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
               <Stack sx={{ gap: 0.35 }}>
-                <StatusChip label={selectedRow.gateId} color="secondary" />
-                <StatusChip label={rowState[selectedRow.id]?.status || selectedRow.status} />
+                <StatusChip label={selectedRow?.gateId || '--'} color="secondary" />
+                <StatusChip label={(selectedRow && rowState[selectedRow.id]?.status) || selectedRow?.status || '--'} />
               </Stack>
-              <Button component={RouterLink} to={selectedRow.objectTo} variant="outlined">
+              <Button component={RouterLink} to={selectedRow?.objectTo || '/station/shipments'} variant="outlined">
                 查看履约对象
               </Button>
               <Button component={RouterLink} to="/station/tasks" variant="outlined">
@@ -227,20 +237,20 @@ export default function StationDocumentsNoaPage() {
             </Stack>
 
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="contained" onClick={handleValidate} disabled={activeAction === 'validate' || !selectedRow.awbId}>
-                发送前校验
-              </Button>
-              <Button variant="outlined" onClick={handleRetry} disabled={activeAction === 'retry' || !selectedRow.awbId}>
-                重试发送
-              </Button>
-              <Button variant="outlined" onClick={handleManualSend} disabled={activeAction === 'manual_send' || !selectedRow.awbId}>
-                人工补发
-              </Button>
-            </Stack>
+                <Button variant="contained" onClick={handleValidate} disabled={activeAction === 'validate' || !selectedRow?.awbId}>
+                  发送前校验
+                </Button>
+                <Button variant="outlined" onClick={handleRetry} disabled={activeAction === 'retry' || !selectedRow?.awbId}>
+                  重试发送
+                </Button>
+                <Button variant="outlined" onClick={handleManualSend} disabled={activeAction === 'manual_send' || !selectedRow?.awbId}>
+                  人工补发
+                </Button>
+              </Stack>
 
-            <Stack sx={{ gap: 0.5 }}>
-              <Typography variant="subtitle2">{gatePolicy?.rule}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Stack sx={{ gap: 0.5 }}>
+                <Typography variant="subtitle2">{gatePolicy?.rule}</Typography>
+                <Typography variant="body2" color="text.secondary">
                 触发节点：{gatePolicy?.triggerNode}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -249,14 +259,14 @@ export default function StationDocumentsNoaPage() {
               <Typography variant="body2" color="text.secondary">
                 恢复动作：{gatePolicy?.recovery}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                放行角色：{gatePolicy?.releaseRole}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                当前说明：{rowState[selectedRow.id]?.note || selectedRow.note}
-              </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  放行角色：{gatePolicy?.releaseRole}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                当前说明：{(selectedRow && rowState[selectedRow.id]?.note) || selectedRow?.note || '--'}
+                </Typography>
+              </Stack>
             </Stack>
-          </Stack>
         </MainCard>
       </Grid>
 

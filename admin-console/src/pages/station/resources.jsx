@@ -11,16 +11,18 @@ import { Link as RouterLink } from 'react-router-dom';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { resourceDevices, resourceTeams, resourceZones } from 'data/sinoport-adapters';
+import { useGetStationResourcesOverview } from 'api/station';
 
 export default function StationResourcesPage() {
+  const { resourceDevices, resourceTeams, resourceZones } = useGetStationResourcesOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
           eyebrow="Teams / Zones / Devices"
           title="班组 / 区位 / 设备管理"
-          description="第二批把资源页扩成资源总览入口，继续保持纯前端 demo，但按班组、区位、设备、车辆分页面展示。"
+          description="资源页改为统一的后端总览接口驱动，按班组、区位、设备、车辆分页面展示。"
           chips={['Teams', 'Zones', 'PDA Devices', 'Vehicles']}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>

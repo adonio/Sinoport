@@ -10,10 +10,12 @@ import TableRow from '@mui/material/TableRow';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { resourceZones } from 'data/sinoport-adapters';
+import { useGetStationResourcesOverview } from 'api/station';
 import { Link as RouterLink } from 'react-router-dom';
 
 export default function StationResourcesZonesPage() {
+  const { resourceZones } = useGetStationResourcesOverview();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>

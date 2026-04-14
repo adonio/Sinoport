@@ -32,17 +32,6 @@ import {
   useGetStationTasks,
   verifyStationTask
 } from 'api/station';
-import {
-  exceptionDetailRows,
-  getGateEvaluationsForTask,
-  getHardGatePolicy,
-  inboundDocumentGates,
-  outboundDocumentGates,
-  scenarioTimelineRows,
-  stationBlockerQueue,
-  stationReviewQueue,
-  stationTaskBoard
-} from 'data/sinoport-adapters';
 
 const mobileOfficeMatrix = [
   {
@@ -108,13 +97,20 @@ function getTaskDocumentPath(task) {
 }
 
 function getTaskExceptionPath(task) {
-  return exceptionDetailRows.find((item) => item.objectTo === task.objectTo || item.gateId === task.gateIds[0])?.id
-    ? `/station/exceptions/${exceptionDetailRows.find((item) => item.objectTo === task.objectTo || item.gateId === task.gateIds[0]).id}`
-    : '/station/exceptions';
+  return task.exceptionId ? `/station/exceptions/${task.exceptionId}` : '/station/exceptions';
 }
 
 export default function StationTasksPage() {
-  const { stationTasks, stationTaskSummaryCards } = useGetStationTasks();
+  const {
+    stationTasks,
+    stationTaskSummaryCards,
+    stationTaskBlockerQueue,
+    stationTaskReviewQueue,
+    stationTaskInboundDocumentGates,
+    stationTaskOutboundDocumentGates,
+    stationTaskTimelineRows,
+    stationTaskGateEvaluationRows
+  } = useGetStationTasks();
   const [activeMutationId, setActiveMutationId] = useState('');
   const [assignDialogTask, setAssignDialogTask] = useState(null);
   const [exceptionDialogTask, setExceptionDialogTask] = useState(null);
@@ -297,7 +293,7 @@ export default function StationTasksPage() {
       </Grid>
 
       <Grid size={12}>
-        <BlockingReasonAlert title="当前硬门槛阻断" reasons={stationBlockerQueue.map((item) => `${item.title} · ${item.description}`)} />
+        <BlockingReasonAlert title="当前硬门槛阻断" reasons={stationTaskBlockerQueue.map((item) => `${item.title} · ${item.description}`)} />
       </Grid>
 
       {stationTaskSummaryCards.map((item) => (
@@ -470,60 +466,35 @@ export default function StationTasksPage() {
         <TaskQueueCard
           title="待复核与待升级"
           items={[
-            ...stationReviewQueue.map((item) => ({
+            ...stationTaskReviewQueue.map((item) => ({
               ...item,
-              meta: `${getHardGatePolicy(item.gateId)?.releaseRole || '需独立复核或主管确认'} · ${item.description}`,
               actions: [
                 { label: '单证中心', to: '/station/documents', variant: 'outlined' },
                 { label: '履约链路', to: '/station/shipments', variant: 'outlined' }
               ]
-            })),
-            {
-              id: 'ESC-0408-001',
-              title: 'HG-08 · SE913 机坪放行已超时',
-              description: 'Manifest 未冻结导致 Loaded 确认延迟，建议升级到 Export Supervisor。',
-              meta: getHardGatePolicy('HG-08')?.recovery,
-              status: '待升级',
-              actions: [
-                { label: '异常中心', to: '/station/exceptions', variant: 'outlined' },
-                { label: '单证中心', to: '/station/documents', variant: 'outlined' }
-              ]
-            }
+            }))
           ]}
         />
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <DocumentStatusCard title="进港门槛摘要" items={inboundDocumentGates} />
+        <DocumentStatusCard title="进港门槛摘要" items={stationTaskInboundDocumentGates} />
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <DocumentStatusCard title="出港门槛摘要" items={outboundDocumentGates} />
+        <DocumentStatusCard title="出港门槛摘要" items={stationTaskOutboundDocumentGates} />
       </Grid>
 
       <Grid size={12}>
         <MainCard title="标准场景编排">
-          <LifecycleStepList steps={scenarioTimelineRows.map((item, index) => ({ ...item, progress: Math.max(18, 100 - index * 20) }))} />
+          <LifecycleStepList steps={stationTaskTimelineRows} />
         </MainCard>
       </Grid>
 
       <Grid size={12}>
         <TaskQueueCard
           title="任务与硬门槛映射"
-          items={stationTaskBoard.flatMap((item) =>
-            getGateEvaluationsForTask(item.id).map((evaluation) => ({
-              id: `${item.id}-${evaluation.gateId}`,
-              title: `${item.title} · ${evaluation.gateId}`,
-              description: evaluation.blockingReason,
-              meta: `恢复动作：${evaluation.recoveryAction} · 放行角色：${evaluation.releaseRole}`,
-              status: evaluation.status,
-              actions: [
-                { label: '对象详情', to: item.objectTo, variant: 'outlined' },
-                { label: '单证中心', to: '/station/documents', variant: 'outlined' },
-                { label: '异常中心', to: '/station/exceptions', variant: 'outlined' }
-              ]
-            }))
-          )}
+          items={stationTaskGateEvaluationRows}
         />
       </Grid>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
@@ -18,17 +18,12 @@ import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import { openSnackbar } from 'api/snackbar';
 import { processInboundPod, useGetPodNotifications } from 'api/station';
-import { getGateEvaluationsByGateId, getHardGatePolicy, podNotificationRows } from 'data/sinoport-adapters';
-
-function buildInitialState() {
-  return Object.fromEntries(podNotificationRows.map((item) => [item.id, { status: item.status, note: item.note }]));
-}
 
 export default function StationDocumentsPodPage() {
-  const { podNotifications } = useGetPodNotifications();
-  const [selectedId, setSelectedId] = useState(podNotificationRows[0]?.id || '');
+  const { podNotifications, podGateEvaluationsByGateId, podHardGatePoliciesByGateId } = useGetPodNotifications();
+  const [selectedId, setSelectedId] = useState('');
   const [activeAction, setActiveAction] = useState('');
-  const [rowState, setRowState] = useState(buildInitialState);
+  const [rowState, setRowState] = useState({});
   const [actionLog, setActionLog] = useState([
     {
       id: 'POD-ACT-001',
@@ -38,22 +33,20 @@ export default function StationDocumentsPodPage() {
     }
   ]);
 
-  const selectedRow = podNotifications.find((item) => item.id === selectedId) || podNotifications[0] || podNotificationRows[0];
-  const gatePolicy = getHardGatePolicy(selectedRow.gateId);
-  const gateItems = useMemo(
-    () =>
-      getGateEvaluationsByGateId(selectedRow.gateId).map((item) => ({
-        gateId: item.gateId,
-        node: item.node,
-        required: item.required,
-        impact: item.impact,
-        status: item.status,
-        blocker: item.blockingReason,
-        recovery: item.recoveryAction,
-        releaseRole: item.releaseRole
-      })),
-    [selectedRow.gateId]
-  );
+  useEffect(() => {
+    if (!podNotifications.length) {
+      return;
+    }
+
+    if (!selectedId || !podNotifications.some((item) => item.id === selectedId)) {
+      setSelectedId(podNotifications[0].id);
+    }
+  }, [podNotifications, selectedId]);
+
+  const selectedRow = podNotifications.find((item) => item.id === selectedId) || podNotifications[0] || null;
+  const selectedGateId = selectedRow?.gateId || '';
+  const gatePolicy = selectedGateId ? podHardGatePoliciesByGateId[selectedGateId] || null : null;
+  const gateItems = selectedGateId ? podGateEvaluationsByGateId[selectedGateId] || [] : [];
 
   function pushLog(title, description, status) {
     setActionLog((prev) => [
@@ -68,6 +61,8 @@ export default function StationDocumentsPodPage() {
   }
 
   function updateRow(nextStatus, nextNote) {
+    if (!selectedRow) return;
+
     setRowState((prev) => ({
       ...prev,
       [selectedRow.id]: {
@@ -78,7 +73,7 @@ export default function StationDocumentsPodPage() {
   }
 
   async function handleCheckClose() {
-    if (!selectedRow.awbId) return;
+    if (!selectedRow?.awbId) return;
 
     try {
       setActiveAction('validate_close');
@@ -105,7 +100,7 @@ export default function StationDocumentsPodPage() {
   }
 
   async function handleConfirmSign() {
-    if (!selectedRow.awbId) {
+    if (!selectedRow?.awbId) {
       return;
     }
 
@@ -132,7 +127,7 @@ export default function StationDocumentsPodPage() {
   }
 
   async function handleArchive() {
-    if (!selectedRow.awbId) {
+    if (!selectedRow?.awbId) {
       return;
     }
 
@@ -164,7 +159,7 @@ export default function StationDocumentsPodPage() {
         <PageHeader
           eyebrow="POD Actions"
           title="POD 通知与补签"
-          description="展示双签阻断、补签后状态变化和归档前校验。当前页统一从 HG-06 读取阻断逻辑。"
+          description="展示双签阻断、补签后状态变化和归档前校验。当前页统一从后端 overview 读取 POD 列表与 HG-06 阻断逻辑。"
           chips={['Double Sign', 'Gate Check', 'Archive']}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
@@ -224,10 +219,10 @@ export default function StationDocumentsPodPage() {
           <Stack sx={{ gap: 1.5 }}>
             <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
               <Stack sx={{ gap: 0.35 }}>
-                <StatusChip label={selectedRow.gateId} color="secondary" />
-                <StatusChip label={rowState[selectedRow.id]?.status || selectedRow.status} />
+                <StatusChip label={selectedGateId || '--'} color="secondary" />
+                <StatusChip label={(selectedRow && rowState[selectedRow.id]?.status) || selectedRow?.status || '--'} />
               </Stack>
-              <Button component={RouterLink} to={selectedRow.objectTo} variant="outlined">
+              <Button component={RouterLink} to={selectedRow?.objectTo || '/station/shipments'} variant="outlined">
                 查看履约对象
               </Button>
               <Button component={RouterLink} to="/station/tasks" variant="outlined">
@@ -236,33 +231,33 @@ export default function StationDocumentsPodPage() {
             </Stack>
 
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="contained" onClick={handleCheckClose} disabled={activeAction === 'validate_close' || !selectedRow.awbId}>
+              <Button variant="contained" onClick={handleCheckClose} disabled={activeAction === 'validate_close' || !selectedRow?.awbId}>
                 关闭前校验
               </Button>
-              <Button variant="outlined" onClick={handleConfirmSign} disabled={activeAction === 'confirm_sign' || !selectedRow.awbId}>
+              <Button variant="outlined" onClick={handleConfirmSign} disabled={activeAction === 'confirm_sign' || !selectedRow?.awbId}>
                 补签确认
               </Button>
-              <Button variant="outlined" onClick={handleArchive} disabled={activeAction === 'archive' || !selectedRow.awbId}>
+              <Button variant="outlined" onClick={handleArchive} disabled={activeAction === 'archive' || !selectedRow?.awbId}>
                 执行归档
               </Button>
             </Stack>
 
             <Stack sx={{ gap: 0.5 }}>
-              <Typography variant="subtitle2">{gatePolicy?.rule}</Typography>
+              <Typography variant="subtitle2">{gatePolicy?.rule || '--'}</Typography>
               <Typography variant="body2" color="text.secondary">
-                触发节点：{gatePolicy?.triggerNode}
+                触发节点：{gatePolicy?.triggerNode || '--'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                阻断结果：{gatePolicy?.blocker}
+                阻断结果：{gatePolicy?.blocker || '--'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                恢复动作：{gatePolicy?.recovery}
+                恢复动作：{gatePolicy?.recovery || '--'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                放行角色：{gatePolicy?.releaseRole}
+                放行角色：{gatePolicy?.releaseRole || '--'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                当前说明：{rowState[selectedRow.id]?.note || selectedRow.note}
+                当前说明：{(selectedRow && rowState[selectedRow.id]?.note) || selectedRow?.note || '--'}
               </Typography>
             </Stack>
           </Stack>

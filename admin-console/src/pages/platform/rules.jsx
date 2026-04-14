@@ -20,10 +20,20 @@ import DownOutlined from '@ant-design/icons/DownOutlined';
 import LifecycleStepList from 'components/sinoport/LifecycleStepList';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
-import { evidencePolicyRows, getGateEvaluationsByGateId, hardGatePolicyRows, ruleOverviewRows, ruleTemplateRows, scenarioTimelineRows } from 'data/sinoport-adapters';
-import { exceptionTaxonomy, interfaceStatus } from 'data/sinoport';
+import { useGetPlatformRules } from 'api/platform';
 
 export default function PlatformRulesPage() {
+  const {
+    ruleOverviewRows,
+    hardGatePolicyRows,
+    ruleTemplateRows,
+    evidencePolicyRows,
+    scenarioTimelineRows,
+    gateEvaluationRows,
+    exceptionTaxonomy,
+    interfaceStatus
+  } = useGetPlatformRules();
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
@@ -91,7 +101,7 @@ export default function PlatformRulesPage() {
                       放行角色：{rule.releaseRole}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      当前 demo 命中 {getGateEvaluationsByGateId(rule.id).length} 处对象或任务。
+                      当前命中 {gateEvaluationRows.filter((item) => item.gateId === rule.id).length} 处对象或任务。
                     </Typography>
                   </Stack>
                 </AccordionDetails>
