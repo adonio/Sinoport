@@ -18,6 +18,10 @@ export function buildStationObjectDetailUrl(objectType = 'station', objectKey = 
     return objectKey ? `/station/inbound/waybills/${encodeURIComponent(objectKey)}` : '/station/inbound/waybills';
   }
 
+  if (objectType === 'Document') {
+    return objectKey ? `/station/documents?document_id=${encodeURIComponent(objectKey)}` : '/station/documents';
+  }
+
   if (objectType === 'Shipment') {
     return objectKey ? `/station/shipments/${encodeURIComponent(objectKey)}` : '/station/shipments';
   }
