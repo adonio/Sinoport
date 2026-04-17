@@ -24,6 +24,17 @@ const loadLocaleData = (locale) => {
 
 // ==============================|| LOCALIZATION ||============================== //
 
+function handleIntlError(error) {
+  // Ignore missing translation noise so one missing key doesn't break navigation rendering.
+  if (error && (error.code === 'MISSING_TRANSLATION' || String(error.message || '').includes('Missing message'))) {
+    return;
+  }
+
+  if (console && typeof console.error === 'function') {
+    console.error(error);
+  }
+}
+
 export default function Locales({ children }) {
   const { state } = useConfig();
 
@@ -39,7 +50,7 @@ export default function Locales({ children }) {
   return (
     <>
       {messages && (
-        <IntlProvider locale={state.i18n} defaultLocale="en" messages={messages}>
+        <IntlProvider locale={state.i18n} defaultLocale="en" messages={messages} onError={handleIntlError}>
           {children}
         </IntlProvider>
       )}
