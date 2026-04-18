@@ -156,14 +156,6 @@ async function main() {
       object_type: 'Flight',
       object_key: 'SE803'
     });
-    const taskAssignment = await postJson('/api/v1/agent/tools/request_task_assignment/execute', {
-      task_id: 'TASK-0408-201',
-      assigned_role: 'document_desk',
-      assigned_team_id: 'TEAM-DD-01',
-      assigned_worker_id: 'WORKER-DOC-001',
-      reason: 'Requested from agent smoke'
-    });
-
     if (!tools.ok || !Array.isArray(tools.json?.items) || !tools.json.items.length) {
       throw new Error('agent/tools failed');
     }
@@ -172,6 +164,9 @@ async function main() {
     }
     if (!tools.json.items.some((item) => item.name === 'get_station_document_context')) {
       throw new Error('agent/tools missing get_station_document_context');
+    }
+    if (tools.json.items.some((item) => item.name === 'request_task_assignment')) {
+      throw new Error('agent/tools unexpectedly exposes request_task_assignment');
     }
     if (!workflows.ok || !Array.isArray(workflows.json?.items) || !workflows.json.items.length) {
       throw new Error('agent/workflows failed');
@@ -236,8 +231,12 @@ async function main() {
     if (!openExceptions.ok || !Array.isArray(openExceptions.json?.data?.items)) {
       throw new Error('agent list_open_exceptions failed');
     }
-    if (!taskAssignment.ok || !taskAssignment.json?.data?.task_id) {
-      throw new Error('agent request_task_assignment failed');
+    const forbiddenTool = await postJson('/api/v1/agent/tools/request_task_assignment/execute', {
+      task_id: 'TASK-0408-201',
+      reason: 'Forbidden in M10 validation'
+    });
+    if (forbiddenTool.ok || forbiddenTool.status !== 403) {
+      throw new Error('agent request_task_assignment should be forbidden during M10 validation');
     }
 
     const shipmentContext = await jsonRequest('/api/v1/agent/sessions/test-session/context?object_type=Shipment&object_key=in-436-10358585');
@@ -286,7 +285,7 @@ async function main() {
     console.log(`- get_flight_context: ${flightContext.status}`);
     console.log(`- list_blocking_documents: ${blockingDocuments.status}`);
     console.log(`- list_open_exceptions: ${openExceptions.status}`);
-    console.log(`- request_task_assignment: ${taskAssignment.status}`);
+    console.log(`- request_task_assignment forbidden: ${forbiddenTool.status}`);
     console.log(`- shipment context/plan/message/detail/events: ${shipmentContext.status}/${shipmentPlan.status}/${shipmentMessage.status}/${shipmentDetail.status}/${shipmentEvents.status}`);
   } finally {
     await stopChild(worker);

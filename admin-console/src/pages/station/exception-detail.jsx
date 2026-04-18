@@ -1,6 +1,7 @@
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
+import { useIntl } from 'react-intl';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 
 import { resolveStationException, useGetObjectAudit, useGetStationExceptionDetail } from 'api/station';
@@ -11,6 +12,7 @@ import ObjectAuditTrail from 'components/sinoport/ObjectAuditTrail';
 import ObjectSummaryCard from 'components/sinoport/ObjectSummaryCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 import { buildStationCopilotUrl } from 'utils/copilot';
 
 function buildObjectLink(detail) {
@@ -30,6 +32,9 @@ function buildObjectLink(detail) {
 }
 
 export default function StationExceptionDetailPage() {
+  const intl = useIntl();
+  const m = (value) => formatLocalizedMessage(intl, value);
+  const locale = intl.locale;
   const { exceptionId } = useParams();
   const { stationExceptionDetail } = useGetStationExceptionDetail(exceptionId);
   const { objectAuditEvents, objectAuditTransitions } = useGetObjectAudit('Exception', undefined, exceptionId);
@@ -44,14 +49,14 @@ export default function StationExceptionDetailPage() {
       });
       openSnackbar({
         open: true,
-        message: `${stationExceptionDetail.exception_id} 已恢复`,
+        message: `${stationExceptionDetail.exception_id} ${m('已恢复')}`,
         variant: 'alert',
         alert: { color: 'success' }
       });
     } catch (error) {
       openSnackbar({
         open: true,
-        message: error?.error?.message || '异常恢复失败',
+        message: error?.error?.message || m('异常恢复失败'),
         variant: 'alert',
         alert: { color: 'error' }
       });
@@ -63,12 +68,12 @@ export default function StationExceptionDetailPage() {
       <Grid container rowSpacing={3} columnSpacing={3}>
         <Grid size={12}>
           <PageHeader
-            eyebrow="Exception Detail"
-            title="未找到异常"
-            description={`未找到异常 ${exceptionId || ''}，请返回异常中心重新选择。`}
+            eyebrow={m('异常详情')}
+            title={m('未找到异常')}
+            description={m(`未找到异常 ${exceptionId || ''}，请返回异常中心重新选择。`)}
             action={
               <Button component={RouterLink} to="/station/exceptions" variant="contained">
-                返回异常中心
+                {m('返回异常中心')}
               </Button>
             }
           />
@@ -96,26 +101,38 @@ export default function StationExceptionDetailPage() {
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
-          eyebrow="Exception Detail"
-          title={`异常详情 / ${stationExceptionDetail.exception_id}`}
-          description="异常详情页直接读取真实 Exception 对象、关联文件、阻断任务与对象审计。"
-          chips={[stationExceptionDetail.exception_type, stationExceptionDetail.related_object_label, stationExceptionDetail.severity]}
+          eyebrow={m('异常详情')}
+          title={`${m('异常详情')} / ${stationExceptionDetail.exception_id}`}
+          description={m('异常详情页直接读取真实 Exception 对象、关联文件、阻断任务与对象审计。')}
+          chips={[
+            localizeUiText(locale, stationExceptionDetail.exception_type),
+            localizeUiText(locale, stationExceptionDetail.related_object_label),
+            localizeUiText(locale, stationExceptionDetail.severity)
+          ]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component={RouterLink} to={objectTo} variant="outlined">
-                关联对象
+                {m('关联对象')}
               </Button>
-              <Button component={RouterLink} to={buildStationCopilotUrl('Exception', stationExceptionDetail.exception_id)} variant="outlined">
-                Copilot
+              <Button
+                component={RouterLink}
+                to={buildStationCopilotUrl('Exception', stationExceptionDetail.exception_id)}
+                variant="outlined"
+              >
+                {m('Copilot')}
               </Button>
-              <Button component={RouterLink} to={stationExceptionDetail.linked_task_id ? '/station/tasks' : '/station/documents'} variant="outlined">
-                当前动作
+              <Button
+                component={RouterLink}
+                to={stationExceptionDetail.linked_task_id ? '/station/tasks' : '/station/documents'}
+                variant="outlined"
+              >
+                {m('当前动作')}
               </Button>
               <Button variant="contained" onClick={handleResolve}>
-                恢复异常
+                {m('恢复异常')}
               </Button>
               <Button component={RouterLink} to="/station/exceptions" variant="outlined">
-                返回异常中心
+                {m('返回异常中心')}
               </Button>
             </Stack>
           }
@@ -124,45 +141,60 @@ export default function StationExceptionDetailPage() {
 
       <Grid size={{ xs: 12, xl: 4 }}>
         <ObjectSummaryCard
-          title="异常摘要"
-          subtitle="当前异常对象与阻断信息均来自真实后端。"
+          title={m('异常摘要')}
+          subtitle={m('当前异常对象与阻断信息均来自真实后端。')}
           status={stationExceptionDetail.exception_status}
           rows={[
-            { label: '异常类型', value: stationExceptionDetail.exception_type },
-            { label: '关联对象', value: stationExceptionDetail.related_object_label },
-            { label: 'Owner', value: [stationExceptionDetail.owner_role, stationExceptionDetail.owner_team_id].filter(Boolean).join(' / ') || '--' },
-            { label: 'SLA', value: stationExceptionDetail.severity },
-            { label: 'Linked Task', value: stationExceptionDetail.linked_task_label || stationExceptionDetail.linked_task_id || '--' }
+            { label: m('异常类型'), value: localizeUiText(locale, stationExceptionDetail.exception_type) },
+            { label: m('关联对象'), value: localizeUiText(locale, stationExceptionDetail.related_object_label) },
+            {
+              label: m('负责人'),
+              value:
+                [localizeUiText(locale, stationExceptionDetail.owner_role), stationExceptionDetail.owner_team_id]
+                  .filter(Boolean)
+                  .join(' / ') || '--'
+            },
+            { label: m('SLA'), value: localizeUiText(locale, stationExceptionDetail.severity) },
+            {
+              label: m('关联任务'),
+              value: localizeUiText(locale, stationExceptionDetail.linked_task_label || stationExceptionDetail.linked_task_id || '--')
+            }
           ]}
         />
       </Grid>
 
       <Grid size={{ xs: 12, xl: 8 }}>
         <TaskQueueCard
-          title="阻断任务与恢复动作"
+          title={m('阻断任务与恢复动作')}
           items={[
             {
               id: `${stationExceptionDetail.exception_id}-task`,
-              title: stationExceptionDetail.linked_task_label || stationExceptionDetail.linked_task_id || '未挂接任务',
-              description: stationExceptionDetail.blocker_flag ? '当前异常阻断主链推进' : '当前异常仅需跟进',
-              meta: stationExceptionDetail.required_gate || '待补充门槛规则',
+              title: localizeUiText(
+                locale,
+                stationExceptionDetail.linked_task_label || stationExceptionDetail.linked_task_id || m('未挂接任务')
+              ),
+              description: stationExceptionDetail.blocker_flag ? m('当前异常阻断主链推进') : m('当前异常仅需跟进'),
+              meta: localizeUiText(locale, stationExceptionDetail.required_gate || m('待补充门槛规则')),
               status: stationExceptionDetail.exception_status,
-              actions: [{ label: '打开任务中心', to: '/station/tasks', variant: 'outlined' }]
+              actions: [{ label: m('打开任务中心'), to: '/station/tasks', variant: 'outlined' }]
             },
             {
               id: `${stationExceptionDetail.exception_id}-recovery`,
-              title: stationExceptionDetail.recovery_action || stationExceptionDetail.action_taken || '待补充恢复动作',
-              description: stationExceptionDetail.root_cause || '请补齐异常原因与恢复动作。',
-              meta: `放行角色 ${gatePolicy?.releaseRole || stationExceptionDetail.owner_role}`,
+              title: localizeUiText(
+                locale,
+                stationExceptionDetail.recovery_action || stationExceptionDetail.action_taken || m('待补充恢复动作')
+              ),
+              description: localizeUiText(locale, stationExceptionDetail.root_cause || m('请补齐异常原因与恢复动作。')),
+              meta: `${m('放行角色')} ${localizeUiText(locale, gatePolicy?.releaseRole || stationExceptionDetail.owner_role)}`,
               status: stationExceptionDetail.exception_status,
-              actions: [{ label: '打开关联对象', to: objectTo, variant: 'outlined' }]
+              actions: [{ label: m('打开关联对象'), to: objectTo, variant: 'outlined' }]
             }
           ]}
         />
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="关联文件">
+        <MainCard title={m('关联文件')}>
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
             {(stationExceptionDetail.related_files || []).map((entry) => (
               <Button key={entry.document_id} component={RouterLink} to="/station/documents" size="small" variant="outlined">
@@ -174,11 +206,11 @@ export default function StationExceptionDetailPage() {
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <DocumentStatusCard title="命中的门槛" items={gateItems} />
+        <DocumentStatusCard title={m('命中的门槛')} items={gateItems} />
       </Grid>
 
       <Grid size={12}>
-        <ObjectAuditTrail events={objectAuditEvents} transitions={objectAuditTransitions} title="异常对象审计" />
+        <ObjectAuditTrail events={objectAuditEvents} transitions={objectAuditTransitions} title={m('异常对象审计')} />
       </Grid>
     </Grid>
   );

@@ -18,83 +18,83 @@ const icons = {
 
 const platform = {
   id: 'platform-group',
-  title: '平台管理后台',
+  title: 'Platform Console',
   type: 'group',
   children: [
     {
       id: 'platform-operations',
-      title: '运行态势中心',
+      title: 'Operations Center',
       type: 'item',
       url: '/platform/operations',
       icon: icons.DashboardOutlined
     },
     {
       id: 'platform-stations',
-      title: '货站与资源管理',
+      title: 'Stations and Resources',
       type: 'collapse',
       url: '/platform/stations',
       icon: icons.ApartmentOutlined,
       children: [
-        { id: 'platform-stations-overview', title: '总览', type: 'item', url: '/platform/stations' },
-        { id: 'platform-stations-capabilities', title: '能力矩阵', type: 'item', url: '/platform/stations/capabilities' },
-        { id: 'platform-stations-teams', title: '班组映射', type: 'item', url: '/platform/stations/teams' },
-        { id: 'platform-stations-zones', title: '区位映射', type: 'item', url: '/platform/stations/zones' },
-        { id: 'platform-stations-devices', title: '设备映射', type: 'item', url: '/platform/stations/devices' }
+        { id: 'platform-stations-overview', title: 'Overview', type: 'item', url: '/platform/stations' },
+        { id: 'platform-stations-capabilities', title: 'Capability Matrix', type: 'item', url: '/platform/stations/capabilities' },
+        { id: 'platform-stations-teams', title: 'Team Mapping', type: 'item', url: '/platform/stations/teams' },
+        { id: 'platform-stations-zones', title: 'Zone Mapping', type: 'item', url: '/platform/stations/zones' },
+        { id: 'platform-stations-devices', title: 'Device Mapping', type: 'item', url: '/platform/stations/devices' }
       ]
     },
     {
       id: 'platform-network',
-      title: '航线网络与链路配置',
+      title: 'Network and Lanes',
       type: 'collapse',
       url: '/platform/network',
       icon: icons.EnvironmentOutlined,
       children: [
-        { id: 'platform-network-overview', title: '总览', type: 'item', url: '/platform/network' },
-        { id: 'platform-network-lanes', title: '链路模板', type: 'item', url: '/platform/network/lanes' },
-        { id: 'platform-network-scenarios', title: '标准场景', type: 'item', url: '/platform/network/scenarios' }
+        { id: 'platform-network-overview', title: 'Overview', type: 'item', url: '/platform/network' },
+        { id: 'platform-network-lanes', title: 'Lane Templates', type: 'item', url: '/platform/network/lanes' },
+        { id: 'platform-network-scenarios', title: 'Standard Scenarios', type: 'item', url: '/platform/network/scenarios' }
       ]
     },
     {
       id: 'platform-rules',
-      title: '规则与指令引擎',
+      title: 'Rules and Orchestration',
       type: 'item',
       url: '/platform/rules',
       icon: icons.ProfileOutlined
     },
     {
       id: 'platform-master-data',
-      title: '主数据与接口治理',
+      title: 'Master Data and Integration',
       type: 'collapse',
       url: '/platform/master-data',
       icon: icons.DatabaseOutlined,
       children: [
-        { id: 'platform-master-data-overview', title: '总览', type: 'item', url: '/platform/master-data' },
-        { id: 'platform-master-data-sync', title: '同步看板', type: 'item', url: '/platform/master-data/sync' },
-        { id: 'platform-master-data-jobs', title: '导入任务', type: 'item', url: '/platform/master-data/jobs' },
-        { id: 'platform-master-data-relationships', title: '对象关系', type: 'item', url: '/platform/master-data/relationships' }
+        { id: 'platform-master-data-overview', title: 'Overview', type: 'item', url: '/platform/master-data' },
+        { id: 'platform-master-data-sync', title: 'Sync Board', type: 'item', url: '/platform/master-data/sync' },
+        { id: 'platform-master-data-jobs', title: 'Import Jobs', type: 'item', url: '/platform/master-data/jobs' },
+        { id: 'platform-master-data-relationships', title: 'Object Relationships', type: 'item', url: '/platform/master-data/relationships' }
       ]
     },
     {
       id: 'platform-audit',
-      title: '审计与可信留痕',
+      title: 'Audit and Trust',
       type: 'collapse',
       url: '/platform/audit',
       icon: icons.AuditOutlined,
       children: [
-        { id: 'platform-audit-overview', title: '总览', type: 'item', url: '/platform/audit' },
-        { id: 'platform-audit-events', title: '审计事件', type: 'item', url: '/platform/audit/events' },
-        { id: 'platform-audit-trust', title: '可信占位', type: 'item', url: '/platform/audit/trust' }
+        { id: 'platform-audit-overview', title: 'Overview', type: 'item', url: '/platform/audit' },
+        { id: 'platform-audit-events', title: 'Audit Events', type: 'item', url: '/platform/audit/events' },
+        { id: 'platform-audit-trust', title: 'Trust Preview', type: 'item', url: '/platform/audit/trust' }
       ]
     },
     {
       id: 'platform-reports',
-      title: '平台级报表',
+      title: 'Platform Reports',
       type: 'collapse',
       url: '/platform/reports',
       icon: icons.BarChartOutlined,
       children: [
-        { id: 'platform-reports-overview', title: '总览', type: 'item', url: '/platform/reports' },
-        { id: 'platform-reports-stations', title: '站点对比', type: 'item', url: '/platform/reports/stations' }
+        { id: 'platform-reports-overview', title: 'Overview', type: 'item', url: '/platform/reports' },
+        { id: 'platform-reports-stations', title: 'Station Comparison', type: 'item', url: '/platform/reports/stations' }
       ]
     }
   ]

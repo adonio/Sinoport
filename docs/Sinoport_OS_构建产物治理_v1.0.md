@@ -62,7 +62,23 @@
 
 这是推荐方案。
 
-## 5. 推荐下一步
+## 5. 已落地方案
+
+当前仓库已经采用“`CI / 临时目录生成`”方案，具体如下：
+
+1. [publish-admin-static.mjs](/Users/lijun/Downloads/Sinoport/scripts/publish-admin-static.mjs) 默认把后台静态页输出到 `.generated/admin-static`
+2. [prepare-pages-site.mjs](/Users/lijun/Downloads/Sinoport/scripts/prepare-pages-site.mjs) 从 `.generated/admin-static` 装配 `site-dist`
+3. `site-dist` 继续作为 Pages 发布产物
+4. `.generated/` 已加入 [/.gitignore](/Users/lijun/Downloads/Sinoport/.gitignore)
+5. 现有 CI / release workflow 继续复用原命令，但默认不再把新产物写回仓库根目录
+
+这意味着：
+
+1. 新的默认发布流程已经不再污染主工作区
+2. 历史遗留的根级 `admin-assets/` 与静态路由产物仍然存在，需要在单独清仓或一次性治理中处理
+3. 以后若需要显式输出到其他目录，可通过 `PUBLISH_STATIC_OUTPUT_ROOT` 覆盖
+
+## 6. 推荐下一步
 
 1. 决定是否继续把 `admin-assets/` 和根级静态路由文件纳入版本管理
 2. 如果选择“临时产物”：
@@ -71,7 +87,7 @@
    - 让 CI / 发布工作流只从临时目录取文件
 3. 以后把“发布产物提交”和“业务源码提交”分开
 
-## 6. 当前结论
+## 7. 当前结论
 
-在当前仓库状态下，构建产物问题已经不是功能缺陷，而是仓库治理问题。  
-建议在下一轮工作中优先处理。
+在当前仓库状态下，构建产物问题已经从“默认脚本持续污染主工作区”收口成“历史遗留产物仍待单独治理”。  
+也就是说，`M2` 的默认生成链已经收口，但是否清理历史根级产物，仍需要单独安排一次仓库整理。

@@ -3,6 +3,22 @@ import axios from 'axios';
 const SERVICE_TOKEN_KEY = 'serviceToken';
 const REFRESH_TOKEN_KEY = 'serviceRefreshToken';
 const STATION_ACTOR_KEY = 'sinoport-station-actor-v1';
+const STATION_API_BASE_URL_KEY = 'sinoportStationApiBaseUrl';
+export const TEST_DEFAULT_STATION_CREDENTIALS = {
+  email: 'supervisor@sinoport.local',
+  password: 'Sinoport123!'
+};
+
+function isLocalOrigin(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+
+  try {
+    const url = new URL(value);
+    return url.hostname === '127.0.0.1' || url.hostname === 'localhost';
+  } catch {
+    return false;
+  }
+}
 
 export function resolveStationApiBaseUrl() {
   if (import.meta.env.VITE_APP_STATION_API_URL) {
@@ -11,6 +27,11 @@ export function resolveStationApiBaseUrl() {
 
   if (typeof window !== 'undefined') {
     const { hostname } = window.location;
+    const runtimeBaseUrl = window.localStorage.getItem(STATION_API_BASE_URL_KEY);
+
+    if (runtimeBaseUrl) {
+      return runtimeBaseUrl;
+    }
 
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://127.0.0.1:8787';
@@ -25,9 +46,16 @@ export function canBootstrapLocalSession(baseURL) {
 
   const { hostname } = window.location;
   const localHost = hostname === 'localhost' || hostname === '127.0.0.1';
-  const localApi = typeof baseURL === 'string' && (baseURL.includes('127.0.0.1:8787') || baseURL.includes('localhost:8787'));
+  const localApi = isLocalOrigin(baseURL);
 
   return localHost && localApi;
+}
+
+export function isTestStationEnvironment() {
+  if (typeof window === 'undefined') return false;
+
+  const { hostname } = window.location;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('staging-');
 }
 
 function readStorage(key) {
@@ -236,6 +264,11 @@ export const stationPoster = async (url, payload) => {
 
 export const stationPatcher = async (url, payload) => {
   const res = await stationAxios.patch(url, payload);
+  return res.data;
+};
+
+export const stationDeleter = async (url, config = {}) => {
+  const res = await stationAxios.delete(url, config);
   return res.data;
 };
 

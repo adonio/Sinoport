@@ -117,6 +117,7 @@ interface ImportTableCounts {
 }
 
 export interface InboundBundleImportResult {
+  idempotency_status: 'executed' | 'replayed';
   request_id: string;
   station_id: string;
   flight_id: string;
@@ -221,6 +222,23 @@ interface TaskRow {
   updated_at: string | null;
 }
 
+interface ImportRequestRow {
+  request_id: string;
+  import_type: string;
+  station_id: string | null;
+  actor_id: string | null;
+  status: string;
+  target_object_type: string | null;
+  target_object_id: string | null;
+  payload_json: string | null;
+  result_json: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  completed_at: string | null;
+}
+
 interface TaskTemplateInput {
   task_id?: unknown;
   task_type?: unknown;
@@ -318,6 +336,16 @@ function readString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length ? trimmed : undefined;
+}
+
+function readTentativeStationId(input: BundleInput, actor: AuthActor) {
+  const stationInput = input.station as Record<string, unknown> | undefined;
+  return readString(stationInput?.station_id) ?? readString(input.station_id) ?? actor.stationScope?.[0] ?? undefined;
+}
+
+function readTentativeFlightId(input: BundleInput) {
+  const flightInput = input.flight as Record<string, unknown> | undefined;
+  return readString(flightInput?.flight_id) ?? readString(input.flight_id);
 }
 
 function requireString(value: unknown, field: string): string {
@@ -1004,6 +1032,93 @@ async function insertAuditEvent(db: ImportDb, params: {
   return auditId;
 }
 
+const INBOUND_BUNDLE_IMPORT_TYPE = 'station_inbound_bundle';
+
+function parseStoredImportResult(value: string | null | undefined): InboundBundleImportResult | null {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as InboundBundleImportResult;
+  } catch {
+    return null;
+  }
+}
+
+async function selectImportRequest(db: ImportDb, requestId: string) {
+  return await selectOne<ImportRequestRow>(
+    db,
+    `
+      SELECT *
+      FROM import_requests
+      WHERE request_id = ?
+        AND import_type = ?
+      LIMIT 1
+    `,
+    [requestId, INBOUND_BUNDLE_IMPORT_TYPE]
+  );
+}
+
+async function upsertImportRequest(
+  db: ImportDb,
+  requestId: string,
+  actor: AuthActor,
+  status: 'pending' | 'completed' | 'failed',
+  patch: Partial<Pick<ImportRequestRow, 'station_id' | 'target_object_type' | 'target_object_id' | 'payload_json' | 'result_json' | 'error_code' | 'error_message' | 'completed_at'>>
+) {
+  const now = nowIso();
+
+  await db
+    .prepare(
+      `
+        INSERT INTO import_requests (
+          request_id,
+          import_type,
+          station_id,
+          actor_id,
+          status,
+          target_object_type,
+          target_object_id,
+          payload_json,
+          result_json,
+          error_code,
+          error_message,
+          created_at,
+          updated_at,
+          completed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(request_id, import_type) DO UPDATE SET
+          station_id = excluded.station_id,
+          actor_id = excluded.actor_id,
+          status = excluded.status,
+          target_object_type = excluded.target_object_type,
+          target_object_id = excluded.target_object_id,
+          payload_json = excluded.payload_json,
+          result_json = excluded.result_json,
+          error_code = excluded.error_code,
+          error_message = excluded.error_message,
+          updated_at = excluded.updated_at,
+          completed_at = excluded.completed_at
+      `
+    )
+    .bind(
+      requestId,
+      INBOUND_BUNDLE_IMPORT_TYPE,
+      patch.station_id ?? null,
+      actor.userId,
+      status,
+      patch.target_object_type ?? null,
+      patch.target_object_id ?? null,
+      patch.payload_json ?? null,
+      patch.result_json ?? null,
+      patch.error_code ?? null,
+      patch.error_message ?? null,
+      now,
+      now,
+      patch.completed_at ?? null
+    )
+    .run();
+}
+
 export async function importInboundBundle(db: ImportDb, actor: AuthActor, rawInput: unknown, requestIdInput?: string) {
   if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) {
     throw new InboundBundleImportError('VALIDATION_ERROR', 'request body must be a JSON object');
@@ -1011,7 +1126,41 @@ export async function importInboundBundle(db: ImportDb, actor: AuthActor, rawInp
 
   const input = rawInput as BundleInput;
   const requestId = readString(requestIdInput) ?? readString(input.request_id) ?? readString(input.requestId) ?? crypto.randomUUID();
-  const normalized = normalizeBundleInput(input, actor, requestId);
+  const existingRequest = await selectImportRequest(db, requestId);
+
+  if (existingRequest?.status === 'completed') {
+    const storedResult = parseStoredImportResult(existingRequest.result_json);
+
+    if (storedResult) {
+      return {
+        ...storedResult,
+        idempotency_status: 'replayed'
+      } satisfies InboundBundleImportResult;
+    }
+  }
+
+  if (existingRequest?.status === 'pending') {
+    throw new InboundBundleImportError('IMPORT_IN_PROGRESS', 'An inbound bundle import with this request_id is already running', {
+      request_id: requestId
+    });
+  }
+
+  let normalized: NormalizedBundle;
+
+  try {
+    normalized = normalizeBundleInput(input, actor, requestId);
+  } catch (error) {
+    await upsertImportRequest(db, requestId, actor, 'failed', {
+      station_id: readTentativeStationId(input, actor) ?? null,
+      target_object_type: 'Flight',
+      target_object_id: readTentativeFlightId(input) ?? null,
+      payload_json: JSON.stringify(input),
+      error_code: error instanceof InboundBundleImportError ? error.code : 'IMPORT_FAILED',
+      error_message: error instanceof Error ? error.message : 'Inbound bundle import failed'
+    });
+
+    throw error;
+  }
 
   const counts = {
     station: { created: 0, updated: 0 },
@@ -1021,54 +1170,8 @@ export async function importInboundBundle(db: ImportDb, actor: AuthActor, rawInp
     tasks: { created: 0, updated: 0 },
     audit_events: { created: 0, updated: 0 }
   };
-
-  await runInTransaction(db, async (tx) => {
-    counts.station = await upsertStation(tx, normalized.station);
-    counts.flight = await upsertFlight(tx, normalized.flight, normalized.station.stationId);
-
-    for (const shipment of normalized.shipments) {
-      const result = await upsertShipment(tx, shipment);
-      counts.shipments = {
-        created: counts.shipments.created + result.created,
-        updated: counts.shipments.updated + result.updated
-      };
-    }
-
-    for (const awb of normalized.awbs) {
-      const result = await upsertAwb(tx, awb);
-      counts.awbs = {
-        created: counts.awbs.created + result.created,
-        updated: counts.awbs.updated + result.updated
-      };
-    }
-
-    for (const task of normalized.tasks) {
-      const result = await upsertTask(tx, task);
-      counts.tasks = {
-        created: counts.tasks.created + result.created,
-        updated: counts.tasks.updated + result.updated
-      };
-    }
-
-    await insertAuditEvent(tx, {
-      requestId: normalized.requestId,
-      actor,
-      stationId: normalized.station.stationId,
-      flightId: normalized.flight.flightId,
-      payload: {
-        source: normalized.source,
-        station: normalized.station,
-        flight: normalized.flight,
-        created: counts,
-        awb_total: normalized.awbs.length,
-        task_total: normalized.tasks.length
-      }
-    });
-
-    counts.audit_events = { created: 1, updated: 0 };
-  });
-
-  return {
+  const result = {
+    idempotency_status: 'executed',
     request_id: normalized.requestId,
     station_id: normalized.station.stationId,
     flight_id: normalized.flight.flightId,
@@ -1085,4 +1188,114 @@ export async function importInboundBundle(db: ImportDb, actor: AuthActor, rawInp
     },
     audit_events: counts.audit_events
   } satisfies InboundBundleImportResult;
+
+  await upsertImportRequest(db, normalized.requestId, actor, 'pending', {
+    station_id: normalized.station.stationId,
+    target_object_type: 'Flight',
+    target_object_id: normalized.flight.flightId,
+    payload_json: JSON.stringify({
+      source: normalized.source,
+      station: normalized.station,
+      flight: normalized.flight,
+      awb_total: normalized.awbs.length,
+      task_total: normalized.tasks.length
+    })
+  });
+
+  try {
+    await runInTransaction(db, async (tx) => {
+      counts.station = await upsertStation(tx, normalized.station);
+      counts.flight = await upsertFlight(tx, normalized.flight, normalized.station.stationId);
+
+      for (const shipment of normalized.shipments) {
+        const shipmentResult = await upsertShipment(tx, shipment);
+        counts.shipments = {
+          created: counts.shipments.created + shipmentResult.created,
+          updated: counts.shipments.updated + shipmentResult.updated
+        };
+      }
+
+      for (const awb of normalized.awbs) {
+        const awbResult = await upsertAwb(tx, awb);
+        counts.awbs = {
+          created: counts.awbs.created + awbResult.created,
+          updated: counts.awbs.updated + awbResult.updated
+        };
+      }
+
+      for (const task of normalized.tasks) {
+        const taskResult = await upsertTask(tx, task);
+        counts.tasks = {
+          created: counts.tasks.created + taskResult.created,
+          updated: counts.tasks.updated + taskResult.updated
+        };
+      }
+
+      await insertAuditEvent(tx, {
+        requestId: normalized.requestId,
+        actor,
+        stationId: normalized.station.stationId,
+        flightId: normalized.flight.flightId,
+        payload: {
+          source: normalized.source,
+          station: normalized.station,
+          flight: normalized.flight,
+          created: counts,
+          awb_total: normalized.awbs.length,
+          task_total: normalized.tasks.length
+        }
+      });
+
+      counts.audit_events = { created: 1, updated: 0 };
+    });
+
+    result.station = counts.station;
+    result.flight = counts.flight;
+    result.shipments = counts.shipments;
+    result.awbs = {
+      ...counts.awbs,
+      total: normalized.awbs.length
+    };
+    result.tasks = {
+      ...counts.tasks,
+      total: normalized.tasks.length
+    };
+    result.audit_events = counts.audit_events;
+
+    await upsertImportRequest(db, normalized.requestId, actor, 'completed', {
+      station_id: normalized.station.stationId,
+      target_object_type: 'Flight',
+      target_object_id: normalized.flight.flightId,
+      payload_json: JSON.stringify({
+        source: normalized.source,
+        station: normalized.station,
+        flight: normalized.flight,
+        awb_total: normalized.awbs.length,
+        task_total: normalized.tasks.length
+      }),
+      result_json: JSON.stringify(result),
+      error_code: null,
+      error_message: null,
+      completed_at: nowIso()
+    });
+
+    return result;
+  } catch (error) {
+    await upsertImportRequest(db, normalized.requestId, actor, 'failed', {
+      station_id: normalized.station.stationId,
+      target_object_type: 'Flight',
+      target_object_id: normalized.flight.flightId,
+      payload_json: JSON.stringify({
+        source: normalized.source,
+        station: normalized.station,
+        flight: normalized.flight,
+        awb_total: normalized.awbs.length,
+        task_total: normalized.tasks.length
+      }),
+      error_code: error instanceof InboundBundleImportError ? error.code : 'IMPORT_FAILED',
+      error_message: error instanceof Error ? error.message : 'Inbound bundle import failed'
+    });
+
+    throw error;
+  }
 }

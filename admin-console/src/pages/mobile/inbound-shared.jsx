@@ -27,6 +27,9 @@ import StatusChip from 'components/sinoport/StatusChip';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import {
+  archiveInboundCountRecord,
+  archiveInboundLoadingPlan,
+  archiveInboundPallet,
   acceptMobileTask,
   completeMobileTask,
   saveInboundCountRecord,
@@ -34,6 +37,9 @@ import {
   saveInboundPallet,
   startMobileTask,
   uploadMobileTaskEvidence,
+  updateInboundCountRecord,
+  updateInboundLoadingPlan,
+  updateInboundPallet,
   useGetMobileInboundDetail,
   useGetMobileTasks
 } from 'api/station';
@@ -78,11 +84,50 @@ export function stationKeyOf(session) {
 }
 
 function mobileLanguage() {
-  return readMobileSession()?.language || readMobileLanguage();
+  return readMobileLanguage() || readMobileSession()?.language;
 }
 
 function mt(value) {
   return localizeMobileText(mobileLanguage(), value);
+}
+
+function isMobileEnglish() {
+  return String(mobileLanguage() || '').toLowerCase().startsWith('en');
+}
+
+function localizeInboundTaskCardText(value) {
+  if (typeof value !== 'string' || !value) return value;
+  if (!isMobileEnglish()) return value;
+
+  return value
+    .replace(/进港机场货站操作/gu, 'Inbound Station Actions')
+    .replace(/INBOUND机场STATIONACTIONS/gu, 'Inbound Station Actions')
+    .replace(/提单 \/ 箱号扫码记录/gu, 'AWB / Serial Scan Records')
+    .replace(/AWB \/ SerialSCan记录/gu, 'AWB / Serial Scan Records')
+    .replace(/扫描到航班外提单时必须先确认是否纳入统计。/gu, 'When an AWB outside the flight is scanned, confirm whether it should be included first.')
+    .replace(/SCan到Flight外AWB时Required先ConfirmYesNo纳入统计。/gu, 'When an AWB outside the flight is scanned, confirm whether it should be included first.')
+    .replace(/尾程卡车装车与运输/gu, 'Final Mile Truck Loading and Transport')
+    .replace(/FINAL MILE卡车LOADING与运输/gu, 'Final Mile Truck Loading and Transport')
+    .replace(
+      /为航班 ([A-Z0-9-]+) 录入车牌、司机、Collection Note 和复核信息，形成装车计划。/gu,
+      'Record the truck plate, driver, collection note, and review details for flight $1 to create the loading plan.'
+    )
+    .replace(
+      /为Flight ([A-Z0-9-]+) 录入TruCk Plate、Driver、ColleCtion Note 和Review信息，形成Loading Plan。/gu,
+      'Record the truck plate, driver, collection note, and review details for flight $1 to create the loading plan.'
+    )
+    .replace(/未录入车牌、Collection Note、核对员时不得开始装车。/gu, 'Do not start loading until the truck plate, collection note, and checker are recorded.')
+    .replace(/未录入TruCk Plate、ColleCtion Note、CheCker时不得Start Loading。/gu, 'Do not start loading until the truck plate, collection note, and checker are recorded.')
+    .replace(
+      /装车计划应由后台办公室先完成编排，包括车牌、司机、Collection Note 与预定托盘；PDA 仅执行已排好的计划。/gu,
+      'The loading plan should be completed by the back office first, including truck plate, driver, collection note, and reserved pallets; the PDA only executes the approved plan.'
+    )
+    .replace(
+      /Loading Plan应由后台办公室先Complete编排，包括TruCk Plate、Driver、ColleCtion Note 与预定pallet；PDA 仅执行已排好的Planned。/gu,
+      'The loading plan should be completed by the back office first, including truck plate, driver, collection note, and reserved pallets; the PDA only executes the approved plan.'
+    )
+    .replace(/去后台排计划/gu, 'Plan in Back Office')
+    .replace(/去后台排Planned/gu, 'Plan in Back Office');
 }
 
 const HAOXUE_VEHICLES = [
@@ -111,59 +156,61 @@ function buildInboundTaskCardConfig(type, flightNo) {
 
   const configMap = {
     overview: {
-      title: '进港任务总览',
-      node: '进港机场货站操作',
-      role: 'Inbound Supervisor',
-      status: '运行中',
-      sla: '落地后 12h',
-      description: '当前航班的拆板、理货、组托、装车和 NOA/POD 全部按统一任务卡组织。',
-      evidence: ['CBA / Manifest / Handling Plan', '任务状态回填', '关键节点时间戳'],
-      blockers: ['关键文件不齐时，只允许展示任务，不允许放行。'],
-      actions: [{ label: '查看任务池', variant: 'contained' }, { label: '上报异常' }]
+      title: mt('进港任务总览'),
+      node: mt('进港机场货站操作'),
+      role: mt('主管 / 复核岗'),
+      status: mt('运行中'),
+      sla: mt('落地后 12h'),
+      description: mt('当前航班的拆板、理货、组托、装车和 NOA/POD 全部按统一任务卡组织。'),
+      evidence: [mt('CBA / Manifest / Handling Plan'), mt('任务状态回填'), mt('关键节点时间戳')],
+      blockers: [mt('关键文件不齐时，只允许展示任务，不允许放行。')],
+      actions: [{ label: mt('查看任务池'), variant: 'contained' }, { label: mt('上报异常') }]
     },
     counting: {
-      title: '拆板与理货任务',
-      node: '进港机场货站操作',
-      role: 'Check Worker',
-      status: '运行中',
-      sla: '理货节点 30 分钟初判',
-      description: `围绕航班 ${flightNo} 执行拆板和理货，扫码即加 1，并持续校验差异。`,
-      evidence: ['提单 / 箱号扫码记录', '差异备注', '理货完成确认'],
-      blockers: ['未完成理货不得发送 NOA。', '扫描到航班外提单时必须先确认是否纳入统计。'],
-      actions: [{ label: '扫码 +1', variant: 'contained' }, { label: '挂起' }, { label: '上报异常' }]
+      title: mt('拆板与理货任务'),
+      node: mt('进港机场货站操作'),
+      role: mt('复核员'),
+      status: mt('运行中'),
+      sla: isMobileEnglish() ? 'Initial judgment within 30 minutes at the counting node' : mt('理货节点 30 分钟初判'),
+      description: mt(`围绕航班 ${flightNo} 执行拆板和理货，扫码即加 1，并持续校验差异。`),
+      evidence: [mt('提单 / 箱号扫码记录'), mt('差异备注'), mt('理货完成确认')],
+      blockers: [mt('未完成理货不得发送 NOA。'), mt('扫描到航班外提单时必须先确认是否纳入统计。')],
+      actions: [{ label: mt('扫码 +1'), variant: 'contained' }, { label: mt('挂起') }, { label: mt('上报异常') }]
     },
     pallet: {
-      title: '组托任务',
-      node: '进港机场货站操作',
-      role: 'Pallet Builder',
-      status: '运行中',
-      sla: '理货完成后立即执行',
-      description: `围绕航班 ${flightNo} 组托，保持同票同托，为后续装车准备标准托盘。`,
-      evidence: ['托盘号', '箱数 / 重量', '托盘标签'],
-      blockers: ['不同 consignee 不得混托。'],
-      actions: [{ label: '新建托盘', variant: 'contained' }, { label: '打印标签' }]
+      title: mt('组托任务'),
+      node: isMobileEnglish() ? 'Inbound Station Actions' : mt('进港机场货站操作'),
+      role: mt('收货员'),
+      status: mt('运行中'),
+      sla: isMobileEnglish() ? 'Start immediately after counting is completed' : mt('理货完成后立即执行'),
+      description: isMobileEnglish()
+        ? `Build pallets for flight ${flightNo}, keep each AWB on the correct pallet, and prepare standard pallets for downstream loading.`
+        : mt(`围绕航班 ${flightNo} 组托，保持同票同托，为后续装车准备标准托盘。`),
+      evidence: [isMobileEnglish() ? 'Pallet No.' : mt('托盘号'), mt('箱数 / 重量'), mt('托盘标签')],
+      blockers: [mt('不同 consignee 不得混托。')],
+      actions: [{ label: mt('新建托盘'), variant: 'contained' }, { label: mt('打印标签') }]
     },
     loadingPlan: {
-      title: '装车计划任务',
-      node: '尾程卡车装车与运输',
-      role: 'Loading Coordinator',
-      status: '待处理',
-      sla: '车辆到场后 15 分钟内启动',
-      description: `为航班 ${flightNo} 录入车牌、司机、Collection Note 和复核信息，形成装车计划。`,
-      evidence: ['车牌', '司机', 'Collection Note', '叉车司机 / 核对员'],
-      blockers: ['未录入车牌、Collection Note、核对员时不得开始装车。'],
-      actions: [{ label: '开始装车', variant: 'contained' }, { label: '挂起' }]
+      title: mt('装车计划任务'),
+      node: isMobileEnglish() ? 'Final Mile Truck Loading and Transport' : mt('尾程卡车装车与运输'),
+      role: mt('司机 / 车队协调'),
+      status: mt('待处理'),
+      sla: isMobileEnglish() ? 'Start within 15 minutes after vehicle arrival' : mt('车辆到场后 15 分钟内启动'),
+      description: mt(`为航班 ${flightNo} 录入车牌、司机、Collection Note 和复核信息，形成装车计划。`),
+      evidence: [mt('车牌'), mt('司机'), mt('Collection Note'), mt('叉车司机 / 核对员')],
+      blockers: [mt('未录入车牌、Collection Note、核对员时不得开始装车。')],
+      actions: [{ label: mt('开始装车'), variant: 'contained' }, { label: mt('挂起') }]
     },
     loadingExecution: {
-      title: '装车执行任务',
-      node: '尾程卡车装车与运输',
-      role: 'Loading Worker',
-      status: '装车中',
-      sla: '装车完成后立即回填',
-      description: `把托盘或提单装入车辆，持续校验车牌、托盘数量和完成条件。`,
-      evidence: ['托盘绑定', '装车清单', '完成确认'],
-      blockers: ['缺车牌 / Collection Note / 复核信息时不得完成装车。'],
-      actions: [{ label: '录入托盘', variant: 'contained' }, { label: '完成装车', color: 'success' }]
+      title: mt('装车执行任务'),
+      node: isMobileEnglish() ? 'Final Mile Truck Loading and Transport' : mt('尾程卡车装车与运输'),
+      role: mt('司机 / 车队协调'),
+      status: mt('装车中'),
+      sla: mt('装车完成后立即回填'),
+      description: mt('把托盘或提单装入车辆，持续校验车牌、托盘数量和完成条件。'),
+      evidence: [mt('托盘绑定'), mt('装车清单'), mt('完成确认')],
+      blockers: [mt('缺车牌 / Collection Note / 复核信息时不得完成装车。')],
+      actions: [{ label: mt('录入托盘'), variant: 'contained' }, { label: mt('完成装车'), color: 'success' }]
     }
   };
 
@@ -179,258 +226,21 @@ function roleAwareInboundTaskCardConfig(type, flightNo, taskCards, runAction) {
 
   return {
     ...config,
+    title: localizeInboundTaskCardText(config.title),
+    node: localizeInboundTaskCardText(config.node),
+    role: localizeInboundTaskCardText(config.role),
+    status: localizeInboundTaskCardText(config.status),
+    sla: localizeInboundTaskCardText(config.sla),
+    description: localizeInboundTaskCardText(config.description),
+    evidence: (config.evidence || []).map(localizeInboundTaskCardText),
+    blockers: (config.blockers || []).map(localizeInboundTaskCardText),
     actions: (config.actions || []).map((action) => ({
       ...action,
+      label: localizeInboundTaskCardText(action.label),
       onClick: () => runAction(action.label, `${config.node} / ${config.role}`)
     }))
   };
 }
-
-const DEFAULT_LOADING_PLANS = [
-  {
-    id: 'LOAD-DEMO-001',
-    flightNo: 'SE803',
-    truckPlate: 'HX-TRK-101',
-    vehicleModel: '9.6m 厢车',
-    driverName: 'Hao Xue 01',
-    collectionNote: 'CN-SE803-001',
-    forkliftDriver: 'Forklift A',
-    checker: 'Checker A',
-    arrivalTime: '2026-04-07T18:20',
-    departTime: '',
-    pallets: ['SE803-PLT-1301', 'SE803-PLT-1302'],
-    totalBoxes: 36,
-    totalWeight: 812.4,
-    status: '计划',
-    createdAt: '2026-04-07T17:50:00.000Z'
-  },
-  {
-    id: 'LOAD-DEMO-002',
-    flightNo: 'SE803',
-    truckPlate: 'HX-TRK-205',
-    vehicleModel: '12.5m 厢车',
-    driverName: 'Hao Xue 02',
-    collectionNote: 'CN-SE803-002',
-    forkliftDriver: 'Forklift B',
-    checker: 'Checker B',
-    arrivalTime: '2026-04-07T18:45',
-    departTime: '',
-    pallets: ['SE803-PLT-1201', 'SE803-PLT-1202'],
-    totalBoxes: 28,
-    totalWeight: 642.5,
-    status: '装车中',
-    createdAt: '2026-04-07T18:10:00.000Z'
-  },
-  {
-    id: 'LOAD-DEMO-003',
-    flightNo: 'SE803',
-    truckPlate: 'HX-TRK-318',
-    vehicleModel: '17.5m 挂车',
-    driverName: 'Hao Xue 03',
-    collectionNote: 'CN-SE803-003',
-    forkliftDriver: 'Forklift C',
-    checker: 'Checker C',
-    arrivalTime: '2026-04-07T17:10',
-    departTime: '2026-04-07T18:05',
-    pallets: ['SE803-PLT-1101', 'SE803-PLT-1102', 'SE803-PLT-1103'],
-    totalBoxes: 46,
-    totalWeight: 1038.2,
-    status: '已完成',
-    createdAt: '2026-04-07T16:40:00.000Z',
-    completedAt: '2026-04-07T18:05:00.000Z'
-  },
-  {
-    id: 'LOAD-DEMO-004',
-    flightNo: 'SE803',
-    truckPlate: 'HX-TRK-426',
-    vehicleModel: '9.6m 冷链厢车',
-    driverName: 'Hao Xue 04',
-    collectionNote: 'CN-SE803-004',
-    forkliftDriver: 'Forklift D',
-    checker: 'Checker D',
-    arrivalTime: '2026-04-07T19:05',
-    departTime: '',
-    pallets: ['SE803-PLT-1401'],
-    totalBoxes: 18,
-    totalWeight: 402.6,
-    status: '计划',
-    createdAt: '2026-04-07T18:35:00.000Z'
-  },
-  {
-    id: 'LOAD-DEMO-005',
-    flightNo: 'SE803',
-    truckPlate: 'HX-TRK-512',
-    vehicleModel: '12.5m 厢车',
-    driverName: 'Hao Xue 05',
-    collectionNote: 'CN-SE803-005',
-    forkliftDriver: 'Forklift E',
-    checker: 'Checker E',
-    arrivalTime: '2026-04-07T19:20',
-    departTime: '',
-    pallets: ['SE803-PLT-1203'],
-    totalBoxes: 12,
-    totalWeight: 288.4,
-    status: '装车中',
-    createdAt: '2026-04-07T18:48:00.000Z'
-  },
-  {
-    id: 'LOAD-DEMO-006',
-    flightNo: 'SE803',
-    truckPlate: 'HX-TRK-608',
-    vehicleModel: '17.5m 挂车',
-    driverName: 'Hao Xue 06',
-    collectionNote: 'CN-SE803-006',
-    forkliftDriver: 'Forklift F',
-    checker: 'Checker F',
-    arrivalTime: '2026-04-07T16:10',
-    departTime: '2026-04-07T17:20',
-    pallets: ['SE803-PLT-1008', 'SE803-PLT-1009'],
-    totalBoxes: 31,
-    totalWeight: 706.9,
-    status: '已完成',
-    createdAt: '2026-04-07T15:50:00.000Z',
-    completedAt: '2026-04-07T17:20:00.000Z'
-  }
-];
-
-const DEFAULT_INBOUND_PALLETS = [
-  {
-    palletNo: 'SE803-PLT-1301',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-11',
-    entries: [
-      { awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 10, weightKg: 140.0 },
-      { awb: '436-10359018', consignee: 'MME Hub', boxes: 8, weightKg: 280.4 }
-    ],
-    printed: true,
-    totalWeightKg: 420.4,
-    totalBoxes: 18,
-    status: '待装车',
-    printQueuedAt: '2026-04-07T17:48:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1302',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-12',
-    entries: [
-      { awb: '436-10354363', consignee: 'LGG Transfer', boxes: 18, weightKg: 392.0 }
-    ],
-    printed: true,
-    totalWeightKg: 392.0,
-    totalBoxes: 18,
-    status: '待装车',
-    printQueuedAt: '2026-04-07T17:52:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1201',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-21',
-    entries: [{ awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 14, weightKg: 196.0 }],
-    printed: true,
-    totalWeightKg: 196.0,
-    totalBoxes: 14,
-    status: '待装车',
-    printQueuedAt: '2026-04-07T18:05:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1202',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-22',
-    entries: [{ awb: '436-10359018', consignee: 'MME Hub', boxes: 14, weightKg: 446.5 }],
-    printed: true,
-    totalWeightKg: 446.5,
-    totalBoxes: 14,
-    status: '待装车',
-    printQueuedAt: '2026-04-07T18:09:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1101',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-31',
-    entries: [{ awb: '436-10354363', consignee: 'LGG Transfer', boxes: 16, weightKg: 348.0 }],
-    printed: true,
-    totalWeightKg: 348.0,
-    totalBoxes: 16,
-    status: '待装车',
-    loadedPlate: 'HX-TRK-318',
-    loadedAt: '2026-04-07T18:05:00.000Z',
-    printQueuedAt: '2026-04-07T16:42:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1102',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-32',
-    entries: [{ awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 15, weightKg: 210.0 }],
-    printed: true,
-    totalWeightKg: 210.0,
-    totalBoxes: 15,
-    status: '待装车',
-    loadedPlate: 'HX-TRK-318',
-    loadedAt: '2026-04-07T18:05:00.000Z',
-    printQueuedAt: '2026-04-07T16:44:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1103',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-33',
-    entries: [{ awb: '436-10359018', consignee: 'MME Hub', boxes: 15, weightKg: 480.2 }],
-    printed: true,
-    totalWeightKg: 480.2,
-    totalBoxes: 15,
-    status: '待装车',
-    loadedPlate: 'HX-TRK-318',
-    loadedAt: '2026-04-07T18:05:00.000Z',
-    printQueuedAt: '2026-04-07T16:46:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1401',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-41',
-    entries: [{ awb: '436-10354363', consignee: 'LGG Transfer', boxes: 18, weightKg: 402.6 }],
-    printed: true,
-    totalWeightKg: 402.6,
-    totalBoxes: 18,
-    status: '待装车',
-    printQueuedAt: '2026-04-07T18:33:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1203',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-23',
-    entries: [{ awb: '436-10359018', consignee: 'MME Hub', boxes: 12, weightKg: 288.4 }],
-    printed: true,
-    totalWeightKg: 288.4,
-    totalBoxes: 12,
-    status: '待装车',
-    printQueuedAt: '2026-04-07T18:47:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1008',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-08',
-    entries: [{ awb: '436-10358585', consignee: 'SMDG LOGISTICS', boxes: 16, weightKg: 352.0 }],
-    printed: true,
-    totalWeightKg: 352.0,
-    totalBoxes: 16,
-    status: '待装车',
-    loadedPlate: 'HX-TRK-608',
-    loadedAt: '2026-04-07T17:20:00.000Z',
-    printQueuedAt: '2026-04-07T15:53:00.000Z'
-  },
-  {
-    palletNo: 'SE803-PLT-1009',
-    flightNo: 'SE803',
-    storageLocation: 'MME-STAGE-09',
-    entries: [{ awb: '436-10354363', consignee: 'LGG Transfer', boxes: 15, weightKg: 354.9 }],
-    printed: true,
-    totalWeightKg: 354.9,
-    totalBoxes: 15,
-    status: '待装车',
-    loadedPlate: 'HX-TRK-608',
-    loadedAt: '2026-04-07T17:20:00.000Z',
-    printQueuedAt: '2026-04-07T15:56:00.000Z'
-  }
-];
 
 export function getInboundFlight(flightNo) {
   if (!flightNo) return null;
@@ -469,7 +279,7 @@ export function getInboundSummary(waybills, taskMap) {
 export function useInboundStorage(flightNo) {
   const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading, mobileInboundFlightDetailError } = useGetMobileInboundDetail(flightNo);
   const [taskMap, setTaskMapState] = useState({});
-  const [pallets, setPalletsState] = useState(DEFAULT_INBOUND_PALLETS.filter((item) => !flightNo || item.flightNo === flightNo));
+  const [pallets, setPalletsState] = useState([]);
   const hydratedStateRef = useRef({ flightNo: '', mode: '' });
 
   useEffect(() => {
@@ -480,9 +290,7 @@ export function useInboundStorage(flightNo) {
     if (hydratedStateRef.current.flightNo === flightNo && hydratedStateRef.current.mode === mode) return;
 
     const detailTaskMap = mobileInboundFlightDetailError ? {} : mobileInboundFlightDetail?.taskMap || {};
-    const detailPallets = mobileInboundFlightDetailError
-      ? DEFAULT_INBOUND_PALLETS.filter((item) => item.flightNo === flightNo)
-      : mobileInboundFlightDetail?.pallets || [];
+    const detailPallets = mobileInboundFlightDetailError ? [] : mobileInboundFlightDetail?.pallets || [];
 
     hydratedStateRef.current = { flightNo, mode };
     setTaskMapState(detailTaskMap);
@@ -493,13 +301,32 @@ export function useInboundStorage(flightNo) {
     setTaskMapState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (flightNo) {
-        Object.entries(next || {}).forEach(([awbNo, value]) => {
-          void saveInboundCountRecord(flightNo, awbNo, {
-            counted_boxes: value?.countedBoxes || 0,
-            status: value?.status || '未开始',
-            scanned_serials: value?.scannedSerials || [],
-            note: value?.note || ''
-          });
+        const nextEntries = next || {};
+        const prevEntries = prev || {};
+        Object.entries(nextEntries).forEach(([awbNo, value]) => {
+          const previous = prevEntries[awbNo];
+          if (JSON.stringify(previous) === JSON.stringify(value)) return;
+
+          const isArchived = value?.archived === true;
+          const request =
+            isArchived
+              ? archiveInboundCountRecord(flightNo, awbNo)
+              : previous
+                ? updateInboundCountRecord(flightNo, awbNo, {
+                    counted_boxes: value?.countedBoxes || 0,
+                    status: value?.status || '未开始',
+                    scanned_serials: value?.scannedSerials || [],
+                    note: value?.note || '',
+                    lifecycle_action: value?.lifecycleAction || undefined,
+                    archived: value?.archived === false ? false : undefined
+                  })
+                : saveInboundCountRecord(flightNo, awbNo, {
+                    counted_boxes: value?.countedBoxes || 0,
+                    status: value?.status || '未开始',
+                    scanned_serials: value?.scannedSerials || [],
+                    note: value?.note || ''
+                  });
+          void request;
         });
       }
       return next;
@@ -510,17 +337,34 @@ export function useInboundStorage(flightNo) {
     setPalletsState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (flightNo) {
+        const previousMap = new Map((prev || []).map((item) => [item.palletNo, item]));
         (next || []).forEach((item) => {
-          void saveInboundPallet(flightNo, {
+          const previous = previousMap.get(item.palletNo);
+          if (JSON.stringify(previous) === JSON.stringify(item)) return;
+
+          const payload = {
             pallet_id: item.palletId,
             pallet_no: item.palletNo,
             status: item.status,
             total_boxes: item.totalBoxes,
-            total_weight: item.totalWeight,
+            total_weight: item.totalWeight ?? item.totalWeightKg,
             storage_location: item.storageLocation,
             note: item.note,
-            items: item.items
-          });
+            loaded_plate: item.loadedPlate || null,
+            loaded_at: item.loadedAt || null,
+            items: item.items || item.entries || []
+          };
+          if (item.archived === true) {
+            void archiveInboundPallet(item.palletNo);
+          } else if (previous) {
+            void updateInboundPallet(item.palletNo, {
+              ...payload,
+              lifecycle_action: item.lifecycleAction || undefined,
+              archived: item.archived === false ? false : undefined
+            });
+          } else {
+            void saveInboundPallet(flightNo, payload);
+          }
         });
       }
       return next;
@@ -537,7 +381,7 @@ export function useInboundStorage(flightNo) {
 
 export function useInboundLoadingStorage(flightNo) {
   const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading, mobileInboundFlightDetailError } = useGetMobileInboundDetail(flightNo);
-  const [loadingPlans, setLoadingPlansState] = useState(DEFAULT_LOADING_PLANS.filter((item) => !flightNo || item.flightNo === flightNo));
+  const [loadingPlans, setLoadingPlansState] = useState([]);
   const hydratedStateRef = useRef({ flightNo: '', mode: '' });
 
   useEffect(() => {
@@ -547,9 +391,7 @@ export function useInboundLoadingStorage(flightNo) {
     const mode = mobileInboundFlightDetailError ? 'error' : 'loaded';
     if (hydratedStateRef.current.flightNo === flightNo && hydratedStateRef.current.mode === mode) return;
 
-    const detailLoadingPlans = mobileInboundFlightDetailError
-      ? DEFAULT_LOADING_PLANS.filter((item) => item.flightNo === flightNo)
-      : mobileInboundFlightDetail?.loadingPlans || [];
+    const detailLoadingPlans = mobileInboundFlightDetailError ? [] : mobileInboundFlightDetail?.loadingPlans || [];
 
     hydratedStateRef.current = { flightNo, mode };
     setLoadingPlansState(detailLoadingPlans);
@@ -559,8 +401,12 @@ export function useInboundLoadingStorage(flightNo) {
     setLoadingPlansState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (flightNo) {
+        const previousMap = new Map((prev || []).map((item) => [item.id, item]));
         (next || []).forEach((item) => {
-          void saveInboundLoadingPlan(flightNo, {
+          const previous = previousMap.get(item.id);
+          if (JSON.stringify(previous) === JSON.stringify(item)) return;
+
+          const payload = {
             id: item.id,
             truckPlate: item.truckPlate,
             vehicleModel: item.vehicleModel,
@@ -574,8 +420,20 @@ export function useInboundLoadingStorage(flightNo) {
             totalWeight: item.totalWeight,
             status: item.status,
             note: item.note,
+            completedAt: item.completedAt || null,
             pallets: item.pallets
-          });
+          };
+          if (item.archived === true) {
+            void archiveInboundLoadingPlan(item.id);
+          } else if (previous) {
+            void updateInboundLoadingPlan(item.id, {
+              ...payload,
+              lifecycle_action: item.lifecycleAction || undefined,
+              archived: item.archived === false ? false : undefined
+            });
+          } else {
+            void saveInboundLoadingPlan(flightNo, payload);
+          }
         });
       }
       return next;
@@ -643,22 +501,22 @@ export function InboundFlightHeroCard({ flight, waybills, taskMap }) {
               {flight.flightNo}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              {mt('来源：')}{flight.source} · ETA {flight.eta} · ETD {flight.etd}
+              {mt('来源：')}{mt(flight.source)} · ETA {flight.eta} · ETD {flight.etd}
             </Typography>
           </div>
           <StatusChip label={mt(flight.status)} />
         </Stack>
 
         <Typography variant="body2" color="text.secondary">
-          {mt('该航班提单：')}{awbList || (mobileLanguage() === 'en' ? 'No AWBs' : '暂无提单')}
+          {mt('该航班提单：')}{awbList || mt('暂无提单')}
         </Typography>
 
         <Grid container spacing={1.5}>
           <Grid size={4}>
-            <MetricCard title={mt('提单总数')} value={`${summary.totalWaybills}`} helper={mt('当前航班提单数')} chip="AWB" />
+            <MetricCard title={mt('提单总数')} value={`${summary.totalWaybills}`} helper={mt('当前航班提单数')} chip={mt('提单')} />
           </Grid>
           <Grid size={4}>
-            <MetricCard title={mt('总箱数')} value={`${summary.totalBoxes}`} helper={`${mt('已点 ')}${summary.countedBoxes} ${mobileLanguage() === 'en' ? 'boxes' : '箱'}`} color="secondary" />
+            <MetricCard title={mt('总箱数')} value={`${summary.totalBoxes}`} helper={`${mt('已点')} ${summary.countedBoxes} ${mt('箱')}`} color="secondary" />
           </Grid>
           <Grid size={4}>
             <MetricCard
@@ -676,7 +534,7 @@ export function InboundFlightHeroCard({ flight, waybills, taskMap }) {
 
 export function InboundOverviewPanel({ flight, waybills, taskMap }) {
   const summary = getInboundSummary(waybills, taskMap);
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flight.flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flight.flightNo);
 
   return (
     <Stack sx={{ gap: 2 }}>
@@ -685,10 +543,10 @@ export function InboundOverviewPanel({ flight, waybills, taskMap }) {
       <MainCard title={mt('航班概览')}>
         <Grid container spacing={1.5}>
           <Grid size={6}>
-            <MetricCard title={mt('当前节点')} value={mt(flight.step)} helper={`${mt('优先级')} ${flight.priority}`} />
+            <MetricCard title={mt('当前节点')} value={mt(flight.step)} helper={`${mt('优先级')} ${mt(flight.priority)}`} />
           </Grid>
           <Grid size={6}>
-            <MetricCard title={mt('货量')} value={flight.cargo} helper={`${mt('已完成 ')}${summary.completedWaybills} ${mobileLanguage() === 'en' ? 'AWBs' : '票'}`} color="secondary" />
+            <MetricCard title={mt('货量')} value={mt(flight.cargo)} helper={`${mt('已完成')} ${summary.completedWaybills} ${mt('票')}`} color="secondary" />
           </Grid>
         </Grid>
       </MainCard>
@@ -704,7 +562,7 @@ export function InboundOverviewPanel({ flight, waybills, taskMap }) {
                   <div>
                     <Typography variant="subtitle1">{item.awb}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {item.consignee}
+                      {mt(item.consignee)}
                     </Typography>
                   </div>
                   <StatusChip label={mt(task.status === '未开始' ? item.currentNode : task.status)} />
@@ -713,7 +571,7 @@ export function InboundOverviewPanel({ flight, waybills, taskMap }) {
                 <Grid container spacing={1} sx={{ mt: 1 }}>
                   <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">
-                      {mt('箱数：')}{item.expectedBoxes} {mobileLanguage() === 'en' ? 'boxes' : '箱'}
+                      {`${mt('箱数：')}${item.expectedBoxes} ${mt('箱')}`}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
@@ -791,14 +649,14 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
 
       openSnackbar({
         open: true,
-        message: `任务 ${task.task_id} 已执行 ${action}`,
+        message: mt(`任务 ${task.task_id} 已执行 ${mt(action)}`),
         variant: 'alert',
         alert: { color: 'success' }
       });
     } catch (error) {
       openSnackbar({
         open: true,
-        message: error?.error?.message || `任务 ${action} 失败`,
+        message: error?.error?.message || mt(`任务 ${mt(action)} 失败`),
         variant: 'alert',
         alert: { color: 'error' }
       });
@@ -813,10 +671,14 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
           <TaskOpsPanel
             scopeKey={`inbound-flight-${flight.flightNo}`}
             currentLabel={resolvedFlight.flightNo}
-            contextChips={[`角色 ${mt(roleView.label)}`, `优先级 ${resolvedFlight.priority}`, `当前节点 ${mt(resolvedFlight.step)}`]}
+            contextChips={[
+              `${mt('角色')} ${mt(roleView.label)}`,
+              `${mt('优先级')} ${resolvedFlight.priority}`,
+              `${mt('当前节点')} ${mt(resolvedFlight.step)}`
+            ]}
             quickLinks={[
-              { label: '节点选择', onClick: () => navigate('/mobile/select') },
-              { label: '航班列表', onClick: () => navigate('/mobile/inbound') }
+              { label: mt('节点选择'), onClick: () => navigate('/mobile/select') },
+              { label: mt('航班列表'), onClick: () => navigate('/mobile/inbound') }
             ]}
             liveTasks={liveTasks}
             onTaskAction={handleLiveTaskAction}
@@ -836,7 +698,7 @@ export function InboundFlightAppShell({ flight, waybills, taskMap, children, sho
 }
 
 export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const scanInputRef = useRef(null);
   const flashTimerRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
@@ -847,7 +709,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
   const [expandedAwb, setExpandedAwb] = useState('');
   const [flashAwb, setFlashAwb] = useState('');
   const [recentScanInfo, setRecentScanInfo] = useState({});
-  const [message, setMessage] = useState('使用 PDA 条码枪扫描提单后，会直接进入该票的计数器。');
+  const [message, setMessage] = useState(mt('使用 PDA 条码枪扫描提单后，会直接进入该票的计数器。'));
 
   useEffect(() => {
     scanInputRef.current?.focus();
@@ -908,15 +770,15 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
     return {
       waybill: {
         awb: formattedAwb,
-        consignee: '不在当前航班，临时纳入统计',
+        consignee: mt('不在当前航班，临时纳入统计'),
         expectedBoxes: 0,
         expectedBoxesKnown: false,
         totalWeightKg: 0,
-        weight: '待确认',
-        currentNode: '航班外提单',
-        noaStatus: '待确认',
-        podStatus: '待确认',
-        transferStatus: '待确认',
+        weight: mt('待确认'),
+        currentNode: mt('航班外提单'),
+        noaStatus: mt('待确认'),
+        podStatus: mt('待确认'),
+        transferStatus: mt('待确认'),
         barcode: formattedAwb
       },
       rawCode: normalizeCode(code),
@@ -981,7 +843,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
           scannedSerials: serial ? [...scannedSerials, serial] : scannedSerials,
           lastScanRaw: rawCode,
           lastScanAt: now,
-          status: current.status === '理货完成' ? '理货完成' : '点货中',
+          status: current.status === mt('理货完成') ? mt('理货完成') : mt('点货中'),
           updatedAt: new Date(now).toISOString()
         }
       };
@@ -989,19 +851,19 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 
     if (outcome?.type === 'duplicate-serial') {
       setPendingWaybill(null);
-      setMessage(`箱号 ${outcome.serial} 已经扫描过，本次已自动忽略。`);
+      setMessage(mt(`箱号 ${outcome.serial} 已经扫描过，本次已自动忽略。`));
       return;
     }
 
     if (outcome?.type === 'rapid-duplicate') {
       setPendingWaybill(null);
-      setMessage(`短时间内重复扫描同一个提单号，系统已自动忽略。`);
+      setMessage(mt('短时间内重复扫描同一个提单号，系统已自动忽略。'));
       return;
     }
 
     if (outcome?.type === 'overflow') {
       setPendingWaybill(null);
-      setMessage(`提单 ${waybill.awb} 已达到应点箱数，不能再继续增加。`);
+      setMessage(mt(`提单 ${waybill.awb} 已达到应点箱数，不能再继续增加。`));
       return;
     }
 
@@ -1012,11 +874,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
     setExpandedAwb(waybill.awb);
     triggerScanFeedback(waybill.awb, outcome.nextCount, serial);
     runScopedAction('扫码 +1', `拆板与理货 / ${waybill.awb}`);
-    setMessage(
-      serial
-        ? `已纳入提单 ${waybill.awb}，自动加 1。当前为第 ${outcome.nextCount} 项，箱号 ${serial}。`
-        : `已纳入提单 ${waybill.awb}，自动加 1。当前为第 ${outcome.nextCount} 项。`
-    );
+    setMessage(serial ? mt(`已纳入提单 ${waybill.awb}，自动加 1。当前为第 ${outcome.nextCount} 项，箱号 ${serial}。`) : mt(`已纳入提单 ${waybill.awb}，自动加 1。当前为第 ${outcome.nextCount} 项。`));
   };
 
   const activateWaybill = (code) => {
@@ -1028,7 +886,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
       const externalCandidate = buildExternalWaybill(code);
       setPendingWaybill(externalCandidate);
       setScanValue(externalCandidate.waybill.awb);
-      setMessage(`扫描到一个不在航班 ${flightNo} 下面的提单，是否纳入统计？`);
+      setMessage(mt(`扫描到一个不在航班 ${flightNo} 下面的提单，是否纳入统计？`));
       return;
     }
 
@@ -1044,7 +902,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 
     setPendingWaybill(matched);
     setScanValue(matched.waybill.awb);
-    setMessage(`检测到新的提单 ${matched.waybill.awb}，请先确认是否纳入当前航班点数。`);
+    setMessage(mt(`检测到新的提单 ${matched.waybill.awb}，请先确认是否纳入当前航班点数。`));
   };
 
   const openWaybillCounter = (item) => {
@@ -1052,7 +910,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
     setScanValue(item.awb);
     setPendingWaybill(null);
     setExpandedAwb(item.awb);
-    setMessage(`已切换到提单 ${item.awb}，可以继续点数。`);
+    setMessage(mt(`已切换到提单 ${item.awb}，可以继续点数。`));
   };
 
   const allWaybills = [...waybills, ...externalWaybills];
@@ -1062,7 +920,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <MainCard title="扫描提单">
+      <MainCard title={mt('扫描提单')}>
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
             <TextField
@@ -1070,7 +928,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
               fullWidth
               autoFocus
               disabled={!!pendingWaybill}
-              label="扫描提单号 / 箱号"
+              label={mt('扫描提单号 / 箱号')}
               value={scanValue}
               onChange={(event) => setScanValue(event.target.value)}
               onKeyDown={(event) => {
@@ -1079,20 +937,20 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                   activateWaybill(scanValue);
                 }
               }}
-              placeholder="扫码后自动回车，即确认并加 1"
+              placeholder={mt('扫码后自动回车，即确认并加 1')}
             />
             <Button variant="contained" startIcon={<BarcodeOutlined />} disabled={!!pendingWaybill} onClick={() => activateWaybill(scanValue)}>
-              确认 +1
+              {mt('确认 +1')}
             </Button>
           </Stack>
           <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
             <BarcodeOutlined />
             <Typography variant="body2" color="text.secondary">
-              条码枪扫码后的回车会直接被识别成一次确认，并自动完成点数加 1。
+              {mt('条码枪扫码后的回车会直接被识别成一次确认，并自动完成点数加 1。')}
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {message}
+            {mt(message)}
           </Typography>
         </Stack>
       </MainCard>
@@ -1102,18 +960,20 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
       <Dialog open={!!pendingWaybill} fullWidth maxWidth="xs" disableEscapeKeyDown onClose={() => {}}>
         {pendingWaybill ? (
           <>
-            <DialogTitle>纳入统计确认</DialogTitle>
+            <DialogTitle>{mt('纳入统计确认')}</DialogTitle>
             <DialogContent>
               <Stack sx={{ gap: 2, pt: 0.5 }}>
                 <Typography variant="body1">
-                  {pendingWaybill.isExternal ? `扫描到一个不在航班 ${flightNo} 下面的提单，是否纳入统计？` : '这是一个新的提单号，是否纳入这一个提单号的点数？'}
+                  {pendingWaybill.isExternal
+                    ? mt(`扫描到一个不在航班 ${flightNo} 下面的提单，是否纳入统计？`)
+                    : mt('这是一个新的提单号，是否纳入这一个提单号的点数？')}
                 </Typography>
                 <Box sx={{ borderRadius: 2, bgcolor: 'grey.100', p: 1.5 }}>
                   <Typography variant="subtitle2">{pendingWaybill.waybill.awb}</Typography>
                   <Typography variant="caption" color="text.secondary">
                     {pendingWaybill.waybill.consignee} ·{' '}
-                    {pendingWaybill.waybill.expectedBoxesKnown === false ? '总箱数待确认' : `总箱数 ${pendingWaybill.waybill.expectedBoxes}`}
-                    {pendingWaybill.serial ? ` · 箱号 ${pendingWaybill.serial}` : ''}
+                    {pendingWaybill.waybill.expectedBoxesKnown === false ? mt('总箱数待确认') : `${mt('总箱数')} ${pendingWaybill.waybill.expectedBoxes}`}
+                    {pendingWaybill.serial ? ` · ${mt('箱号')} ${pendingWaybill.serial}` : ''}
                   </Typography>
                 </Box>
               </Stack>
@@ -1124,11 +984,11 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                 onClick={() => {
                   setPendingWaybill(null);
                   setScanValue(activeAwb || '');
-                  setMessage('已取消纳入新提单。');
+                  setMessage(mt('已取消纳入新提单。'));
                   scanInputRef.current?.focus();
                 }}
               >
-                取消
+                {mt('取消')}
               </Button>
               <Button
                 variant="contained"
@@ -1144,7 +1004,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                   }, 0);
                 }}
               >
-                确定纳入
+                {mt('确定纳入')}
               </Button>
             </DialogActions>
           </>
@@ -1152,7 +1012,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
       </Dialog>
 
       {includedWaybillItems.length ? (
-        <MainCard title="已纳入点数的提单">
+        <MainCard title={mt('已纳入点数的提单')}>
           <Stack sx={{ gap: 1 }}>
             {includedWaybillItems.map((item) => {
               const task = taskMap[item.awb] || defaultTask;
@@ -1189,31 +1049,31 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                         {item.consignee}
                       </Typography>
                     </div>
-                    <StatusChip label={task.status} />
+                    <StatusChip label={mt(task.status)} />
                   </Stack>
                   <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.9, alignItems: 'center', gap: 1 }}>
                     <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
-                      已点 {task.countedBoxes} / {remaining === null ? '总箱数待确认' : `剩余 ${remaining}`}
+                      {`${mt('已点')} ${task.countedBoxes} ${mt('箱')} / ${remaining === null ? mt('总箱数待确认') : `${mt('剩余')} ${remaining}`}`}
                     </Typography>
                     {recent ? (
                       <Typography variant="caption" color="success.main" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
-                        已加第 {recent.nextCount} 项{recent.serial ? ` · 箱号 ${recent.serial}` : ''}
+                        {mt('已加第')} {recent.nextCount} {mt('项')}{recent.serial ? ` · ${mt('箱号')} ${recent.serial}` : ''}
                       </Typography>
                     ) : null}
                   </Stack>
 
                   <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.75, alignItems: 'center', gap: 1 }}>
                     <Typography variant="caption" color="text.secondary">
-                      {item.expectedBoxesKnown === false ? '当前提单不在本航班内' : `总箱数 ${item.expectedBoxes}`}
+                      {item.expectedBoxesKnown === false ? mt('当前提单不在本航班内') : `${mt('总箱数')} ${item.expectedBoxes}`}
                     </Typography>
                     <Stack direction="row" sx={{ gap: 0.5 }}>
                       {task.scannedSerials?.length ? (
                         <Button size="small" variant="text" onClick={() => setExpandedAwb(isExpanded ? '' : item.awb)}>
-                          {isExpanded ? '收起箱号' : `查看箱号(${task.scannedSerials.length})`}
+                          {isExpanded ? mt('收起箱号') : `${mt('查看箱号')}(${task.scannedSerials.length})`}
                         </Button>
                       ) : null}
                       <Button size="small" variant="text" onClick={() => openWaybillCounter(item)}>
-                        {activeAwb === item.awb ? '当前提单' : task.status === '暂时挂起' ? '继续点货' : '设为当前'}
+                        {activeAwb === item.awb ? mt('当前提单') : task.status === '暂时挂起' ? mt('继续点货') : mt('设为当前')}
                       </Button>
                     </Stack>
                   </Stack>
@@ -1221,7 +1081,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                   <Box sx={{ mt: 0.75 }}>
                     <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
                       <Typography variant="caption" color="text.secondary">
-                        理货进度
+                        {mt('理货进度')}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {progress}%
@@ -1240,11 +1100,11 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                       onClick={() =>
                         updateTask(item.awb, (current) => ({
                           ...current,
-                          status: '理货完成'
+                          status: mt('理货完成')
                         }))
                       }
                     >
-                      点货完成
+                      {mt('点货完成')}
                     </Button>
                     <Button
                       fullWidth
@@ -1254,11 +1114,11 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
                       onClick={() =>
                         updateTask(item.awb, (current) => ({
                           ...current,
-                          status: '暂时挂起'
+                          status: mt('暂时挂起')
                         }))
                       }
                     >
-                      暂时挂起
+                      {mt('暂时挂起')}
                     </Button>
                   </Stack>
 
@@ -1292,7 +1152,7 @@ export function CountingPanel({ flightNo, waybills, taskMap, setTaskMap }) {
 }
 
 export function PalletPanel({ flightNo, pallets }) {
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightPallets = pallets.filter((item) => item.flightNo === flightNo);
 
@@ -1316,7 +1176,7 @@ export function PalletPanel({ flightNo, pallets }) {
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>打印托盘标签</title>
+          <title>${mt('打印托盘标签')}</title>
           <style>
             * { box-sizing: border-box; }
             body {
@@ -1363,11 +1223,11 @@ export function PalletPanel({ flightNo, pallets }) {
         </head>
         <body>
           <div class="label">
-            <div class="title">Pallet Label</div>
+            <div class="title">${mt('打印标签')}</div>
             <div class="barcode">${svg.outerHTML}</div>
-            <div class="metric"><span>托盘号</span><strong>${pallet.palletNo}</strong></div>
-            <div class="metric"><span>箱数</span><strong>${pallet.totalBoxes}</strong></div>
-            <div class="metric"><span>重量</span><strong>${pallet.totalWeightKg} kg</strong></div>
+            <div class="metric"><span>${mt('托盘号')}</span><strong>${pallet.palletNo}</strong></div>
+            <div class="metric"><span>${mt('箱数')}</span><strong>${pallet.totalBoxes}</strong></div>
+            <div class="metric"><span>${mt('重量')}</span><strong>${pallet.totalWeightKg} kg</strong></div>
           </div>
           <script>
             window.onload = () => {
@@ -1382,18 +1242,18 @@ export function PalletPanel({ flightNo, pallets }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <MainCard title="托盘操作">
+      <MainCard title={mt('托盘操作')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            先浏览该航班已有托盘，再进入新页面新建托盘。每完成一个托盘后，会回到这里继续下一轮操作。
+            {mt('先浏览该航班已有托盘，再进入新页面新建托盘。每完成一个托盘后，会回到这里继续下一轮操作。')}
           </Typography>
           <Button fullWidth size="large" variant="contained" startIcon={<PlusOutlined />} onClick={() => navigate(`/mobile/inbound/${flightNo}/pallet/new`)}>
-            新建托盘
+            {mt('新建托盘')}
           </Button>
         </Stack>
       </MainCard>
 
-      <MainCard title="历史托盘记录">
+      <MainCard title={mt('历史托盘记录')}>
         <Stack sx={{ gap: 1.25 }}>
           {flightPallets.length ? (
             flightPallets.map((item) => (
@@ -1402,23 +1262,23 @@ export function PalletPanel({ flightNo, pallets }) {
                   <div>
                     <Typography variant="subtitle2">{item.palletNo}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {item.totalBoxes} 箱 / {item.totalWeightKg} kg / {item.entries.length} 票
+                      {item.totalBoxes} {mt('箱')} / {item.totalWeightKg} kg / {item.entries.length} {mt('票')}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
-                      存放位置：{item.storageLocation || derivePalletStorageLocation(item.palletNo)}
+                      {mt('存放位置：')}{item.storageLocation || derivePalletStorageLocation(item.palletNo)}
                     </Typography>
                   </div>
-                  <StatusChip label={item.loadedPlate ? '已装车' : '待装车'} />
+                  <StatusChip label={item.loadedPlate ? mt('已装车') : mt('待装车')} />
                 </Stack>
                 <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1 }}>
                   <Button size="small" variant="outlined" startIcon={<PrinterOutlined />} onClick={() => printPalletLabel(item)}>
-                    打印标签
+                    {mt('打印标签')}
                   </Button>
                 </Stack>
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前航班还没有历史托盘记录。</Typography>
+            <Typography color="text.secondary">{mt('当前航班还没有历史托盘记录。')}</Typography>
           )}
         </Stack>
       </MainCard>
@@ -1429,10 +1289,10 @@ export function PalletPanel({ flightNo, pallets }) {
 }
 
 export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onCompleted }) {
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
-  const [message, setMessage] = useState('当前托盘已自动编号，扫码枪每扫一次就会为对应提单加 1 箱。');
+  const [message, setMessage] = useState(mt('当前托盘已自动编号，扫码枪每扫一次就会为对应提单加 1 箱。'));
   const [pendingPalletScan, setPendingPalletScan] = useState(null);
   const [currentPallet, setCurrentPallet] = useState(() => ({
     palletNo: `${flightNo}-PLT-${String(Date.now()).slice(-4)}`,
@@ -1481,7 +1341,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
     });
     setScanValue(matched.awb);
     setPendingPalletScan(null);
-    setMessage(`已扫描 ${matched.awb}，当前托盘继续累计。`);
+    setMessage(mt(`已扫描 ${matched.awb}，当前托盘继续累计。`));
     window.setTimeout(() => {
       scanInputRef.current?.focus();
     }, 0);
@@ -1494,7 +1354,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
     const matched = waybills.find((item) => item.barcode === normalized);
 
     if (!matched) {
-      setMessage(`未在航班 ${flightNo} 下找到提单 ${code}。`);
+      setMessage(mt(`未在航班 ${flightNo} 下找到提单 ${code}。`));
       return;
     }
 
@@ -1536,13 +1396,13 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
       storageLocation: derivePalletStorageLocation(currentPallet.palletNo, pallets.length),
       totalWeightKg: Number(totalWeightKg.toFixed(1)),
       totalBoxes,
-      status: '待装车',
+      status: mt('待装车'),
       printQueuedAt: new Date().toISOString()
     };
 
     setPallets((prev) => [finalized, ...prev]);
     runScopedAction('完成', `组托完成 / ${finalized.palletNo}`);
-    setMessage(`托盘 ${finalized.palletNo} 已完成，共 ${totalBoxes} 箱。`);
+    setMessage(mt(`托盘 ${finalized.palletNo} 已完成，共 ${totalBoxes} 箱。`));
     if (onCompleted) onCompleted(finalized);
   };
 
@@ -1550,18 +1410,18 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
     <Stack sx={{ gap: 2 }}>
       <TaskCard {...roleAwareInboundTaskCardConfig('pallet', flightNo, taskCards, runScopedAction)} />
 
-      <MainCard title="当前托盘">
+      <MainCard title={mt('当前托盘')}>
         <Stack sx={{ gap: 2 }}>
           <Box sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.5 }}>
             <Typography variant="subtitle2">{currentPallet.palletNo}</Typography>
             <Typography variant="caption" color="text.secondary">
-              航班 {currentPallet.flightNo} · 已纳入 {currentPallet.entries.length} 个提单
+              {mt('航班')} {currentPallet.flightNo} · {mt('已纳入')} {currentPallet.entries.length} {mt('个提单')}
             </Typography>
           </Box>
         </Stack>
       </MainCard>
 
-      <MainCard title="扫描计数">
+      <MainCard title={mt('扫描计数')}>
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
             <TextField
@@ -1569,7 +1429,7 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
               fullWidth
               autoFocus
               disabled={!!pendingPalletScan}
-              label="扫描提单号"
+              label={mt('扫描提单号')}
               value={scanValue}
               onChange={(event) => setScanValue(event.target.value)}
               onKeyDown={(event) => {
@@ -1578,10 +1438,10 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
                   activateWaybill(scanValue);
                 }
               }}
-              placeholder="扫码后自动回车，即加 1 箱"
+              placeholder={mt('扫码后自动回车，即加 1 箱')}
             />
             <Button variant="contained" startIcon={<SearchOutlined />} disabled={!!pendingPalletScan} onClick={() => activateWaybill(scanValue)}>
-              确认 +1
+              {mt('确认 +1')}
             </Button>
           </Stack>
 
@@ -1594,22 +1454,22 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
       <Dialog open={!!pendingPalletScan} fullWidth maxWidth="xs" disableEscapeKeyDown onClose={() => {}}>
         {pendingPalletScan ? (
           <>
-            <DialogTitle>{pendingPalletScan.type === 'blocked-consignee' ? '不能并入当前托盘' : '确认并入当前托盘'}</DialogTitle>
+            <DialogTitle>{pendingPalletScan.type === 'blocked-consignee' ? mt('不能并入当前托盘') : mt('确认并入当前托盘')}</DialogTitle>
             <DialogContent>
               <Stack sx={{ gap: 2, pt: 0.5 }}>
                 <Typography variant="body1">
                   {pendingPalletScan.type === 'blocked-consignee'
-                    ? '不同收货人的提单不允许打在同一个托盘上。'
-                    : '当前扫描到的是同一收货人的另一票提单，是否要记录在这个托盘里？'}
+                    ? mt('不同收货人的提单不允许打在同一个托盘上。')
+                    : mt('当前扫描到的是同一收货人的另一票提单，是否要记录在这个托盘里？')}
                 </Typography>
                 <Box sx={{ borderRadius: 2, bgcolor: 'grey.100', p: 1.5 }}>
                   <Typography variant="subtitle2">{pendingPalletScan.matched.awb}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    当前提单收货人：{pendingPalletScan.matched.consignee}
+                    {mt('当前提单收货人：')}{pendingPalletScan.matched.consignee}
                   </Typography>
                   <br />
                   <Typography variant="caption" color="text.secondary">
-                    当前托盘收货人：{pendingPalletScan.palletConsignee}
+                    {mt('当前托盘收货人：')}{pendingPalletScan.palletConsignee}
                   </Typography>
                 </Box>
               </Stack>
@@ -1620,11 +1480,11 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
                   variant="contained"
                   onClick={() => {
                     setPendingPalletScan(null);
-                    setMessage('收货人不同，不能纳入当前托盘。');
+                    setMessage(mt('收货人不同，不能纳入当前托盘。'));
                     scanInputRef.current?.focus();
                   }}
                 >
-                  知道了
+                  {mt('知道了')}
                 </Button>
               ) : (
                 <>
@@ -1632,14 +1492,14 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
                     variant="outlined"
                     onClick={() => {
                       setPendingPalletScan(null);
-                      setMessage('已取消把该提单并入当前托盘。');
+                      setMessage(mt('已取消把该提单并入当前托盘。'));
                       scanInputRef.current?.focus();
                     }}
                   >
-                    取消
+                    {mt('取消')}
                   </Button>
                   <Button variant="contained" onClick={() => appendWaybillToPallet(pendingPalletScan.matched)}>
-                    记录在此托盘
+                    {mt('记录在此托盘')}
                   </Button>
                 </>
               )}
@@ -1648,33 +1508,33 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
         ) : null}
       </Dialog>
 
-      <MainCard title="当前托盘明细">
+      <MainCard title={mt('当前托盘明细')}>
         <Stack sx={{ gap: 1 }}>
           {currentPallet.entries.length ? (
             currentPallet.entries.map((entry, index) => (
               <Box key={`${entry.awb}-${index}`} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                   <Typography variant="subtitle2">{entry.awb}</Typography>
-                  <Typography variant="subtitle2">{entry.boxes} 箱</Typography>
+                  <Typography variant="subtitle2">{entry.boxes} {mt('箱')}</Typography>
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  估算重量 {entry.weightKg} kg
+                  {mt('估算重量')} {entry.weightKg} kg
                 </Typography>
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前托盘还没有录入任何提单。</Typography>
+            <Typography color="text.secondary">{mt('当前托盘还没有录入任何提单。')}</Typography>
           )}
         </Stack>
       </MainCard>
 
-      <MainCard title="完成提交">
+      <MainCard title={mt('完成提交')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            点击完成后，当前托盘会加入历史托盘记录，你可以继续新建下一个托盘。
+            {mt('点击完成后，当前托盘会加入历史托盘记录，你可以继续新建下一个托盘。')}
           </Typography>
           <Button fullWidth size="large" variant="contained" startIcon={<PrinterOutlined />} disabled={!currentPallet.entries.length} onClick={completePallet}>
-            完成
+            {mt('完成')}
           </Button>
         </Stack>
       </MainCard>
@@ -1683,24 +1543,26 @@ export function PalletCreatePanel({ flightNo, waybills, pallets, setPallets, onC
 }
 
 export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const navigate = useNavigate();
   const flightPlans = loadingPlans.filter((item) => item.flightNo === flightNo);
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <MainCard title="装车计划">
+      <MainCard title={mt('装车计划')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            装车计划应由后台办公室先完成编排，包括车牌、司机、Collection Note 与预定托盘；PDA 仅执行已排好的计划。
+            {isMobileEnglish()
+              ? 'The loading plan should be completed by the back office first, including truck plate, driver, collection note, and reserved pallets; the PDA only executes the approved plan.'
+              : mt('装车计划应由后台办公室先完成编排，包括车牌、司机、Collection Note 与预定托盘；PDA 仅执行已排好的计划。')}
           </Typography>
           <Button fullWidth size="large" variant="outlined" onClick={() => navigate('/station/resources/vehicles')}>
-            去后台排计划
+            {isMobileEnglish() ? 'Plan in Back Office' : mt('去后台排计划')}
           </Button>
         </Stack>
       </MainCard>
 
-      <MainCard title="预定装车计划">
+      <MainCard title={mt('预定装车计划')}>
         <Stack sx={{ gap: 1.25 }}>
           {flightPlans.length ? (
             flightPlans.map((item) => (
@@ -1709,31 +1571,31 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
                   <div>
                     <Typography variant="subtitle2">{item.truckPlate}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {item.driverName || '待补司机'} · {item.collectionNote || '无 Collection Note'} · {item.pallets?.length || 0} 托盘
+                      {mt(`${item.driverName || '待补司机'} · ${item.collectionNote || 'Collection Note 未填写'} · ${item.pallets?.length || 0} 托盘`)}
                     </Typography>
                   </div>
-                  <StatusChip label={item.status || '待装车'} />
+                  <StatusChip label={item.status || mt('待装车')} />
                 </Stack>
                 <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1 }}>
                   <Button
                     size="small"
                     variant="contained"
-                    disabled={item.status === '已完成'}
+                    disabled={item.status === '已完成' || item.status === mt('已完成')}
                     onClick={() => {
                       runScopedAction('确认', `装车计划启动 / ${item.id}`);
                       setLoadingPlans((prev) =>
-                        prev.map((plan) => (plan.id === item.id ? { ...plan, status: '装车中' } : plan))
+                        prev.map((plan) => (plan.id === item.id ? { ...plan, status: mt('装车中') } : plan))
                       );
                       navigate(`/mobile/inbound/${flightNo}/loading/plan/${item.id}`);
                     }}
                   >
-                    装车
+                    {mt('装车')}
                   </Button>
                 </Stack>
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前航班还没有预定装车计划。</Typography>
+            <Typography color="text.secondary">{mt('当前航班还没有预定装车计划。')}</Typography>
           )}
         </Stack>
       </MainCard>
@@ -1744,7 +1606,7 @@ export function LoadingPanel({ flightNo, loadingPlans, setLoadingPlans }) {
 }
 
 export function LoadingPlanCreatePanel({ flightNo, onStart }) {
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const [form, setForm] = useState({
     truckPlate: '',
     driverName: '',
@@ -1761,36 +1623,36 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
     <Stack sx={{ gap: 2 }}>
       <TaskCard {...roleAwareInboundTaskCardConfig('loadingPlan', flightNo, taskCards, runScopedAction)} />
 
-      <MainCard title="装车前准备">
+      <MainCard title={mt('装车前准备')}>
         <Grid container spacing={1.5}>
           <Grid size={12}>
-            <TextField label="车牌号" value={form.truckPlate} onChange={(event) => setForm((prev) => ({ ...prev, truckPlate: event.target.value.toUpperCase() }))} />
+            <TextField label={mt('车牌号')} value={form.truckPlate} onChange={(event) => setForm((prev) => ({ ...prev, truckPlate: event.target.value.toUpperCase() }))} />
           </Grid>
           <Grid size={12}>
-            <TextField label="司机姓名" value={form.driverName} onChange={(event) => setForm((prev) => ({ ...prev, driverName: event.target.value }))} />
+            <TextField label={mt('司机姓名')} value={form.driverName} onChange={(event) => setForm((prev) => ({ ...prev, driverName: event.target.value }))} />
           </Grid>
           <Grid size={12}>
-            <TextField label="Collection Note" value={form.collectionNote} onChange={(event) => setForm((prev) => ({ ...prev, collectionNote: event.target.value }))} />
+            <TextField label={mt('Collection Note')} value={form.collectionNote} onChange={(event) => setForm((prev) => ({ ...prev, collectionNote: event.target.value }))} />
           </Grid>
           <Grid size={6}>
-            <TextField label="叉车司机" value={form.forkliftDriver} onChange={(event) => setForm((prev) => ({ ...prev, forkliftDriver: event.target.value }))} />
+            <TextField label={mt('叉车司机')} value={form.forkliftDriver} onChange={(event) => setForm((prev) => ({ ...prev, forkliftDriver: event.target.value }))} />
           </Grid>
           <Grid size={6}>
-            <TextField label="核对员" value={form.checker} onChange={(event) => setForm((prev) => ({ ...prev, checker: event.target.value }))} />
+            <TextField label={mt('核对员')} value={form.checker} onChange={(event) => setForm((prev) => ({ ...prev, checker: event.target.value }))} />
           </Grid>
           <Grid size={6}>
-            <TextField label="到达时间" type="datetime-local" value={form.arrivalTime} onChange={(event) => setForm((prev) => ({ ...prev, arrivalTime: event.target.value }))} InputLabelProps={{ shrink: true }} />
+            <TextField label={mt('到达时间')} type="datetime-local" value={form.arrivalTime} onChange={(event) => setForm((prev) => ({ ...prev, arrivalTime: event.target.value }))} InputLabelProps={{ shrink: true }} />
           </Grid>
           <Grid size={6}>
-            <TextField label="离开时间" type="datetime-local" value={form.departTime} onChange={(event) => setForm((prev) => ({ ...prev, departTime: event.target.value }))} InputLabelProps={{ shrink: true }} />
+            <TextField label={mt('离开时间')} type="datetime-local" value={form.departTime} onChange={(event) => setForm((prev) => ({ ...prev, departTime: event.target.value }))} InputLabelProps={{ shrink: true }} />
           </Grid>
         </Grid>
       </MainCard>
 
-      <MainCard title="创建计划">
+      <MainCard title={mt('创建计划')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            提交后会返回预定装车计划列表，再从列表里选择一条计划开始执行装车。
+            {mt('提交后会返回预定装车计划列表，再从列表里选择一条计划开始执行装车。')}
           </Typography>
           <Button
             fullWidth
@@ -1803,18 +1665,18 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
                 id: `LOAD-${String(Date.now()).slice(-8)}`,
                 flightNo,
                 truckPlate: form.truckPlate,
-                vehicleModel: HAOXUE_VEHICLES.find((item) => item.plate === form.truckPlate)?.model || '浩雪车辆',
+                vehicleModel: HAOXUE_VEHICLES.find((item) => item.plate === form.truckPlate)?.model || mt('浩雪车辆'),
                 driverName: form.driverName,
                 ...form,
                 pallets: [],
                 totalBoxes: 0,
                 totalWeight: 0,
-                status: '计划',
+                status: mt('计划'),
                 createdAt: new Date().toISOString()
               });
             }}
           >
-            保存装车计划
+            {mt('保存装车计划')}
           </Button>
         </Stack>
       </MainCard>
@@ -1823,10 +1685,10 @@ export function LoadingPlanCreatePanel({ flightNo, onStart }) {
 }
 
 export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, setLoadingPlans, onCompleted }) {
-  const { roleView, taskCards, runScopedAction } = useInboundTaskContext(flightNo);
+  const { taskCards, runScopedAction } = useInboundTaskContext(flightNo);
   const availablePallets = pallets.filter((item) => item.flightNo === flightNo && !item.loadedPlate);
   const [scanValue, setScanValue] = useState('');
-  const [message, setMessage] = useState('开始扫描托盘号或提单号，系统会把对应托盘加入当前车辆。');
+  const [message, setMessage] = useState(mt('开始扫描托盘号或提单号，系统会把对应托盘加入当前车辆。'));
   const [scanError, setScanError] = useState('');
 
   const linkedPallets = availablePallets.filter((item) => (plan.pallets || []).includes(item.palletNo));
@@ -1842,12 +1704,12 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
     const matched = palletMatch || awbMatch;
 
     if (!matched) {
-      setScanError(`未找到托盘号或提单号 ${rawCode}。`);
+      setScanError(mt(`未找到托盘号或提单号 ${rawCode}。`));
       return;
     }
 
     if ((plan.pallets || []).includes(matched.palletNo)) {
-      setScanError(`托盘 ${matched.palletNo} 已在当前装车计划中。`);
+      setScanError(mt(`托盘 ${matched.palletNo} 已在当前装车计划中。`));
       return;
     }
 
@@ -1865,53 +1727,53 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
     );
     runScopedAction('录入', `装车录入 / ${matched.palletNo}`);
     setScanValue(matched.palletNo);
-    setMessage(`已将 ${matched.palletNo} 加入车辆 ${plan.truckPlate}。`);
+    setMessage(mt(`已将 ${matched.palletNo} 加入车辆 ${plan.truckPlate}。`));
   };
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <MainCard title="当前装车计划">
+      <MainCard title={mt('当前装车计划')}>
         <Stack sx={{ gap: 1.25 }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
             <div>
               <Typography variant="h5">{plan.truckPlate}</Typography>
               <Typography variant="caption" color="text.secondary">
-                {plan.vehicleModel} · {plan.driverName || '待补司机'}
+                {mt(`${plan.vehicleModel} · ${plan.driverName || '待补司机'}`)}
               </Typography>
             </div>
-            <StatusChip label={plan.status || '装车中'} />
+            <StatusChip label={plan.status || mt('装车中')} />
           </Stack>
           <Grid container spacing={1}>
             <Grid size={6}>
               <Typography variant="caption" color="text.secondary">
-                Collection Note：{plan.collectionNote || '未填写'}
+                {mt('Collection Note：')}{plan.collectionNote || mt('未填写')}
               </Typography>
             </Grid>
             <Grid size={6}>
               <Typography variant="caption" color="text.secondary">
-                到达时间：{plan.arrivalTime || '未填写'}
+                {mt('到达时间：')}{plan.arrivalTime || mt('未填写')}
               </Typography>
             </Grid>
             <Grid size={4}>
               <Typography variant="caption" color="text.secondary">
-                托盘 {linkedPallets.length} 个
+                {mt('托盘')} {linkedPallets.length} {mt('个')}
               </Typography>
             </Grid>
             <Grid size={4}>
               <Typography variant="caption" color="text.secondary">
-                箱数 {totalBoxes}
+                {mt('箱数')} {totalBoxes}
               </Typography>
             </Grid>
             <Grid size={4}>
               <Typography variant="caption" color="text.secondary">
-                重量 {totalWeight} kg
+                {mt('重量')} {totalWeight} kg
               </Typography>
             </Grid>
           </Grid>
         </Stack>
       </MainCard>
 
-      <MainCard title="预计装载目标">
+      <MainCard title={mt('预计装载目标')}>
         <Stack sx={{ gap: 1.25 }}>
           {(plan.pallets || []).length ? (
             (plan.pallets || []).map((palletNo) => {
@@ -1922,7 +1784,7 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
                   <Box key={palletNo} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
                     <Typography variant="subtitle2">{palletNo}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      计划托盘，待从历史托盘记录中恢复详情。
+                      {mt('计划托盘，待从历史托盘记录中恢复详情。')}
                     </Typography>
                   </Box>
                 );
@@ -1932,31 +1794,31 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
                 <Box key={plannedPallet.palletNo} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
                   <Typography variant="subtitle2">{plannedPallet.palletNo}</Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.35 }}>
-                    {plannedPallet.totalBoxes} 箱 / {plannedPallet.totalWeightKg} kg
+                    {plannedPallet.totalBoxes} {mt('箱')} / {plannedPallet.totalWeightKg} kg
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                    存放位置：{plannedPallet.storageLocation || derivePalletStorageLocation(plannedPallet.palletNo)}
+                    {mt('存放位置：')}{plannedPallet.storageLocation || derivePalletStorageLocation(plannedPallet.palletNo)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                    计划货物：{(plannedPallet.entries || []).map((entry) => entry.awb).join(' / ') || '待补提单'}
+                    {mt('计划货物：')}{(plannedPallet.entries || []).map((entry) => entry.awb).join(' / ') || mt('待补提单')}
                   </Typography>
                 </Box>
               );
             })
           ) : (
-            <Typography color="text.secondary">当前装车计划还没有预定托盘或箱号。</Typography>
+            <Typography color="text.secondary">{mt('当前装车计划还没有预定托盘或箱号。')}</Typography>
           )}
         </Stack>
       </MainCard>
 
-      <MainCard title="扫描装车">
+      <MainCard title={mt('扫描装车')}>
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
             <TextField
               fullWidth
               autoFocus
               disabled={!!scanError}
-              label="扫描托盘号或提单号"
+              label={mt('扫描托盘号或提单号')}
               value={scanValue}
               onChange={(event) => setScanValue(event.target.value)}
               onKeyDown={(event) => {
@@ -1965,10 +1827,10 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
                   attachTarget(scanValue);
                 }
               }}
-              placeholder="扫码后自动回车"
+              placeholder={mt('扫码后自动回车')}
             />
             <Button variant="contained" startIcon={<CarOutlined />} disabled={!!scanError} onClick={() => attachTarget(scanValue)} sx={{ minWidth: 108 }}>
-              录入
+              {mt('录入')}
             </Button>
           </Stack>
           <Typography variant="body2" color="text.secondary">
@@ -1978,7 +1840,7 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
       </MainCard>
 
       <Dialog open={!!scanError} fullWidth maxWidth="xs" disableEscapeKeyDown onClose={() => {}}>
-        <DialogTitle>扫描异常</DialogTitle>
+        <DialogTitle>{mt('扫描异常')}</DialogTitle>
         <DialogContent>
           <Typography variant="body1" sx={{ pt: 0.5 }}>
             {scanError}
@@ -1991,32 +1853,32 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
               setScanError('');
             }}
           >
-            知道了
+            {mt('知道了')}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <MainCard title="当前车辆装车清单">
+      <MainCard title={mt('当前车辆装车清单')}>
         <Stack sx={{ gap: 1.25 }}>
           {linkedPallets.length ? (
             linkedPallets.map((item) => (
               <Box key={item.palletNo} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.5 }}>
                 <Typography variant="subtitle2">{item.palletNo}</Typography>
                 <Typography variant="caption" color="text.secondary">
-                  {item.totalBoxes} 箱 / {item.totalWeightKg} kg / {item.entries?.length || 0} 票
+                  {item.totalBoxes} {mt('箱')} / {item.totalWeightKg} kg / {item.entries?.length || 0} {mt('票')}
                 </Typography>
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">还没有扫描任何托盘或提单。</Typography>
+            <Typography color="text.secondary">{mt('还没有扫描任何托盘或提单。')}</Typography>
           )}
         </Stack>
       </MainCard>
 
-      <MainCard title="完成装车">
+      <MainCard title={mt('完成装车')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            扫描完成后点击完成，即代表这辆车装车结束。
+            {mt('扫描完成后点击完成，即代表这辆车装车结束。')}
           </Typography>
           <Button
             fullWidth
@@ -2037,7 +1899,7 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
                   item.id === plan.id
                     ? {
                         ...item,
-                        status: '已完成',
+                        status: mt('已完成'),
                         totalBoxes,
                         totalWeight: Number(totalWeight),
                         completedAt: new Date().toISOString()
@@ -2048,7 +1910,7 @@ export function LoadingExecutionPanel({ flightNo, plan, pallets, setPallets, set
               if (onCompleted) onCompleted();
             }}
           >
-            完成
+            {mt('完成')}
           </Button>
         </Stack>
       </MainCard>

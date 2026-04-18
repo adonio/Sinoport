@@ -87,7 +87,7 @@ export default function MobileSelectPage() {
                   return <Icon />;
                 })()}
               </Box>
-              {option.recommended ? <Chip label="Recommended" size="small" color="primary" variant="light" /> : null}
+              {option.recommended ? <Chip label={localizeMobileText(language, '推荐')} size="small" color="primary" variant="light" /> : null}
             </Stack>
 
             <div>
@@ -131,29 +131,29 @@ export default function MobileSelectPage() {
           {t(language, 'select_node_title')}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {session?.station} · {session?.operator}
+          {localizeMobileText(language, `${session?.station || '-'}`)} · {localizeMobileText(language, `${session?.operator || '-'}`)}
         </Typography>
         <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mt: 2 }}>
-          <Chip label={`角色 ${roleLabel || '-'}`} size="small" color="secondary" variant="light" />
-          <Chip label={`进港能力 ${inboundCapability}`} size="small" variant="outlined" />
-          <Chip label={`出港能力 ${outboundCapability}`} size="small" variant="outlined" />
+          <Chip label={localizeMobileText(language, `角色 ${roleLabel || '-'}`)} size="small" color="secondary" variant="light" />
+          <Chip label={localizeMobileText(language, `进港能力 ${inboundCapability}`)} size="small" variant="outlined" />
+          <Chip label={localizeMobileText(language, `出港能力 ${outboundCapability}`)} size="small" variant="outlined" />
         </Stack>
       </MainCard>
 
       {mobileSelectLoading && !nodeOptions.length ? (
         <MainCard contentSX={{ p: 2.5 }}>
-          <Typography variant="subtitle1">正在加载节点配置</Typography>
+          <Typography variant="subtitle1">{localizeMobileText(language, '正在加载节点配置')}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-            正在从后端读取当前角色可用的节点列表和推荐入口。
+            {localizeMobileText(language, '正在从后端读取当前角色可用的节点列表和推荐入口。')}
           </Typography>
         </MainCard>
       ) : null}
 
       {recommendedNodeOptions.length ? (
         <MainCard contentSX={{ p: 2.5 }}>
-          <Typography variant="subtitle1">当前角色推荐节点</Typography>
+          <Typography variant="subtitle1">{localizeMobileText(language, '当前角色推荐节点')}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, mb: 2 }}>
-            按当前角色能力优先显示建议进入的节点，帮助现场人员更快找到自己的任务入口。
+            {localizeMobileText(language, '按当前角色能力优先显示建议进入的节点，帮助现场人员更快找到自己的任务入口。')}
           </Typography>
           <Grid container spacing={2}>
             {recommendedNodeOptions.map(renderNodeCard)}
@@ -162,9 +162,9 @@ export default function MobileSelectPage() {
       ) : null}
 
       <MainCard contentSX={{ p: 2.5 }}>
-        <Typography variant="subtitle1">全部执行节点</Typography>
+        <Typography variant="subtitle1">{localizeMobileText(language, '全部执行节点')}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          如果需要跨节点查看任务或支援其它岗位，也可以从全部节点中进入。
+          {localizeMobileText(language, '如果需要跨节点查看任务或支援其它岗位，也可以从全部节点中进入。')}
         </Typography>
         <Divider sx={{ my: 2 }} />
         <Grid container spacing={2}>
@@ -173,7 +173,7 @@ export default function MobileSelectPage() {
           ) : (
             <Grid size={12}>
               <Typography variant="body2" color="text.secondary">
-                暂无可展示的节点配置。
+                {localizeMobileText(language, '暂无可展示的节点配置。')}
               </Typography>
             </Grid>
           )}

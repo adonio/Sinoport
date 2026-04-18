@@ -15,6 +15,12 @@
 - 后端一期执行计划：`docs/Sinoport_OS_后端一期执行计划_v1.0.md`
 - 后续开发任务表：`docs/Sinoport_OS_后续开发任务表_v1.0.md`
 - 数据库收口与 12 个月开发规划：`docs/Sinoport_OS_数据库收口与12个月开发规划_v1.0.md`
+- M1-M12 主 Agent 执行计划：`docs/Sinoport_OS_M1-M12_主Agent执行计划_v1.0.md`
+- M1-M12 月度执行台账：`docs/Sinoport_OS_M1-M12_月度执行台账_v1.0.md`
+- M1-M12 月度决策记录：`docs/Sinoport_OS_M1-M12_月度决策记录_v1.0.md`
+- M1-M12 月度阻塞清单：`docs/Sinoport_OS_M1-M12_月度阻塞清单_v1.0.md`
+- 发布与运维基线：`docs/Sinoport_OS_发布与运维基线_v1.0.md`
+- 数据质量治理：`docs/Sinoport_OS_数据质量治理_v1.0.md`
 - 数据库收口执行台账：`docs/Sinoport_OS_数据库收口执行台账_v1.0.md`
 - 年度复盘与下一年度规划：`docs/Sinoport_OS_年度复盘与下一年度规划_v1.0.md`
 
@@ -54,7 +60,7 @@
 
 - 将 `AUTH_TOKEN_SECRET` 切换为真正的 Cloudflare secret
 - 收紧 demo 账号与本地 bootstrap 逻辑
-- 处理 `admin-assets / 静态路由产物` 的版本管理策略
+- 清理历史遗留的 `admin-assets / 静态路由产物`
 
 建议命令：
 
@@ -67,13 +73,15 @@ npm run test:smoke:api
 
 ## 产物治理
 
-- 当前发布脚本会在仓库根目录生成：
+- 当前默认发布脚本已经切到“临时目录生成”：
+  - 后台静态页默认生成到 `.generated/admin-static`
+  - `site-dist` 从 `.generated/admin-static` 装配
+- 这些新产物不再默认写回仓库根目录。
+- 当前仍需要单独处理的是历史遗留的：
   - `admin-assets/`
   - 根级静态路由目录下的 `index.html`
-- 这些文件用于静态站发布，但会污染日常开发工作区。
-- 建议下一步二选一：
-  - 保留入库：把它们视为正式发布产物，并规范 commit 方式
-  - 改为临时产物：只在 CI / 临时目录中生成，不再在主工作区保留
+- 详细说明见：
+  - [Sinoport_OS_构建产物治理_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_构建产物治理_v1.0.md)
 
 ## 页面原型
 

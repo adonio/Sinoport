@@ -1,17 +1,22 @@
 import { Navigate, useParams } from 'react-router-dom';
 
-import { buildFlightWaybills, getInboundFlight, InboundFlightAppShell, PalletPanel, useInboundStorage } from 'pages/mobile/inbound-shared';
+import { InboundFlightAppShell, PalletPanel, useInboundStorage } from 'pages/mobile/inbound-shared';
+import { useGetMobileInboundDetail } from 'api/station';
 
 export default function MobileInboundPalletPage() {
   const { flightNo } = useParams();
-  const flight = getInboundFlight(flightNo);
+  const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading } = useGetMobileInboundDetail(flightNo);
   const { taskMap, pallets } = useInboundStorage(flightNo);
+  const flight = mobileInboundFlightDetail?.flight || null;
+  const waybills = mobileInboundFlightDetail?.waybills || [];
+
+  if (mobileInboundFlightDetailLoading) {
+    return null;
+  }
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;
   }
-
-  const waybills = buildFlightWaybills(flight.flightNo);
 
   return (
     <InboundFlightAppShell flight={flight} waybills={waybills} taskMap={taskMap} showHero={false}>

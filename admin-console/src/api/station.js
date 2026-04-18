@@ -1,17 +1,21 @@
 import useSWR, { mutate } from 'swr';
 import { useMemo } from 'react';
 
-import { stationAxios, stationFetcher, stationPatcher, stationPoster, stationPublicPoster, stationPut, stationUpload } from 'utils/stationApi';
+import { stationAxios, stationDeleter, stationFetcher, stationPatcher, stationPoster, stationPublicPoster, stationPut, stationUpload } from 'utils/stationApi';
+import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 
 const endpoints = {
   inboundFlights: '/api/v1/station/inbound/flights',
+  stationFlightOptions: '/api/v1/station/flights/options',
   inboundFlightCreateOptions: '/api/v1/station/inbound/flight-create/options',
   inboundWaybills: '/api/v1/station/inbound/waybills',
+  stationWaybillOptions: '/api/v1/station/waybills/options',
   mobileInboundOverview: '/api/v1/mobile/inbound',
   mobileNodeFlow: (flowKey) => `/api/v1/mobile/node/${encodeURIComponent(flowKey)}`,
   mobileNodeDetail: (flowKey, itemId) => `/api/v1/mobile/node/${encodeURIComponent(flowKey)}/${encodeURIComponent(itemId)}`,
   mobileOutboundOverview: '/api/v1/mobile/outbound',
   mobileOutboundFlightDetail: (flightNo) => `/api/v1/mobile/outbound/${encodeURIComponent(flightNo)}`,
+  mobileOutboundOptions: (flightNo) => `/api/v1/mobile/outbound/${encodeURIComponent(flightNo)}/options`,
   mobileInboundFlightDetail: (flightNo) => `/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}`,
   mobileSelect: '/api/v1/mobile/select',
   stationInboundOverview: '/api/v1/station/inbound/overview',
@@ -19,18 +23,24 @@ const endpoints = {
   stationOutboundOverview: '/api/v1/station/outbound/overview',
   stationResourcesOverview: '/api/v1/station/resources/overview',
   stationResourcesVehicles: '/api/v1/station/resources/vehicles',
+  stationResourcesVehicleOptions: '/api/v1/station/resources/vehicles/options',
+  stationResourcesVehicleDetail: (vehicleId) => `/api/v1/station/resources/vehicles/${encodeURIComponent(vehicleId)}`,
   outboundFlights: '/api/v1/station/outbound/flights',
   outboundWaybills: '/api/v1/station/outbound/waybills',
   stationShipments: '/api/v1/station/shipments',
+  stationShipmentOptions: '/api/v1/station/shipments/options',
   stationDocuments: '/api/v1/station/documents',
+  stationDocumentOptions: '/api/v1/station/documents/options',
   stationDocumentsOverview: '/api/v1/station/documents/overview',
   stationPodOverview: '/api/v1/station/pod/overview',
   stationTasks: '/api/v1/station/tasks',
+  stationTaskOptions: '/api/v1/station/tasks/options',
   stationTasksOverview: '/api/v1/station/tasks/overview',
   stationExceptions: '/api/v1/station/exceptions',
+  stationExceptionOptions: '/api/v1/station/exceptions/options',
   stationExceptionsOverview: '/api/v1/station/exceptions/overview',
   stationDashboardOverview: '/api/v1/station/dashboard/overview',
-  stationReportsOverview: '/api/v1/station/reports/overview',
+  stationReportsOverview: '/api/v1/station/reports/daily',
   stationNoaOverview: '/api/v1/station/noa/overview',
   auditObject: '/api/v1/platform/audit/object'
 };
@@ -70,6 +80,27 @@ function toArray(value) {
   return Array.isArray(value) ? value : EMPTY_ARRAY;
 }
 
+function mapSelectOption(item) {
+  return {
+    value: item?.value || '',
+    label: item?.label || item?.value || '',
+    disabled: Boolean(item?.disabled),
+    meta: item?.meta || EMPTY_OBJECT
+  };
+}
+
+function buildQueryString(params = {}) {
+  const search = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    search.set(key, String(value));
+  });
+
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
 function formatTimeLabel(value) {
   if (!value) return '--';
 
@@ -100,15 +131,19 @@ function mapInboundWaybillToViewModel(item) {
   return {
     awbId: item.awb_id,
     awb: item.awb_no,
+    awbType: item.awb_type || 'IMPORT',
     flightId: item.flight_id,
     flightNo: item.flight_no,
     consignee: item.consignee_name,
     pieces: String(item.pieces),
+    piecesValue: Number(item.pieces || 0),
     weight: `${item.gross_weight} kg`,
+    grossWeight: Number(item.gross_weight || 0),
     currentNode: item.current_node,
     noaStatus: item.noa_status,
     podStatus: item.pod_status,
     transferStatus: item.transfer_status,
+    archived: Boolean(item.archived || item.deleted_at),
     blocked: item.blocked,
     blockerReason: item.blocker_reason || ''
   };
@@ -128,14 +163,21 @@ function mapOutboundFlightToViewModel(item) {
 
 function mapOutboundWaybillToViewModel(item) {
   return {
+    awbId: item.awb_id,
     awb: item.awb_no,
+    awbType: item.awb_type || 'EXPORT',
+    flightId: item.flight_id,
     flightNo: item.flight_no,
     destination: item.destination_code,
+    piecesValue: Number(item.pieces || 0),
+    grossWeight: Number(item.gross_weight || 0),
     forecast: item.forecast_status,
     receipt: item.receipt_status,
     master: item.master_status,
     loading: item.loading_status,
-    manifest: item.manifest_status
+    manifest: item.manifest_status,
+    currentNode: item.loading_status === '已装载' ? 'Loaded' : item.loading_status,
+    archived: Boolean(item.archived || item.deleted_at)
   };
 }
 
@@ -174,22 +216,29 @@ function mapMobileInboundWaybillToViewModel(item) {
 }
 
 function mapMobileInboundPalletToViewModel(item) {
+  const entries = toArray(item.items || item.entries).map((entry) => ({
+    awb: entry.awb || entry.awb_no,
+    boxes: Number(entry.boxes ?? 0),
+    weight: Number(entry.weight ?? 0),
+    weightKg: Number(entry.weightKg ?? entry.weight ?? 0),
+    consignee: entry.consignee || entry.consignee_name || ''
+  }));
+  const totalWeight = Number(item.totalWeight ?? item.total_weight ?? item.totalWeightKg ?? 0);
   return {
     palletId: item.palletId || item.pallet_id,
     palletNo: item.palletNo || item.pallet_no,
     flightNo: item.flightNo || item.flight_no,
     storageLocation: item.storageLocation || item.storage_location || '',
     totalBoxes: Number(item.totalBoxes ?? item.total_boxes ?? 0),
-    totalWeight: Number(item.totalWeight ?? item.total_weight ?? 0),
+    totalWeight,
+    totalWeightKg: totalWeight,
     status: item.status || item.pallet_status || '计划',
     note: item.note || '',
     loadedPlate: item.loadedPlate || item.loaded_plate || '',
     loadedAt: item.loadedAt || item.loaded_at || '',
-    items: toArray(item.items).map((entry) => ({
-      awb: entry.awb || entry.awb_no,
-      boxes: Number(entry.boxes ?? 0),
-      weight: Number(entry.weight ?? 0)
-    }))
+    archived: Boolean(item.archived ?? item.deleted_at),
+    items: entries,
+    entries
   };
 }
 
@@ -210,6 +259,9 @@ function mapMobileInboundLoadingPlanToViewModel(item) {
     totalWeight: Number(item.totalWeight ?? item.total_weight ?? 0),
     status: item.status || item.plan_status || '计划',
     note: item.note || ''
+    ,
+    completedAt: item.completedAt || item.completed_at || '',
+    archived: Boolean(item.archived ?? item.deleted_at)
   };
 }
 
@@ -224,20 +276,65 @@ function mapMobileRoleViewResponse(payload) {
   };
 }
 
+function localizeMobileTaskCardText(value) {
+  if (typeof value !== 'string' || !value) return value;
+
+  const language = readMobileLanguage();
+  if (language !== 'en') return value;
+
+  const normalized = value
+    .replace(/进港机场货站操作/gu, 'Inbound Station Actions')
+    .replace(/出港机场货站操作/gu, 'Outbound Station Actions')
+    .replace(/OUTBOUND机场STATIONACTIONS/gu, 'Outbound Station Actions')
+    .replace(/OUTBOUND机场机坪ACTIONS/gu, 'Outbound Airport Ramp Operations')
+    .replace(/FINAL MILE卡车LOADING与运输/gu, 'Final Mile Truck Loading and Transport')
+    .replace(
+      /围绕航班 ([A-Z0-9-]+) 组托，保持同票同托，为后续装车准备标准托盘。/gu,
+      'Build pallets for flight $1, keep each AWB on the correct pallet, and prepare standard pallets for downstream loading.'
+    )
+    .replace(
+      /为Flight ([A-Z0-9-]+) 录入TruCk Plate、Driver、ColleCtion Note 和Review信息，形成Loading Plan。/gu,
+      'Record the truck plate, driver, collection note, and review details for flight $1 to create the loading plan.'
+    )
+    .replace(/落地后 12h/gu, 'within 12h after landing')
+    .replace(/理货完成后立即执行/gu, 'Start immediately after counting is completed')
+    .replace(/SLA Load to AirCraft前 45 分钟/gu, 'SLA 45 minutes before load to aircraft')
+    .replace(/SLA ETD 前 30 分钟/gu, 'SLA 30 minutes before ETD')
+    .replace(/SLA Airborne前闭环/gu, 'SLA close before airborne')
+    .replace(/托盘号/gu, 'Pallet No.')
+    .replace(/Container号/gu, 'Container Code')
+    .replace(/待Review/gu, 'Pending Review')
+    .replace(/按 AWB Enter ReCeived PieCes并CompleteWeight Review。/gu, 'Enter received pieces by AWB and complete the weight review.')
+    .replace(/SLA ReCeiving后 30 分钟/gu, 'SLA 30 minutes after receiving')
+    .replace(/未CompleteReCeiving不得Open组板和机坪Release。/gu, 'Do not open pallet build-up or ramp release until receiving is complete.')
+    .replace(/NoneContainer Code或ReviewWeight时不得OpenLoad to AirCraft。/gu, 'Load to Aircraft cannot be opened without a container code or reviewed weight.')
+    .replace(/NoneContainer号或ReviewWeight时不得OpenLoad to AirCraft。/gu, 'Load to Aircraft cannot be opened without a container code or reviewed weight.')
+    .replace(/AWB \/ SerialSCan记录/gu, 'AWB / Serial Scan Records')
+    .replace(/SCan到Flight外AWB时Required先ConfirmYesNo纳入统计。/gu, 'When an AWB outside the flight is scanned, confirm whether it should be included before counting it.')
+    .replace(/去后台排Planned/gu, 'Plan in Back Office')
+    .replace(
+      /Loading Plan应由后台办公室先Complete编排，包括TruCk Plate、Driver、ColleCtion Note 与预定pallet；PDA 仅执行已排好的Planned。/gu,
+      'The loading plan should be completed by the back office first, including truck plate, driver, collection note, and reserved pallets; the PDA only executes the approved plan.'
+    )
+    .replace(/未录入TruCk Plate、ColleCtion Note、CheCker时不得Start Loading。/gu, 'Do not start loading until the truck plate, collection note, and checker are recorded.');
+
+  return localizeMobileText(language, normalized);
+}
+
 function mapMobileInboundTaskCardResponse(card) {
   if (!card) return null;
 
   return {
-    title: card.title || '',
-    node: card.node || '',
-    role: card.role || '',
-    status: card.status || '',
-    sla: card.sla || '',
-    description: card.description || '',
-    evidence: toArray(card.evidence),
-    blockers: toArray(card.blockers),
+    title: localizeMobileTaskCardText(card.title || ''),
+    node: localizeMobileTaskCardText(card.node || ''),
+    role: localizeMobileTaskCardText(card.role || ''),
+    status: localizeMobileTaskCardText(card.status || ''),
+    sla: localizeMobileTaskCardText(card.sla || ''),
+    description: localizeMobileTaskCardText(card.description || ''),
+    evidence: toArray(card.evidence).map(localizeMobileTaskCardText),
+    blockers: toArray(card.blockers).map(localizeMobileTaskCardText),
     actions: toArray(card.actions).map((action) => ({
-      label: action.label || '',
+      label: localizeMobileTaskCardText(action.label || ''),
       variant: action.variant || 'outlined',
       color: action.color || undefined
     }))
@@ -329,6 +426,7 @@ function mapMobileNodeResponse(payload) {
   const roleView = payload?.roleView || payload?.role_view || EMPTY_MOBILE_ROLE_VIEW;
   const detail = payload?.detail || payload?.item || null;
   const taskCard = payload?.taskCard || payload?.task_card || detail?.taskCard || null;
+  const items = toArray(payload?.items || payload?.nodes).map(mapMobileNodeItemResponse);
 
   return {
     stationId: payload?.stationId || payload?.station_id || '',
@@ -339,7 +437,15 @@ function mapMobileNodeResponse(payload) {
     session: mapMobileNodeSessionResponse(payload?.session || payload?.session_data || {}),
     roleView: mapMobileRoleViewResponse(roleView),
     availableActions: toArray(payload?.availableActions || payload?.available_actions),
-    items: toArray(payload?.items || payload?.nodes).map(mapMobileNodeItemResponse),
+    items,
+    page: Number(payload?.page || 1),
+    page_size: Number(payload?.page_size || 20),
+    total: Number(payload?.total || items.length),
+    statusOptions: toArray(payload?.statusOptions || payload?.status_options).map(mapSelectOption),
+    filters: {
+      keyword: payload?.filters?.keyword || payload?.filter_state?.keyword || '',
+      status: payload?.filters?.status || payload?.filter_state?.status || ''
+    },
     detail: detail
       ? {
           id: detail.id || detail.nodeId || '',
@@ -496,19 +602,25 @@ function mapMobileOutboundWaybillToViewModel(item) {
 function mapMobileOutboundReceiptToViewModel(item, flightNo, awbNo) {
   const receivedPieces = Number(item?.receivedPieces ?? item?.received_pieces ?? 0);
   const receivedWeight = Number(item?.receivedWeight ?? item?.received_weight ?? 0);
-  const status = item?.status || item?.receipt_status || '已收货';
+  const status = item?.status || item?.receipt_status || '待收货';
 
   return {
+    receiptId: item?.receiptId || item?.receipt_record_id || '',
     flightNo: item?.flightNo || item?.flight_no || flightNo || '',
     awb: item?.awb || item?.awb_no || awbNo || '',
     receivedPieces,
     receivedWeight,
     status,
-    reviewStatus: item?.reviewStatus || item?.review_status || status,
+    reviewStatus: item?.reviewStatus || item?.review_status || (status === '已复核' ? '已复核' : '待复核'),
     reviewedWeight: Number(item?.reviewedWeight ?? item?.reviewed_weight ?? receivedWeight),
     receivedAt: item?.receivedAt || item?.received_at || item?.updatedAt || item?.updated_at || null,
     reviewedAt: item?.reviewedAt || item?.reviewed_at || item?.updatedAt || item?.updated_at || null,
-    note: item?.note || ''
+    note: item?.note || '',
+    archived: Boolean(item?.archived ?? item?.deleted_at),
+    deletedAt: item?.deletedAt || item?.deleted_at || null,
+    canArchive: Boolean(item?.canArchive ?? item?.can_archive ?? !item?.deleted_at),
+    canRestore: Boolean(item?.canRestore ?? item?.can_restore ?? item?.deleted_at),
+    canReopen: Boolean(item?.canReopen ?? item?.can_reopen ?? ['已收货', '已复核'].includes(status))
   };
 }
 
@@ -530,7 +642,13 @@ function mapMobileOutboundContainerToViewModel(item, flightNo) {
     loadedAt: item?.loadedAt || item?.loaded_at || null,
     note: item?.note || '',
     offloadBoxes: Number(item?.offloadBoxes ?? item?.offload_boxes ?? 0),
-    offloadStatus: item?.offloadStatus || item?.offload_status || ''
+    offloadStatus: item?.offloadStatus || item?.offload_status || '无拉货',
+    offloadRecordedAt: item?.offloadRecordedAt || item?.offload_recorded_at || null,
+    archived: Boolean(item?.archived ?? item?.deleted_at),
+    deletedAt: item?.deletedAt || item?.deleted_at || null,
+    canArchive: Boolean(item?.canArchive ?? item?.can_archive ?? !item?.deleted_at),
+    canRestore: Boolean(item?.canRestore ?? item?.can_restore ?? item?.deleted_at),
+    canReopen: Boolean(item?.canReopen ?? item?.can_reopen ?? ['已装机', '已回退'].includes(item?.status || item?.container_status || ''))
   };
 }
 
@@ -538,16 +656,16 @@ function mapMobileOutboundTaskCardResponse(card) {
   if (!card) return null;
 
   return {
-    title: card.title || '',
-    node: card.node || '',
-    role: card.role || '',
-    status: card.status || '',
-    sla: card.sla || '',
-    description: card.description || '',
-    evidence: toArray(card.evidence),
-    blockers: toArray(card.blockers),
+    title: localizeMobileTaskCardText(card.title || ''),
+    node: localizeMobileTaskCardText(card.node || ''),
+    role: localizeMobileTaskCardText(card.role || ''),
+    status: localizeMobileTaskCardText(card.status || ''),
+    sla: localizeMobileTaskCardText(card.sla || ''),
+    description: localizeMobileTaskCardText(card.description || ''),
+    evidence: toArray(card.evidence).map(localizeMobileTaskCardText),
+    blockers: toArray(card.blockers).map(localizeMobileTaskCardText),
     actions: toArray(card.actions).map((action) => ({
-      label: action.label || '',
+      label: localizeMobileTaskCardText(action.label || ''),
       variant: action.variant || 'outlined',
       color: action.color || undefined
     }))
@@ -632,14 +750,21 @@ function mapMobileOutboundDetailResponse(payload) {
 function mapStationShipmentToViewModel(item) {
   return {
     id: item.id,
+    shipmentId: item.shipment_id,
     awb: item.awb,
+    awbId: item.awb_id,
     direction: item.direction,
+    flightId: item.flight_id || '',
     flightNo: item.flight_no,
     route: item.route,
     primaryStatus: item.primary_status,
+    currentNode: item.current_node,
+    fulfillmentStatus: item.fulfillment_status,
+    runtimeStatus: item.runtime_status,
     taskStatus: item.task_status,
     documentStatus: item.document_status,
     blocker: item.blocker,
+    archived: Boolean(item.archived),
     consignee: item.consignee,
     pieces: item.pieces,
     weight: item.weight,
@@ -741,15 +866,70 @@ function mapTaskToViewModel(item) {
   return {
     id: item.task_id,
     title: item.task_type,
+    taskType: item.task_type,
     node: item.execution_node,
+    executionNode: item.execution_node,
     role: item.assigned_role || '--',
-    owner: item.assigned_team_id || item.assigned_worker_id || '--',
+    assignedRole: item.assigned_role || '',
+    assignedTeamId: item.assigned_team_id || '',
+    assignedWorkerId: item.assigned_worker_id || '',
+    assignedTeamName: item.assigned_team_name || '',
+    assignedWorkerName: item.assigned_worker_name || '',
+    owner: item.assigned_team_name || item.assigned_team_id || item.assigned_worker_name || item.assigned_worker_id || '--',
     due: formatTimeLabel(item.due_at),
-    priority: deriveTaskPriority(item),
+    dueAt: item.due_at || '',
+    priority: item.task_priority || deriveTaskPriority(item),
     status: item.task_status,
+    archived: Boolean(item.archived),
+    taskSla: item.task_sla || '',
     gateIds: item.blocker_code ? [item.blocker_code] : [],
     blocker: item.blocker_code || '无',
+    evidenceRequired: Boolean(item.evidence_required),
+    openExceptionCount: Number(item.open_exception_count || 0),
+    relatedObjectType: item.related_object_type,
+    relatedObjectId: item.related_object_id,
+    relatedObjectLabel: item.related_object_label || item.related_object_id,
     objectTo: mapTaskObjectTo(item)
+  };
+}
+
+function mapStationTaskDetailToViewModel(detail) {
+  if (!detail?.task) return null;
+
+  return {
+    taskId: detail.task.task_id,
+    stationId: detail.task.station_id,
+    taskType: detail.task.task_type,
+    executionNode: detail.task.execution_node,
+    relatedObjectType: detail.task.related_object_type,
+    relatedObjectId: detail.task.related_object_id,
+    relatedObjectLabel: detail.task.related_object_label,
+    assignedRole: detail.task.assigned_role || '',
+    assignedTeamId: detail.task.assigned_team_id || '',
+    assignedWorkerId: detail.task.assigned_worker_id || '',
+    assignedTeamName: detail.task.assigned_team_name || '',
+    assignedWorkerName: detail.task.assigned_worker_name || '',
+    taskStatus: detail.task.task_status,
+    taskPriority: detail.task.task_priority || 'P3',
+    taskSla: detail.task.task_sla || '',
+    dueAt: detail.task.due_at || '',
+    blockerCode: detail.task.blocker_code || '',
+    evidenceRequired: Boolean(detail.task.evidence_required),
+    pickLocationId: detail.task.pick_location_id || '',
+    dropLocationId: detail.task.drop_location_id || '',
+    completedAt: detail.task.completed_at || '',
+    verifiedAt: detail.task.verified_at || '',
+    archived: Boolean(detail.task.archived),
+    lifecycle: detail.lifecycle || {
+      can_update: true,
+      can_archive: true,
+      can_restore: false,
+      can_assign: true,
+      can_verify: false,
+      can_rework: true,
+      can_escalate: true,
+      can_raise_exception: true
+    }
   };
 }
 
@@ -794,6 +974,57 @@ function mapExceptionToViewModel(item) {
     jumpTo: '/station/tasks',
     detailTo: `/station/exceptions/${item.exception_id}`
   };
+}
+
+function mapStationExceptionListItemToViewModel(item) {
+  const objectTo =
+    item.related_object_type === 'Flight'
+      ? `/station/inbound/flights/${encodeURIComponent(item.related_object_label?.split(' / ')[0] || '')}`
+      : item.related_object_type === 'AWB'
+        ? `/station/inbound/waybills/${encodeURIComponent(item.related_object_label?.split(' / ')[0] || '')}`
+        : item.related_object_type === 'Shipment'
+          ? `/station/shipments/${encodeURIComponent(item.related_object_id || '')}`
+          : item.related_object_type === 'Document'
+            ? '/station/documents'
+            : '/station/tasks';
+
+  return {
+    id: item.exception_id,
+    exceptionId: item.exception_id,
+    type: item.exception_type,
+    relatedObjectType: item.related_object_type,
+    relatedObjectId: item.related_object_id,
+    object: item.related_object_label,
+    severity: item.severity,
+    ownerRole: item.owner_role || '',
+    ownerTeamId: item.owner_team_id || '',
+    owner: [item.owner_role, item.owner_team_id].filter(Boolean).join(' / ') || '--',
+    status: item.exception_status,
+    blockerFlag: Boolean(item.blocker_flag),
+    blockedTask: item.blocker_flag ? '阻断中' : '-',
+    rootCause: item.root_cause || '',
+    actionTaken: item.action_taken || '',
+    linkedTaskId: item.linked_task_id || '',
+    openedAt: item.opened_at || '',
+    archived: Boolean(item.archived || item.deleted_at),
+    objectTo,
+    jumpTo: item.linked_task_id ? '/station/tasks' : objectTo,
+    detailTo: `/station/exceptions/${item.exception_id}`
+  };
+}
+
+function buildStationExceptionSummaryCards(items, total) {
+  const openCount = items.filter((item) => item.status === 'Open').length;
+  const progressCount = items.filter((item) => item.status === 'In Progress').length;
+  const blockingCount = items.filter((item) => item.blockerFlag).length;
+  const archivedCount = items.filter((item) => item.archived).length;
+
+  return [
+    { title: '开放异常', value: String(openCount), helper: `当前页 / 总数 ${total}`, chip: 'Open', color: 'warning' },
+    { title: '处理中', value: String(progressCount), helper: 'In Progress', chip: 'Working', color: 'secondary' },
+    { title: '阻断异常', value: String(blockingCount), helper: 'Blocker Flag = true', chip: 'Block', color: 'error' },
+    { title: '已归档', value: String(archivedCount), helper: '软删除 / 归档状态', chip: 'Archived', color: 'success' }
+  ];
 }
 
 function mapStationExceptionDetailToViewModel(detail) {
@@ -863,13 +1094,17 @@ function groupRowsByKey(rows, key) {
 function normalizeStationResourceVehicle(item) {
   const tripId = String(item?.tripId || item?.trip_id || item?.loading_plan_id || item?.id || item?.transferId || '').trim();
   const flowKey = String(item?.flowKey || item?.flow_key || (tripId.toUpperCase().includes('TAIL') ? 'tailhaul' : 'headhaul') || 'headhaul').trim();
+  const flowLabel = String(item?.flowLabel || item?.flow_label || '').trim();
   const route = String(item?.route || item?.subtitle || '').trim() || (flowKey === 'tailhaul' ? 'MME -> Delivery' : 'URC -> 出港货站');
   const plate = String(item?.plate || item?.truckPlate || item?.truck_plate || '').trim();
   const driver = String(item?.driver || item?.driverName || item?.driver_name || '').trim();
+  const driverPhone = String(item?.driverPhone || item?.driver_phone || '').trim();
   const collectionNote = String(item?.collectionNote || item?.collection_note || '').trim();
-  const stage = String(item?.stage || item?.plan_status || item?.status || '').trim() || '待处理';
-  const status = String(item?.status || item?.plan_status || item?.stage || '').trim() || stage;
-  const priority = String(item?.priority || '').trim() || (status === '待发车' ? 'P1' : 'P2');
+  const status = String(item?.status || item?.dispatch_status || item?.plan_status || '').trim() || 'pending_dispatch';
+  const statusLabel = String(item?.statusLabel || item?.status_label || item?.stage || '').trim() || status;
+  const stage = statusLabel;
+  const priority = String(item?.priority || item?.priority_code || '').trim() || 'P2';
+  const priorityLabel = String(item?.priorityLabel || item?.priority_label || '').trim() || priority;
   const sla = String(item?.sla || '').trim() || '待补充';
   const officePlan = String(item?.officePlan || item?.office_plan || item?.note || '').trim() || '后台已完成 Trip 编排。';
   const pdaExec = String(item?.pdaExec || item?.pda_exec || '').trim() || '现场执行发车、到站交接';
@@ -877,41 +1112,74 @@ function normalizeStationResourceVehicle(item) {
   return {
     tripId: tripId || 'TRIP-UNKNOWN',
     flowKey,
+    flowLabel,
     route,
     plate,
     driver,
+    driverPhone,
     collectionNote,
     stage,
     status,
+    statusLabel,
     priority,
+    priorityLabel,
     sla,
     awbs: Array.isArray(item?.awbs) ? item.awbs : [],
     pallets: Array.isArray(item?.pallets) ? item.pallets : [],
     officePlan,
-    pdaExec
+    pdaExec,
+    archived: Boolean(item?.archived || item?.deleted_at),
+    updatedAt: item?.updated_at || item?.updatedAt || '',
+    createdAt: item?.created_at || item?.createdAt || ''
   };
 }
 
-export function useGetInboundFlights() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.inboundFlights, stationFetcher, {
+export function useGetInboundFlights(params = {}) {
+  const endpoint = `${endpoints.inboundFlights}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
   });
 
   const liveItems = toArray(data?.items).map(mapInboundFlightToViewModel);
-  const inboundLifecycle = toArray(data?.data?.inboundLifecycle);
+  const inboundLifecycle = [
+    {
+      label: '待到达',
+      count: liveItems.filter((item) => ['Scheduled', 'Pre-Arrival'].includes(item.status)).length,
+      note: 'ETA 前预排、任务与单证准备'
+    },
+    {
+      label: '已落地',
+      count: liveItems.filter((item) => item.status === 'Landed').length,
+      note: '已进入进港处理 / 理货链'
+    },
+    {
+      label: '异常关注',
+      count: liveItems.filter((item) => ['Delayed', 'Diverted', 'Cancelled'].includes(item.status)).length,
+      note: '延误 / 备降 / 取消需人工跟进'
+    }
+  ];
+  const inboundFlightPage = data
+    ? {
+        items: liveItems,
+        page: data.page || 1,
+        page_size: data.page_size || 20,
+        total: data.total || liveItems.length
+      }
+    : { items: [], page: 1, page_size: 20, total: 0 };
 
   return useMemo(
     () => ({
       inboundFlights: liveItems,
+      inboundFlightPage,
       inboundLifecycle,
       inboundFlightsLoading: isLoading,
       inboundFlightsError: error,
       inboundFlightsValidating: isValidating,
       inboundFlightsUsingMock: Boolean(error || !liveItems.length)
     }),
-    [inboundLifecycle, liveItems, error, isLoading, isValidating]
+    [inboundFlightPage, inboundLifecycle, liveItems, error, isLoading, isValidating]
   );
 }
 
@@ -924,7 +1192,9 @@ export function useGetInboundFlightCreateOptions() {
 
   return useMemo(
     () => ({
-      inboundFlightCreateOptions: toArray(data?.data?.sourceOptions),
+      inboundFlightCreateOptions: toArray(data?.data?.sourceOptions).map(mapSelectOption),
+      inboundFlightServiceLevels: toArray(data?.data?.serviceLevelOptions).map(mapSelectOption),
+      inboundFlightRuntimeStatuses: toArray(data?.data?.runtimeStatusOptions).map(mapSelectOption),
       inboundFlightCreateOptionsLoading: isLoading,
       inboundFlightCreateOptionsError: error,
       inboundFlightCreateOptionsValidating: isValidating,
@@ -934,66 +1204,90 @@ export function useGetInboundFlightCreateOptions() {
   );
 }
 
-export function useGetInboundWaybills() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.inboundWaybills, stationFetcher, {
+export function useGetStationWaybillOptions(direction = 'inbound') {
+  const endpoint = `${endpoints.stationWaybillOptions}${buildQueryString({ direction })}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      flightOptions: toArray(data?.data?.flightOptions).map(mapSelectOption),
+      awbTypeOptions: toArray(data?.data?.awbTypeOptions).map(mapSelectOption),
+      currentNodeOptions: toArray(data?.data?.currentNodeOptions).map(mapSelectOption),
+      noaStatusOptions: toArray(data?.data?.noaStatusOptions).map(mapSelectOption),
+      podStatusOptions: toArray(data?.data?.podStatusOptions).map(mapSelectOption),
+      transferStatusOptions: toArray(data?.data?.transferStatusOptions).map(mapSelectOption),
+      manifestStatusOptions: toArray(data?.data?.manifestStatusOptions).map(mapSelectOption),
+      stationWaybillOptionsLoading: isLoading,
+      stationWaybillOptionsError: error,
+      stationWaybillOptionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export function useGetInboundWaybills(params = {}) {
+  const endpoint = `${endpoints.inboundWaybills}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
   });
 
   const liveItems = toArray(data?.items).map(mapInboundWaybillToViewModel);
+  const inboundWaybillPage = data
+    ? {
+        items: liveItems,
+        page: data.page || 1,
+        page_size: data.page_size || 20,
+        total: data.total || liveItems.length
+      }
+    : { items: [], page: 1, page_size: 20, total: 0 };
 
   return useMemo(
     () => ({
       inboundWaybills: liveItems,
+      inboundWaybillPage,
       inboundWaybillsLoading: isLoading,
       inboundWaybillsError: error,
       inboundWaybillsValidating: isValidating,
       inboundWaybillsUsingMock: Boolean(error || !liveItems.length)
     }),
-    [error, isLoading, isValidating, liveItems]
+    [error, inboundWaybillPage, isLoading, isValidating, liveItems]
   );
 }
 
-export function useGetOutboundFlights() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.outboundFlights, stationFetcher, {
-    revalidateIfStale: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false
-  });
-
-  const liveItems = toArray(data?.items).map(mapOutboundFlightToViewModel);
-
-  return useMemo(
-    () => ({
-      outboundFlights: liveItems,
-      outboundFlightsLoading: isLoading,
-      outboundFlightsError: error,
-      outboundFlightsValidating: isValidating,
-      outboundFlightsUsingMock: Boolean(error || !liveItems.length)
-    }),
-    [error, isLoading, isValidating, liveItems]
-  );
-}
-
-export function useGetOutboundWaybills() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.outboundWaybills, stationFetcher, {
+export function useGetOutboundWaybills(params = {}) {
+  const endpoint = `${endpoints.outboundWaybills}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
   });
 
   const liveItems = toArray(data?.items).map(mapOutboundWaybillToViewModel);
+  const outboundWaybillPage = data
+    ? {
+        items: liveItems,
+        page: data.page || 1,
+        page_size: data.page_size || 20,
+        total: data.total || liveItems.length
+      }
+    : { items: [], page: 1, page_size: 20, total: 0 };
 
   return useMemo(
     () => ({
       outboundWaybills: liveItems,
+      outboundWaybillPage,
       outboundWaybillsLoading: isLoading,
       outboundWaybillsError: error,
       outboundWaybillsValidating: isValidating,
       outboundWaybillsUsingMock: Boolean(error || !liveItems.length)
     }),
-    [error, isLoading, isValidating, liveItems]
+    [error, isLoading, isValidating, liveItems, outboundWaybillPage]
   );
 }
 
@@ -1131,6 +1425,37 @@ export function useGetStationOutboundOverview() {
   );
 }
 
+export function useGetOutboundFlights(params = {}) {
+  const endpoint = `${endpoints.outboundFlights}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const liveItems = toArray(data?.items).map(mapOutboundFlightToViewModel);
+  const outboundFlightPage = data
+    ? {
+        items: liveItems,
+        page: data.page || 1,
+        page_size: data.page_size || 20,
+        total: data.total || liveItems.length
+      }
+    : { items: [], page: 1, page_size: 20, total: 0 };
+
+  return useMemo(
+    () => ({
+      outboundFlights: liveItems,
+      outboundFlightPage,
+      outboundFlightsLoading: isLoading,
+      outboundFlightsError: error,
+      outboundFlightsValidating: isValidating,
+      outboundFlightsUsingMock: Boolean(error || !liveItems.length)
+    }),
+    [error, isLoading, isValidating, liveItems, outboundFlightPage]
+  );
+}
+
 export function useGetStationResourcesOverview() {
   const { data, isLoading, error, isValidating } = useSWR(endpoints.stationResourcesOverview, stationFetcher, {
     revalidateIfStale: false,
@@ -1165,57 +1490,216 @@ export function useGetStationReportsOverview() {
 
   return useMemo(
     () => ({
+      reportMeta: liveData.reportMeta || null,
       stationReportCards: toArray(liveData.stationReportCards),
       shiftReportRows: toArray(liveData.shiftReportRows),
       pdaKpiRows: toArray(liveData.pdaKpiRows),
       stationFileReportRows: toArray(liveData.stationFileReportRows),
+      outboundActionRows: toArray(liveData.outboundActionRows),
+      stationDailyReportRows: toArray(liveData.stationDailyReportRows),
+      qualitySummaryRows: toArray(liveData.qualitySummaryRows),
+      qualityChecklistRows: toArray(liveData.qualityChecklistRows),
+      refreshPolicyRows: toArray(liveData.refreshPolicyRows),
+      traceabilityRows: toArray(liveData.traceabilityRows),
+      dailyKeyMetrics: toArray(liveData?.dailyReport?.keyMetrics),
       stationReportsLoading: isLoading,
       stationReportsError: error,
       stationReportsValidating: isValidating,
       stationReportsUsingMock: Boolean(
         error ||
+          !liveData?.reportMeta ||
           !liveData?.stationReportCards?.length ||
           !liveData?.shiftReportRows?.length ||
           !liveData?.pdaKpiRows?.length ||
-          !liveData?.stationFileReportRows?.length
+          !liveData?.stationFileReportRows?.length ||
+          !liveData?.outboundActionRows?.length
       )
     }),
     [liveData, error, isLoading, isValidating]
   );
 }
 
-export function useGetStationResourceVehicles() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationResourcesVehicles, stationFetcher, {
+export function useGetStationResourceVehicleOptions() {
+  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationResourcesVehicleOptions, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
   });
 
   const liveData = data?.data || EMPTY_OBJECT;
-  const liveItems = toArray(liveData.items).map(normalizeStationResourceVehicle);
+
+  return useMemo(
+    () => ({
+      flowOptions: toArray(liveData.flows),
+      statusOptions: toArray(liveData.statuses),
+      priorityOptions: toArray(liveData.priorities),
+      stationVehicleOptionsLoading: isLoading,
+      stationVehicleOptionsError: error,
+      stationVehicleOptionsValidating: isValidating
+    }),
+    [liveData, error, isLoading, isValidating]
+  );
+}
+
+export function useGetStationResourceVehicles(params = {}) {
+  const endpoint = `${endpoints.stationResourcesVehicles}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const liveData = data?.data || EMPTY_OBJECT;
+  const liveItems = toArray(liveData.vehicleRows || liveData.items).map(normalizeStationResourceVehicle);
 
   return useMemo(
     () => ({
       stationResourceVehicles: liveItems,
+      vehicleRows: liveItems,
+      vehiclePage: liveData.vehiclePage || {
+        items: liveItems,
+        page: 1,
+        page_size: 20,
+        total: liveItems.length
+      },
       stationResourceVehiclesLoading: isLoading,
       stationResourceVehiclesError: error,
       stationResourceVehiclesValidating: isValidating,
-      stationResourceVehiclesUsingMock: Boolean(error || !liveItems.length)
+      stationResourceVehiclesUsingMock: Boolean(error)
     }),
-    [error, isLoading, isValidating, liveItems]
+    [liveData, error, isLoading, isValidating, liveItems]
   );
+}
+
+export async function createStationResourceVehicle(payload) {
+  const data = await stationPoster(endpoints.stationResourcesVehicles, payload);
+
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationResourcesVehicles)),
+    mutate(endpoints.stationResourcesVehicleOptions)
+  ]);
+
+  return data?.data || data;
+}
+
+export async function updateStationResourceVehicle(vehicleId, payload) {
+  const data = await stationPatcher(endpoints.stationResourcesVehicleDetail(vehicleId), payload);
+
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationResourcesVehicles)),
+    mutate(endpoints.stationResourcesVehicleDetail(vehicleId))
+  ]);
+
+  return data?.data || data;
+}
+
+export async function archiveStationResourceVehicle(vehicleId) {
+  const data = await stationDeleter(endpoints.stationResourcesVehicleDetail(vehicleId));
+
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationResourcesVehicles)),
+    mutate(endpoints.stationResourcesVehicleDetail(vehicleId))
+  ]);
+
+  return data?.data || data;
 }
 
 export async function upsertStationResourceVehicle(payload) {
   const data = await stationPoster(endpoints.stationResourcesVehicles, payload);
 
-  await mutate(endpoints.stationResourcesVehicles);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationResourcesVehicles)),
+    mutate(endpoints.stationResourcesVehicleOptions)
+  ]);
 
   return data?.data || data;
 }
 
+export function useGetStationFlightOptions(direction = 'inbound') {
+  const endpoint = `${endpoints.stationFlightOptions}${buildQueryString({ direction })}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      flightOptions: toArray(data?.data?.flightOptions).map(mapSelectOption),
+      sourceOptions: toArray(data?.data?.sourceOptions).map(mapSelectOption),
+      destinationOptions: toArray(data?.data?.destinationOptions).map(mapSelectOption),
+      serviceLevelOptions: toArray(data?.data?.serviceLevels).map(mapSelectOption),
+      runtimeStatusOptions: toArray(data?.data?.runtimeStatuses).map(mapSelectOption),
+      stationFlightOptionsLoading: isLoading,
+      stationFlightOptionsError: error,
+      stationFlightOptionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export async function createStationInboundFlight(payload) {
+  const data = await stationPoster(endpoints.inboundFlights, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.inboundFlights)),
+    mutate(`${endpoints.stationFlightOptions}${buildQueryString({ direction: 'inbound' })}`),
+    mutate(endpoints.inboundFlightCreateOptions)
+  ]);
+  return data?.data || data;
+}
+
+export async function updateStationInboundFlight(flightId, payload) {
+  const data = await stationPatcher(`${endpoints.inboundFlights}/${encodeURIComponent(flightId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.inboundFlights)),
+    mutate(`${endpoints.inboundFlights}/${encodeURIComponent(flightId)}`),
+    mutate(`${endpoints.stationFlightOptions}${buildQueryString({ direction: 'inbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationInboundFlight(flightId) {
+  const data = await stationDeleter(`${endpoints.inboundFlights}/${encodeURIComponent(flightId)}`);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.inboundFlights)),
+    mutate(`${endpoints.inboundFlights}/${encodeURIComponent(flightId)}`),
+    mutate(`${endpoints.stationFlightOptions}${buildQueryString({ direction: 'inbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function createStationOutboundFlight(payload) {
+  const data = await stationPoster(endpoints.outboundFlights, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.outboundFlights)),
+    mutate(`${endpoints.stationFlightOptions}${buildQueryString({ direction: 'outbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function updateStationOutboundFlight(flightId, payload) {
+  const data = await stationPatcher(`${endpoints.outboundFlights}/${encodeURIComponent(flightId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.outboundFlights)),
+    mutate(`${endpoints.outboundFlights}/${encodeURIComponent(flightId)}`),
+    mutate(`${endpoints.stationFlightOptions}${buildQueryString({ direction: 'outbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationOutboundFlight(flightId) {
+  const data = await stationDeleter(`${endpoints.outboundFlights}/${encodeURIComponent(flightId)}`);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.outboundFlights)),
+    mutate(`${endpoints.outboundFlights}/${encodeURIComponent(flightId)}`),
+    mutate(`${endpoints.stationFlightOptions}${buildQueryString({ direction: 'outbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
 export function useGetInboundFlightDetail(flightNo) {
-  const { data: listData, error: listError } = useSWR(endpoints.inboundFlights, stationFetcher, {
+  const listKey = flightNo ? `${endpoints.inboundFlights}${buildQueryString({ flight_no: flightNo, page_size: 1, include_archived: true })}` : null;
+  const { data: listData, error: listError } = useSWR(listKey, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
@@ -1242,7 +1726,10 @@ export function useGetInboundFlightDetail(flightNo) {
 }
 
 export function useGetInboundWaybillDetail(awbNo) {
-  const { data: listData, error: listError } = useSWR(endpoints.inboundWaybills, stationFetcher, {
+  const listKey = awbNo
+    ? `${endpoints.inboundWaybills}${buildQueryString({ awb_no: awbNo, page_size: 1, include_archived: true })}`
+    : null;
+  const { data: listData, error: listError } = useSWR(listKey, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
@@ -1269,7 +1756,8 @@ export function useGetInboundWaybillDetail(awbNo) {
 }
 
 export function useGetOutboundFlightDetail(flightNo) {
-  const { data: listData, error: listError } = useSWR(endpoints.outboundFlights, stationFetcher, {
+  const listKey = flightNo ? `${endpoints.outboundFlights}${buildQueryString({ flight_no: flightNo, page_size: 1, include_archived: true })}` : null;
+  const { data: listData, error: listError } = useSWR(listKey, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
@@ -1296,7 +1784,10 @@ export function useGetOutboundFlightDetail(flightNo) {
 }
 
 export function useGetOutboundWaybillDetail(awbNo) {
-  const { data: listData, error: listError } = useSWR(endpoints.outboundWaybills, stationFetcher, {
+  const listKey = awbNo
+    ? `${endpoints.outboundWaybills}${buildQueryString({ awb_no: awbNo, page_size: 1, include_archived: true })}`
+    : null;
+  const { data: listData, error: listError } = useSWR(listKey, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
@@ -1322,8 +1813,9 @@ export function useGetOutboundWaybillDetail(awbNo) {
   );
 }
 
-export function useGetStationShipments() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationShipments, stationFetcher, {
+export function useGetStationShipments(params = {}) {
+  const endpoint = `${endpoints.stationShipments}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
@@ -1332,10 +1824,37 @@ export function useGetStationShipments() {
   return useMemo(
     () => ({
       stationShipments: data?.items?.map(mapStationShipmentToViewModel) || [],
+      stationShipmentPage: {
+        page: Number(data?.page || params.page || 1),
+        pageSize: Number(data?.page_size || params.page_size || 20),
+        total: Number(data?.total || 0)
+      },
       stationShipmentsLoading: isLoading,
       stationShipmentsError: error,
       stationShipmentsValidating: isValidating,
       stationShipmentsUsingMock: Boolean(error)
+    }),
+    [data, error, isLoading, isValidating, params.page, params.page_size]
+  );
+}
+
+export function useGetStationShipmentOptions() {
+  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationShipmentOptions, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      directionOptions: toArray(data?.data?.directionOptions).map(mapSelectOption),
+      flightOptions: toArray(data?.data?.flightOptions).map(mapSelectOption),
+      currentNodeOptions: toArray(data?.data?.currentNodeOptions).map(mapSelectOption),
+      fulfillmentStatusOptions: toArray(data?.data?.fulfillmentStatusOptions).map(mapSelectOption),
+      blockerStateOptions: toArray(data?.data?.blockerStateOptions).map(mapSelectOption),
+      stationShipmentOptionsLoading: isLoading,
+      stationShipmentOptionsError: error,
+      stationShipmentOptionsValidating: isValidating
     }),
     [data, error, isLoading, isValidating]
   );
@@ -1414,6 +1933,61 @@ export function useGetStationExceptionDetail(exceptionId) {
   );
 }
 
+export function useGetStationExceptionOptions(query = {}) {
+  const endpoint = `${endpoints.stationExceptionOptions}${buildQueryString(query)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      exceptionTypeOptions: toArray(data?.data?.exception_type_options).map(mapSelectOption),
+      severityOptions: toArray(data?.data?.severity_options).map(mapSelectOption),
+      exceptionStatusOptions: toArray(data?.data?.exception_status_options).map(mapSelectOption),
+      ownerRoleOptions: toArray(data?.data?.owner_role_options).map(mapSelectOption),
+      relatedObjectTypeOptions: toArray(data?.data?.related_object_type_options).map(mapSelectOption),
+      relatedObjectOptions: toArray(data?.data?.related_object_options).map(mapSelectOption),
+      teamOptions: toArray(data?.data?.team_options).map(mapSelectOption),
+      blockerStateOptions: toArray(data?.data?.blocker_state_options).map(mapSelectOption),
+      stationExceptionOptionsLoading: isLoading,
+      stationExceptionOptionsError: error,
+      stationExceptionOptionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export function useGetStationExceptionList(params = {}) {
+  const endpoint = `${endpoints.stationExceptions}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const liveItems = toArray(data?.items).map(mapStationExceptionListItemToViewModel);
+
+  return useMemo(
+    () => ({
+      stationExceptionRows: liveItems,
+      stationExceptionPage: {
+        items: liveItems,
+        page: Number(data?.page || params.page || 1),
+        page_size: Number(data?.page_size || params.page_size || 20),
+        total: Number(data?.total || 0)
+      },
+      stationExceptionSummaryCards: buildStationExceptionSummaryCards(liveItems, Number(data?.total || 0)),
+      stationExceptionListLoading: isLoading,
+      stationExceptionListError: error,
+      stationExceptionListValidating: isValidating,
+      stationExceptionListUsingMock: Boolean(error)
+    }),
+    [data, error, isLoading, isValidating, liveItems, params.page, params.page_size]
+  );
+}
+
 export function useGetStationTasks() {
   const { data, isLoading, error, isValidating } = useSWR(endpoints.stationTasksOverview, stationFetcher, {
     revalidateIfStale: false,
@@ -1438,6 +2012,82 @@ export function useGetStationTasks() {
       stationTasksError: error,
       stationTasksValidating: isValidating,
       stationTasksUsingMock: Boolean(error)
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export function useGetStationTaskOptions(query = {}) {
+  const endpoint = `${endpoints.stationTaskOptions}${buildQueryString(query)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      taskStatusOptions: toArray(data?.data?.task_status_options).map(mapSelectOption),
+      taskPriorityOptions: toArray(data?.data?.task_priority_options).map(mapSelectOption),
+      assignedRoleOptions: toArray(data?.data?.assigned_role_options).map(mapSelectOption),
+      taskTypeOptions: toArray(data?.data?.task_type_options).map(mapSelectOption),
+      executionNodeOptions: toArray(data?.data?.execution_node_options).map(mapSelectOption),
+      relatedObjectTypeOptions: toArray(data?.data?.related_object_type_options).map(mapSelectOption),
+      relatedObjectOptions: toArray(data?.data?.related_object_options).map(mapSelectOption),
+      teamOptions: toArray(data?.data?.team_options).map(mapSelectOption),
+      workerOptions: toArray(data?.data?.worker_options).map(mapSelectOption),
+      stationTaskOptionsLoading: isLoading,
+      stationTaskOptionsError: error,
+      stationTaskOptionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export function useGetStationTaskList(params = {}) {
+  const endpoint = `${endpoints.stationTasks}${buildQueryString(params)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const liveItems = toArray(data?.items).map(mapTaskToViewModel);
+
+  return useMemo(
+    () => ({
+      stationTaskRows: liveItems,
+      stationTaskPage: {
+        items: liveItems,
+        page: Number(data?.page || params.page || 1),
+        page_size: Number(data?.page_size || params.page_size || 20),
+        total: Number(data?.total || 0)
+      },
+      stationTaskSummaryCards: buildTaskSummaryCards(toArray(data?.items)),
+      stationTaskListLoading: isLoading,
+      stationTaskListError: error,
+      stationTaskListValidating: isValidating,
+      stationTaskListUsingMock: Boolean(error)
+    }),
+    [data, error, isLoading, isValidating, liveItems, params.page, params.page_size]
+  );
+}
+
+export function useGetStationTaskDetail(taskId) {
+  const detailKey = taskId ? `${endpoints.stationTasks}/${encodeURIComponent(taskId)}` : null;
+  const { data, isLoading, error, isValidating } = useSWR(detailKey, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      stationTaskDetail: mapStationTaskDetailToViewModel(data?.data),
+      stationTaskDetailLoading: isLoading,
+      stationTaskDetailError: error,
+      stationTaskDetailValidating: isValidating,
+      stationTaskDetailUsingMock: Boolean(error || !data?.data)
     }),
     [data, error, isLoading, isValidating]
   );
@@ -1564,6 +2214,34 @@ export function useGetMobileOutboundDetail(flightNo) {
   );
 }
 
+export function useGetMobileOutboundOptions(flightNo) {
+  const requestKey = flightNo ? endpoints.mobileOutboundOptions(flightNo) : null;
+  const { data, isLoading, error, isValidating } = useSWR(requestKey, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const payload = data?.data || EMPTY_OBJECT;
+
+  return useMemo(
+    () => ({
+      mobileOutboundOptions: {
+        receiptStatusOptions: toArray(payload?.receiptStatusOptions).map(mapSelectOption),
+        reviewStatusOptions: toArray(payload?.reviewStatusOptions).map(mapSelectOption),
+        containerStatusOptions: toArray(payload?.containerStatusOptions).map(mapSelectOption),
+        offloadStatusOptions: toArray(payload?.offloadStatusOptions).map(mapSelectOption),
+        awbOptions: toArray(payload?.awbOptions).map(mapSelectOption),
+        containerOptions: toArray(payload?.containerOptions).map(mapSelectOption)
+      },
+      mobileOutboundOptionsLoading: isLoading,
+      mobileOutboundOptionsError: error,
+      mobileOutboundOptionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
 export function useGetMobileInboundDetail(flightNo) {
   const requestKey = flightNo ? endpoints.mobileInboundFlightDetail(flightNo) : null;
   const { data, isLoading, error, isValidating } = useSWR(requestKey, stationFetcher, {
@@ -1586,25 +2264,31 @@ export function useGetMobileInboundDetail(flightNo) {
   );
 }
 
-export function useGetMobileNodeFlow(flowKey) {
-  const requestKey = flowKey ? endpoints.mobileNodeFlow(flowKey) : null;
+export function useGetMobileNodeFlow(flowKey, params = {}) {
+  const requestKey = flowKey ? [endpoints.mobileNodeFlow(flowKey), { params }] : null;
   const { data, isLoading, error, isValidating } = useSWR(requestKey, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
   });
 
-  const liveData = mapMobileNodeResponse(data?.data || EMPTY_OBJECT);
+  const liveData = mapMobileNodeResponse(data?.data || data || EMPTY_OBJECT);
 
   return useMemo(
     () => ({
       ...liveData,
+      mobileNodePage: {
+        items: liveData.items,
+        page: Number(liveData.page || params.page || 1),
+        page_size: Number(liveData.page_size || params.page_size || 20),
+        total: Number(liveData.total || 0)
+      },
       mobileNodeLoading: isLoading,
       mobileNodeError: error,
       mobileNodeValidating: isValidating,
       mobileNodeUsingMock: Boolean(error || !liveData.items.length)
     }),
-    [data, error, isLoading, isValidating]
+    [data, error, isLoading, isValidating, liveData, params.page, params.page_size]
   );
 }
 
@@ -1616,7 +2300,7 @@ export function useGetMobileNodeDetail(flowKey, itemId) {
     revalidateOnReconnect: false
   });
 
-  const liveData = mapMobileNodeResponse(data?.data || EMPTY_OBJECT);
+  const liveData = mapMobileNodeResponse(data?.data || data || EMPTY_OBJECT);
 
   return useMemo(
     () => ({
@@ -1741,7 +2425,13 @@ function mapDocumentToViewModel(item) {
     previewType: inferPreviewType(item.document_name),
     nextStep: item.required_for_release ? '放行前校验' : '普通归档',
     gateIds: [],
-    bindingTargets: [{ label: `${item.related_object_type} / ${item.related_object_label}`, to: inferDocumentRoute(item) }]
+    bindingTargets: [{ label: `${item.related_object_type} / ${item.related_object_label}`, to: inferDocumentRoute(item) }],
+    relatedObjectType: item.related_object_type,
+    relatedObjectId: item.related_object_id,
+    requiredForRelease: Boolean(item.required_for_release),
+    retentionClass: item.retention_class || 'operational',
+    sizeBytes: Number(item.size_bytes || 0),
+    archived: Boolean(item.deleted_at)
   };
 }
 
@@ -1793,8 +2483,87 @@ function mapDocumentOverviewResponse(payload) {
   };
 }
 
-export function useGetStationDocuments() {
-  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationDocumentsOverview, stationFetcher, {
+function mapStationDocumentOptions(payload) {
+  return {
+    documentTypeOptions: toArray(payload?.document_type_options).map(mapSelectOption),
+    documentStatusOptions: toArray(payload?.document_status_options).map(mapSelectOption),
+    retentionClassOptions: toArray(payload?.retention_class_options).map(mapSelectOption),
+    relatedObjectTypeOptions: toArray(payload?.related_object_type_options).map(mapSelectOption),
+    relatedObjectOptions: toArray(payload?.related_object_options).map(mapSelectOption)
+  };
+}
+
+function mapStationDocumentDetail(payload) {
+  const document = payload?.document || EMPTY_OBJECT;
+  return {
+    stationDocumentDetail: {
+      documentId: document.document_id || '',
+      type: document.document_type || '',
+      name: document.document_name || '',
+      linkedTo: document.related_object_label || '',
+      relatedObjectType: document.related_object_type || '',
+      relatedObjectId: document.related_object_id || '',
+      version: document.version_no || '',
+      updatedAt: document.uploaded_at || '--',
+      status: document.document_status || 'Pending',
+      previewType: inferPreviewType(document.document_name || ''),
+      requiredForRelease: Boolean(document.required_for_release),
+      retentionClass: document.retention_class || 'operational',
+      note: document.note || '',
+      archived: Boolean(document.archived || document.deleted_at),
+      bindingTargets: document.document_id
+        ? [{ label: `${document.related_object_type} / ${document.related_object_label || document.related_object_id}`, to: inferDocumentRoute(document) }]
+        : [],
+      versions: toArray(payload?.versions).map((item) => ({
+        versionId: item.document_id,
+        version: item.version_no,
+        status: item.document_status,
+        updatedAt: item.updated_at || item.uploaded_at || '--',
+        previewSummary: item.note || `${item.document_name || ''} ${item.version_no || ''}`.trim(),
+        previewType: item.preview_type || inferPreviewType(item.document_name || ''),
+        diffSummary: item.note || '版本更新',
+        rollbackTarget: item.rollback_target || null,
+        replacedBy: item.replaced_by || null
+      })),
+      lifecycle: payload?.lifecycle || EMPTY_OBJECT
+    }
+  };
+}
+
+export function useGetStationDocuments(query = {}) {
+  const endpoint = `${endpoints.stationDocuments}${buildQueryString(query)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const list = data?.items || data?.data?.items || EMPTY_ARRAY;
+  const total = Number(data?.total || data?.data?.total || 0);
+  const page = Number(data?.page || data?.data?.page || query.page || 1);
+  const pageSize = Number(data?.page_size || data?.data?.page_size || query.page_size || 20);
+
+  return useMemo(
+    () => ({
+      stationDocuments: list.map(mapDocumentToViewModel),
+      stationDocumentsPage: {
+        items: list.map(mapDocumentToViewModel),
+        page,
+        page_size: pageSize,
+        total
+      },
+      stationDocumentsLoading: isLoading,
+      stationDocumentsError: error,
+      stationDocumentsValidating: isValidating,
+      stationDocumentsUsingMock: Boolean(error)
+    }),
+    [data, error, isLoading, isValidating, list, page, pageSize, total]
+  );
+}
+
+export function useGetStationDocumentOptions(query = {}) {
+  const endpoint = `${endpoints.stationDocumentOptions}${buildQueryString(query)}`;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
     revalidateIfStale: false,
     revalidateOnFocus: false,
     revalidateOnReconnect: false
@@ -1802,11 +2571,29 @@ export function useGetStationDocuments() {
 
   return useMemo(
     () => ({
-      ...mapDocumentOverviewResponse(data?.data || {}),
-      stationDocumentsLoading: isLoading,
-      stationDocumentsError: error,
-      stationDocumentsValidating: isValidating,
-      stationDocumentsUsingMock: Boolean(error)
+      ...mapStationDocumentOptions(data?.data || EMPTY_OBJECT),
+      stationDocumentOptionsLoading: isLoading,
+      stationDocumentOptionsError: error,
+      stationDocumentOptionsValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating]
+  );
+}
+
+export function useGetStationDocumentDetail(documentId) {
+  const endpoint = documentId ? `${endpoints.stationDocuments}/${encodeURIComponent(documentId)}` : null;
+  const { data, isLoading, error, isValidating } = useSWR(endpoint, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  return useMemo(
+    () => ({
+      ...mapStationDocumentDetail(data?.data || EMPTY_OBJECT),
+      stationDocumentDetailLoading: isLoading,
+      stationDocumentDetailError: error,
+      stationDocumentDetailValidating: isValidating
     }),
     [data, error, isLoading, isValidating]
   );
@@ -1970,17 +2757,57 @@ export function useGetPodNotifications() {
 export async function assignStationTask(taskId, payload) {
   const data = await stationPoster(`${endpoints.stationTasks}/${taskId}/assign`, payload);
 
-  await Promise.all([mutate(endpoints.stationTasks), mutate(endpoints.stationTasksOverview), mutate(endpoints.stationExceptions)]);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
 
   return data;
+}
+
+export async function updateStationTask(taskId, payload) {
+  const data = await stationPatcher(`${endpoints.stationTasks}/${encodeURIComponent(taskId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(`${endpoints.stationTaskOptions}${buildQueryString({ related_object_type: payload?.related_object_type })}`),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationTask(taskId) {
+  const data = await stationDeleter(`${endpoints.stationTasks}/${encodeURIComponent(taskId)}`);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
+  return data?.data || data;
 }
 
 export async function createStationDocument(payload) {
   const data = await stationPoster(endpoints.stationDocuments, payload);
 
-  await Promise.all([mutate(endpoints.stationDocuments), mutate(endpoints.stationDocumentsOverview)]);
+  await Promise.all([mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationDocuments)), mutate(endpoints.stationDocumentsOverview)]);
 
   return data;
+}
+
+export async function updateStationDocument(documentId, payload) {
+  const data = await stationPatcher(`${endpoints.stationDocuments}/${encodeURIComponent(documentId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationDocuments)),
+    mutate(`${endpoints.stationDocumentOptions}${buildQueryString({ related_object_type: payload?.related_object_type })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationDocument(documentId) {
+  const data = await stationDeleter(`${endpoints.stationDocuments}/${encodeURIComponent(documentId)}`);
+  await Promise.all([mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationDocuments))]);
+  return data?.data || data;
 }
 
 export async function processInboundNoa(awbId, payload) {
@@ -2005,6 +2832,42 @@ export async function processInboundPod(awbId, payload) {
     mutate(endpoints.stationExceptions)
   ]);
   return data;
+}
+
+export async function updateStationInboundWaybill(awbId, payload) {
+  const data = await stationPatcher(`${endpoints.inboundWaybills}/${encodeURIComponent(awbId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.inboundWaybills)),
+    mutate(`${endpoints.stationWaybillOptions}${buildQueryString({ direction: 'inbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationInboundWaybill(awbId) {
+  const data = await stationDeleter(`${endpoints.inboundWaybills}/${encodeURIComponent(awbId)}`);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.inboundWaybills)),
+    mutate(`${endpoints.stationWaybillOptions}${buildQueryString({ direction: 'inbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function updateStationOutboundWaybill(awbId, payload) {
+  const data = await stationPatcher(`${endpoints.outboundWaybills}/${encodeURIComponent(awbId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.outboundWaybills)),
+    mutate(`${endpoints.stationWaybillOptions}${buildQueryString({ direction: 'outbound' })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationOutboundWaybill(awbId) {
+  const data = await stationDeleter(`${endpoints.outboundWaybills}/${encodeURIComponent(awbId)}`);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.outboundWaybills)),
+    mutate(`${endpoints.stationWaybillOptions}${buildQueryString({ direction: 'outbound' })}`)
+  ]);
+  return data?.data || data;
 }
 
 export async function mobileLogin(payload) {
@@ -2118,7 +2981,11 @@ export function completeMobileTask(taskId, payload) {
 export async function raiseStationTaskException(taskId, payload) {
   const data = await stationPoster(`${endpoints.stationTasks}/${taskId}/exception`, payload);
 
-  await Promise.all([mutate(endpoints.stationTasks), mutate(endpoints.stationTasksOverview), mutate(endpoints.stationExceptions)]);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
 
   return data;
 }
@@ -2127,8 +2994,24 @@ export async function getInboundCountRecords(flightNo) {
   return stationFetcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/counts`);
 }
 
+export async function getInboundCountRecordOptions(flightNo) {
+  return stationFetcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/counts/options`);
+}
+
 export async function saveInboundCountRecord(flightNo, awbNo, payload) {
   const data = await stationPoster(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/counts/${encodeURIComponent(awbNo)}`, payload);
+  await mutate(endpoints.mobileInboundFlightDetail(flightNo));
+  return data;
+}
+
+export async function updateInboundCountRecord(flightNo, awbNo, payload) {
+  const data = await stationPatcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/counts/${encodeURIComponent(awbNo)}`, payload);
+  await mutate(endpoints.mobileInboundFlightDetail(flightNo));
+  return data;
+}
+
+export async function archiveInboundCountRecord(flightNo, awbNo) {
+  const data = await stationDeleter(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/counts/${encodeURIComponent(awbNo)}`);
   await mutate(endpoints.mobileInboundFlightDetail(flightNo));
   return data;
 }
@@ -2137,15 +3020,25 @@ export async function getInboundPallets(flightNo) {
   return stationFetcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/pallets`);
 }
 
+export async function getInboundPalletOptions(flightNo) {
+  return stationFetcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/pallets/options`);
+}
+
 export async function saveInboundPallet(flightNo, payload) {
   const data = await stationPoster(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/pallets`, payload);
-  await mutate(endpoints.mobileInboundFlightDetail(flightNo));
+  await Promise.all([mutate(endpoints.mobileInboundFlightDetail(flightNo)), mutate(endpoints.mobileInboundOverview)]);
   return data;
 }
 
 export async function updateInboundPallet(palletNo, payload) {
   const data = await stationPatcher(`/api/v1/mobile/inbound/pallets/${encodeURIComponent(palletNo)}`, payload);
-  await mutate(endpoints.mobileInboundOverview);
+  await mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/mobile/inbound/'));
+  return data;
+}
+
+export async function archiveInboundPallet(palletNo) {
+  const data = await stationDeleter(`/api/v1/mobile/inbound/pallets/${encodeURIComponent(palletNo)}`);
+  await mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/mobile/inbound/'));
   return data;
 }
 
@@ -2153,15 +3046,25 @@ export async function getInboundLoadingPlans(flightNo) {
   return stationFetcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/loading-plans`);
 }
 
+export async function getInboundLoadingPlanOptions(flightNo) {
+  return stationFetcher(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/loading-plans/options`);
+}
+
 export async function saveInboundLoadingPlan(flightNo, payload) {
   const data = await stationPoster(`/api/v1/mobile/inbound/${encodeURIComponent(flightNo)}/loading-plans`, payload);
-  await mutate(endpoints.mobileInboundFlightDetail(flightNo));
+  await Promise.all([mutate(endpoints.mobileInboundFlightDetail(flightNo)), mutate(endpoints.mobileInboundOverview)]);
   return data;
 }
 
 export async function updateInboundLoadingPlan(planId, payload) {
   const data = await stationPatcher(`/api/v1/mobile/inbound/loading-plans/${encodeURIComponent(planId)}`, payload);
-  await mutate(endpoints.mobileInboundOverview);
+  await mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/mobile/inbound/'));
+  return data;
+}
+
+export async function archiveInboundLoadingPlan(planId) {
+  const data = await stationDeleter(`/api/v1/mobile/inbound/loading-plans/${encodeURIComponent(planId)}`);
+  await mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/mobile/inbound/'));
   return data;
 }
 
@@ -2171,6 +3074,18 @@ export async function getOutboundReceipts(flightNo) {
 
 export async function saveOutboundReceipt(flightNo, awbNo, payload) {
   const data = await stationPoster(`/api/v1/mobile/outbound/${encodeURIComponent(flightNo)}/receipts/${encodeURIComponent(awbNo)}`, payload);
+  await Promise.all([mutate(endpoints.mobileOutboundFlightDetail(flightNo)), mutate(endpoints.mobileOutboundOverview)]);
+  return data;
+}
+
+export async function updateOutboundReceipt(flightNo, awbNo, payload) {
+  const data = await stationPatcher(`/api/v1/mobile/outbound/${encodeURIComponent(flightNo)}/receipts/${encodeURIComponent(awbNo)}`, payload);
+  await Promise.all([mutate(endpoints.mobileOutboundFlightDetail(flightNo)), mutate(endpoints.mobileOutboundOverview)]);
+  return data;
+}
+
+export async function archiveOutboundReceipt(flightNo, awbNo, archived = true) {
+  const data = await stationDeleter(`/api/v1/mobile/outbound/${encodeURIComponent(flightNo)}/receipts/${encodeURIComponent(awbNo)}`, { data: { archived } });
   await Promise.all([mutate(endpoints.mobileOutboundFlightDetail(flightNo)), mutate(endpoints.mobileOutboundOverview)]);
   return data;
 }
@@ -2186,31 +3101,75 @@ export async function saveOutboundContainer(flightNo, payload) {
 }
 
 export async function updateOutboundContainer(containerCode, payload) {
-  return stationPatcher(`/api/v1/mobile/outbound/containers/${encodeURIComponent(containerCode)}`, payload);
+  const data = await stationPatcher(`/api/v1/mobile/outbound/containers/${encodeURIComponent(containerCode)}`, payload);
+  await Promise.all([mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/mobile/outbound/')), mutate(endpoints.mobileOutboundOverview)]);
+  return data;
+}
+
+export async function archiveOutboundContainer(containerCode, archived = true) {
+  const data = await stationDeleter(`/api/v1/mobile/outbound/containers/${encodeURIComponent(containerCode)}`, { data: { archived } });
+  await Promise.all([mutate((key) => typeof key === 'string' && key.startsWith('/api/v1/mobile/outbound/')), mutate(endpoints.mobileOutboundOverview)]);
+  return data;
 }
 
 export async function verifyStationTask(taskId, payload = {}) {
   const data = await stationPoster(`${endpoints.stationTasks}/${taskId}/verify`, payload);
-  await Promise.all([mutate(endpoints.stationTasks), mutate(endpoints.stationTasksOverview), mutate(endpoints.stationExceptions)]);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
   return data;
 }
 
 export async function reworkStationTask(taskId, payload = {}) {
   const data = await stationPoster(`${endpoints.stationTasks}/${taskId}/rework`, payload);
-  await Promise.all([mutate(endpoints.stationTasks), mutate(endpoints.stationTasksOverview), mutate(endpoints.stationExceptions)]);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
   return data;
 }
 
 export async function escalateStationTask(taskId, payload = {}) {
   const data = await stationPoster(`${endpoints.stationTasks}/${taskId}/escalate`, payload);
-  await Promise.all([mutate(endpoints.stationTasks), mutate(endpoints.stationTasksOverview), mutate(endpoints.stationExceptions)]);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationTasks)),
+    mutate(endpoints.stationTasksOverview),
+    mutate(endpoints.stationExceptions)
+  ]);
   return data;
 }
 
 export async function resolveStationException(exceptionId, payload = {}) {
   const data = await stationPoster(`${endpoints.stationExceptions}/${exceptionId}/resolve`, payload);
-  await Promise.all([mutate(endpoints.stationTasks), mutate(endpoints.stationTasksOverview), mutate(endpoints.stationExceptions)]);
+  await Promise.all([
+    mutate(endpoints.stationTasks),
+    mutate(endpoints.stationTasksOverview),
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationExceptions)),
+    mutate(endpoints.stationExceptionsOverview)
+  ]);
   return data;
+}
+
+export async function updateStationException(exceptionId, payload) {
+  const data = await stationPatcher(`${endpoints.stationExceptions}/${encodeURIComponent(exceptionId)}`, payload);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationExceptions)),
+    mutate(endpoints.stationExceptionsOverview),
+    mutate(`${endpoints.stationExceptionOptions}${buildQueryString({ related_object_type: payload?.related_object_type })}`)
+  ]);
+  return data?.data || data;
+}
+
+export async function archiveStationException(exceptionId) {
+  const data = await stationDeleter(`${endpoints.stationExceptions}/${encodeURIComponent(exceptionId)}`);
+  await Promise.all([
+    mutate((key) => typeof key === 'string' && key.startsWith(endpoints.stationExceptions)),
+    mutate(endpoints.stationExceptionsOverview)
+  ]);
+  return data?.data || data;
 }
 
 export async function markOutboundLoaded(flightId, payload = {}) {

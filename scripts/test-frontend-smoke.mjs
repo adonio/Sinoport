@@ -2,14 +2,14 @@ import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 
-const API_PORT = 8787 + Math.floor(Math.random() * 200);
-const AGENT_PORT = 8794 + Math.floor(Math.random() * 200);
+const API_PORT = 8787 + Math.floor(Math.random() * 100);
+const AGENT_PORT = 8894 + Math.floor(Math.random() * 100);
 const LOCAL_API_URL = `http://127.0.0.1:${API_PORT}`;
 const LOCAL_AGENT_URL = `http://127.0.0.1:${AGENT_PORT}`;
 const WEB_PORT = 4175 + Math.floor(Math.random() * 200);
 const DEFAULT_WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
-const API_INSPECTOR_PORT = 9235 + Math.floor(Math.random() * 200);
-const AGENT_INSPECTOR_PORT = 9236 + Math.floor(Math.random() * 200);
+const API_INSPECTOR_PORT = 9235 + Math.floor(Math.random() * 100);
+const AGENT_INSPECTOR_PORT = 9335 + Math.floor(Math.random() * 100);
 
 const pageChecks = [
   { path: '/station/inbound/flights/SE803', text: '航班详情 / SE803' },
@@ -21,13 +21,26 @@ const pageChecks = [
   { path: '/station/outbound/flights/SE913', text: '航班详情 / SE913' },
   { path: '/station/outbound/waybills', text: '出港管理 / 提单管理' },
   { path: '/station/outbound/waybills/436-10357583', text: '提单详情 / 436-10357583' },
+  { path: '/station/reports', text: '货站层 KPI / 报表' },
   { path: '/station/tasks', text: '作业指令中心' },
   { path: '/station/documents/noa', text: 'NOA 通知动作' },
   { path: '/station/documents/pod', text: 'POD 通知与补签' },
-  { path: '/station/copilot?object_type=Flight&object_key=SE803', text: 'Station Copilot' },
+  { path: '/station/copilot?object_type=Flight&object_key=SE803', text: 'Copilot 交互层' },
+  { path: '/platform/stations', text: '货站与资源管理' },
+  { path: '/platform/stations/teams', text: '站点班组映射' },
   { path: '/platform/audit/trust', text: '可信留痕预览' },
+  { path: '/platform/reports/stations', text: '站点对比报表' },
   { path: '/mobile/inbound/SE803/breakdown', text: '拆板与理货任务' },
   { path: '/mobile/outbound/SE913/receipt', text: '收货扫描' }
+];
+
+const englishPageChecks = [
+  { path: '/platform/operations', text: 'Operations Center' },
+  { path: '/platform/audit', text: 'Audit & Trust Trace' },
+  { path: '/station/resources', text: 'Teams / Zones / Devices' },
+  { path: '/station/reports', text: 'Station Reports' },
+  { path: '/mobile/inbound', text: 'Select a Flight' },
+  { path: '/mobile/outbound', text: 'Select a Flight' }
 ];
 
 const ignoredConsolePatterns = [
@@ -240,10 +253,33 @@ async function verifyApiSmoke(apiUrl, agentUrl, stationToken) {
     throw new Error('Audit logs check failed');
   }
 
+  const expectedVersion = process.env.SMOKE_EXPECTED_VERSION?.trim();
+  const expectedEnvironment = process.env.SMOKE_EXPECTED_ENVIRONMENT?.trim();
+  const apiHealthData = apiHealth.json?.data;
+  const agentHealthData = agentHealth.json?.data;
+
+  if (expectedEnvironment) {
+    if (apiHealthData?.environment !== expectedEnvironment) {
+      throw new Error(`API environment mismatch: expected ${expectedEnvironment}, received ${apiHealthData?.environment || '--'}`);
+    }
+    if (agentHealthData?.environment !== expectedEnvironment) {
+      throw new Error(`Agent environment mismatch: expected ${expectedEnvironment}, received ${agentHealthData?.environment || '--'}`);
+    }
+  }
+
+  if (expectedVersion) {
+    if (apiHealthData?.version?.sha !== expectedVersion) {
+      throw new Error(`API version mismatch: expected ${expectedVersion}, received ${apiHealthData?.version?.sha || '--'}`);
+    }
+    if (agentHealthData?.version?.sha !== expectedVersion) {
+      throw new Error(`Agent version mismatch: expected ${expectedVersion}, received ${agentHealthData?.version?.sha || '--'}`);
+    }
+  }
+
   return { apiHealth, agentHealth, agentTools, auditEvents, auditLogs };
 }
 
-async function runBrowserSmoke(webUrl, stationToken, stationActor, mobileSession) {
+async function runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationActor, mobileSession) {
   let browser;
 
   try {
@@ -255,12 +291,17 @@ async function runBrowserSmoke(webUrl, stationToken, stationActor, mobileSession
 
     const context = await browser.newContext();
     await context.addInitScript(
-      ({ token, actor, session }) => {
+      ({ token, actor, session, stationApiUrl, agentApiUrl, language }) => {
         window.localStorage.setItem('serviceToken', token);
         window.localStorage.setItem('sinoport-station-actor-v1', JSON.stringify(actor));
-        window.localStorage.setItem('sinoport-mobile-session-v1', JSON.stringify(session));
+        window.localStorage.setItem('sinoport-mobile-session-v1', JSON.stringify({ ...session, language }));
+        window.localStorage.setItem('sinoportStationApiBaseUrl', stationApiUrl);
+        window.localStorage.setItem('sinoportAgentApiBaseUrl', agentApiUrl);
+        const configRaw = window.localStorage.getItem('mantis-react-js-config');
+        const currentConfig = configRaw ? JSON.parse(configRaw) : {};
+        window.localStorage.setItem('mantis-react-js-config', JSON.stringify({ ...currentConfig, i18n: language }));
       },
-      { token: stationToken, actor: stationActor, session: mobileSession }
+      { token: stationToken, actor: stationActor, session: mobileSession, stationApiUrl: apiUrl, agentApiUrl: agentUrl, language: 'zh' }
     );
 
     const baseUrl = webUrl.replace(/\/$/, '');
@@ -302,6 +343,30 @@ async function runBrowserSmoke(webUrl, stationToken, stationActor, mobileSession
 
       await page.close();
     }
+
+    const englishContext = await browser.newContext();
+    await englishContext.addInitScript(
+      ({ token, actor, session, stationApiUrl, agentApiUrl, language }) => {
+        window.localStorage.setItem('serviceToken', token);
+        window.localStorage.setItem('sinoport-station-actor-v1', JSON.stringify(actor));
+        window.localStorage.setItem('sinoport-mobile-session-v1', JSON.stringify({ ...session, language }));
+        window.localStorage.setItem('sinoportStationApiBaseUrl', stationApiUrl);
+        window.localStorage.setItem('sinoportAgentApiBaseUrl', agentApiUrl);
+        const configRaw = window.localStorage.getItem('mantis-react-js-config');
+        const currentConfig = configRaw ? JSON.parse(configRaw) : {};
+        window.localStorage.setItem('mantis-react-js-config', JSON.stringify({ ...currentConfig, i18n: language }));
+      },
+      { token: stationToken, actor: stationActor, session: mobileSession, stationApiUrl: apiUrl, agentApiUrl: agentUrl, language: 'en' }
+    );
+
+    for (const pageConfig of englishPageChecks) {
+      const englishPage = await englishContext.newPage();
+      await englishPage.goto(`${baseUrl}${pageConfig.path}`, { waitUntil: 'domcontentloaded' });
+      await englishPage.waitForLoadState('networkidle');
+      await englishPage.getByText(pageConfig.text, { exact: false }).first().waitFor({ timeout: 30_000 });
+      await englishPage.close();
+    }
+    await englishContext.close();
   } finally {
     if (browser) {
       await browser.close();
@@ -316,7 +381,7 @@ async function main() {
   try {
     const { stationToken, stationActor, mobileSession } = await loginForSmoke(apiUrl);
     await verifyApiSmoke(apiUrl, agentUrl, stationToken);
-    await runBrowserSmoke(webUrl, stationToken, stationActor, mobileSession);
+    await runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationActor, mobileSession);
 
     console.log('\nDelivery smoke summary');
     console.log(`- api health: ${apiUrl}/api/v1/healthz`);

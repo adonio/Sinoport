@@ -19,6 +19,7 @@ import PlusOutlined from '@ant-design/icons/PlusOutlined';
 import ReloadOutlined from '@ant-design/icons/ReloadOutlined';
 import SendOutlined from '@ant-design/icons/SendOutlined';
 import ToolOutlined from '@ant-design/icons/ToolOutlined';
+import { useIntl } from 'react-intl';
 
 import {
   createAgentSession,
@@ -45,18 +46,19 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 import { buildStationObjectDetailUrl, buildStationObjectLabel } from 'utils/copilot';
 
 const STORAGE_KEY = 'sinoport-copilot-sessions-v1';
 const ACTIVE_KEY = 'sinoport-copilot-active-session-v1';
 
 const objectTypeOptions = [
-  { value: 'station', label: 'Station' },
-  { value: 'Flight', label: 'Flight' },
-  { value: 'AWB', label: 'AWB' },
-  { value: 'Document', label: 'Document' },
-  { value: 'Shipment', label: 'Shipment' },
-  { value: 'Exception', label: 'Exception' }
+  { value: 'station', label: '站点' },
+  { value: 'Flight', label: '航班' },
+  { value: 'AWB', label: '提单' },
+  { value: 'Document', label: '单证' },
+  { value: 'Shipment', label: '履约对象' },
+  { value: 'Exception', label: '异常' }
 ];
 
 function createId(prefix = 'cp') {
@@ -113,7 +115,16 @@ function buildFocusKey(objectType, objectKey) {
 }
 
 function buildSessionTitle(objectType, objectKey) {
-  return objectType === 'station' ? '站点 Copilot' : `${objectType} / ${objectKey || '--'}`;
+  const objectLabel =
+    {
+      station: '站点',
+      Flight: '航班',
+      AWB: '提单',
+      Document: '单证',
+      Shipment: '履约对象',
+      Exception: '异常'
+    }[objectType] || objectType;
+  return objectType === 'station' ? '站点 Copilot' : `${objectLabel} / ${objectKey || '--'}`;
 }
 
 function buildSystemMessage(context) {
@@ -122,12 +133,12 @@ function buildSystemMessage(context) {
   }
 
   return [
-    `Session: ${context.session_id}`,
-    `Actor: ${context.actor?.userId || context.actor?.user_id || '--'} / ${context.actor?.roleIds?.join(', ') || context.actor?.role_ids?.join(', ') || '--'}`,
-    `Stations: ${context.actor?.stationScope?.join(', ') || context.actor?.station_scope?.join(', ') || '--'}`,
-    `Focus: ${context.focus ? `${context.focus.object_type} / ${context.focus.object_key}` : 'station-wide'}`,
-    `Tools: ${(context.available_tools || []).join(', ') || '--'}`,
-    `Workflows: ${(context.available_workflows || []).join(', ') || '--'}`
+    `会话：${context.session_id}`,
+    `执行人：${context.actor?.userId || context.actor?.user_id || '--'} / ${context.actor?.roleIds?.join(', ') || context.actor?.role_ids?.join(', ') || '--'}`,
+    `站点范围：${context.actor?.stationScope?.join(', ') || context.actor?.station_scope?.join(', ') || '--'}`,
+    `当前焦点：${context.focus ? `${context.focus.object_type} / ${context.focus.object_key}` : '站点总览'}`,
+    `可用工具：${(context.available_tools || []).join(', ') || '--'}`,
+    `可用工作流：${(context.available_workflows || []).join(', ') || '--'}`
   ].join('\n');
 }
 
@@ -175,9 +186,13 @@ function normalizeSessionRecord(session) {
   return {
     ...session,
     id: session.id || session.session_id || createId('session'),
-    title: session.title || session.summary || buildSessionTitle(session.objectType || session.object_type || 'station', session.objectKey || session.object_key || 'MME'),
+    title:
+      session.title ||
+      session.summary ||
+      buildSessionTitle(session.objectType || session.object_type || 'station', session.objectKey || session.object_key || 'MME'),
     objectType: session.objectType || session.object_type || 'station',
     objectKey: session.objectKey || session.object_key || 'MME',
+    remote: session.remote ?? Boolean(session.session_id || session.created_at || session.updated_at),
     status: session.status || 'active',
     summary: session.summary || '',
     messages,
@@ -226,7 +241,13 @@ function mergeSessionDetail(existingSessions, detail) {
   next.set(sessionId, {
     ...current,
     id: sessionId,
-    title: current.title || detail.summary || buildSessionTitle(detail.object_type || detail.objectType || current.objectType || 'station', detail.object_key || detail.objectKey || current.objectKey || 'MME'),
+    title:
+      current.title ||
+      detail.summary ||
+      buildSessionTitle(
+        detail.object_type || detail.objectType || current.objectType || 'station',
+        detail.object_key || detail.objectKey || current.objectKey || 'MME'
+      ),
     objectType: detail.object_type || detail.objectType || current.objectType || 'station',
     objectKey: detail.object_key || detail.objectKey || current.objectKey || 'MME',
     status: detail.status || current.status || 'active',
@@ -244,10 +265,7 @@ function buildRunFeedMessage(run) {
   return {
     id: `run-${run.id}`,
     role: 'tool',
-    content:
-      run.status === 'failed'
-        ? `工具执行失败: ${run.errorMessage || 'unknown'}`
-        : formatToolResult(run.outputJson),
+    content: run.status === 'failed' ? `工具执行失败: ${run.errorMessage || '未知错误'}` : formatToolResult(run.outputJson),
     time: run.time,
     toolName: run.toolName
   };
@@ -259,7 +277,11 @@ function buildSessionTimeline(messages = [], runs = []) {
 
 function buildToolPayload(toolName, objectType, objectKey) {
   if (toolName === 'get_flight_context') {
-    return JSON.stringify({ object_type: objectType, object_key: objectKey, flight_no: objectType === 'Flight' ? objectKey : undefined }, null, 2);
+    return JSON.stringify(
+      { object_type: objectType, object_key: objectKey, flight_no: objectType === 'Flight' ? objectKey : undefined },
+      null,
+      2
+    );
   }
 
   if (toolName === 'list_blocking_documents') {
@@ -280,20 +302,6 @@ function buildToolPayload(toolName, objectType, objectKey) {
 
   if (toolName === 'get_station_document_context') {
     return JSON.stringify({ object_type: 'Document', object_key: objectKey }, null, 2);
-  }
-
-  if (toolName === 'request_task_assignment') {
-    return JSON.stringify(
-      {
-        task_id: '',
-        assigned_role: 'inbound_operator',
-        assigned_team_id: 'TEAM-IN-01',
-        assigned_worker_id: 'WORKER-PDA-001',
-        reason: `Requested from ${objectType || 'station'} / ${objectKey || 'MME'}`
-      },
-      null,
-      2
-    );
   }
 
   return JSON.stringify({ object_type: objectType, object_key: objectKey }, null, 2);
@@ -326,21 +334,21 @@ function buildObjectOptions(inboundFlights, inboundWaybills, outboundFlights, ou
     Flight: [
       ...inboundFlights.map((item) => ({
         value: item.flightNo,
-        label: `${item.flightNo} / Inbound / ${item.source} → ${item.destination || 'MME'}`
+        label: `${item.flightNo} / 进港 / ${item.source} → ${item.destination || 'MME'}`
       })),
       ...outboundFlights.map((item) => ({
         value: item.flightNo,
-        label: `${item.flightNo} / Outbound / ${item.stage || item.status || '运行中'}`
+        label: `${item.flightNo} / 出港 / ${item.stage || item.status || '运行中'}`
       }))
     ],
     AWB: [
       ...inboundWaybills.map((item) => ({
         value: item.awb,
-        label: `${item.awb} / Inbound / ${item.consignee}`
+        label: `${item.awb} / 进港 / ${item.consignee}`
       })),
       ...outboundWaybills.map((item) => ({
         value: item.awb,
-        label: `${item.awb} / Outbound / ${item.destination}`
+        label: `${item.awb} / 出港 / ${item.destination}`
       }))
     ],
     Document: documents.map((item) => ({
@@ -364,7 +372,18 @@ function buildSessionDisplayLabel(session) {
 }
 
 function buildSessionCardLabel(session) {
-  return `${session.objectType || 'station'} / ${session.objectKey || 'MME'}`;
+  const objectLabel =
+    {
+      station: '站点',
+      Flight: '航班',
+      AWB: '提单',
+      Document: '单证',
+      Shipment: '履约对象',
+      Exception: '异常'
+    }[session.objectType || 'station'] ||
+    session.objectType ||
+    'station';
+  return `${objectLabel} / ${session.objectKey || 'MME'}`;
 }
 
 function buildDocumentContextLines(documentContext) {
@@ -397,20 +416,23 @@ function buildAuditItems(events = [], transitions = []) {
       id: item.id,
       title: item.action,
       description: item.note || item.object,
-      status: 'Audit',
+      status: '审计',
       meta: `${item.time} · ${item.actor}`
     })),
     ...transitions.slice(0, 2).map((item) => ({
       id: `${item.id}-transition`,
       title: item.action,
       description: item.note || item.object,
-      status: 'State',
+      status: '状态流转',
       meta: `${item.time} · ${item.actor}`
     }))
   ];
 }
 
 export default function StationCopilotPage() {
+  const intl = useIntl();
+  const m = (value) => formatLocalizedMessage(intl, value);
+  const locale = intl.locale;
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -435,6 +457,7 @@ export default function StationCopilotPage() {
       title: buildSessionTitle(initialObjectType, initialObjectKey),
       objectType: initialObjectType,
       objectKey: initialObjectKey,
+      remote: false,
       messages: [createMessage('assistant', '正在加载 Copilot 会话。')],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -450,7 +473,11 @@ export default function StationCopilotPage() {
   const [toolLoading, setToolLoading] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const { agentSessions } = useGetAgentSessions(refreshNonce);
-  const { agentSessionDetail } = useGetAgentSessionDetail(activeSessionId, refreshNonce);
+  const activeSession = useMemo(
+    () => sessions.find((item) => item.id === activeSessionId) || sessions[0] || null,
+    [activeSessionId, sessions]
+  );
+  const { agentSessionDetail } = useGetAgentSessionDetail(activeSession?.remote ? activeSessionId : null, refreshNonce);
 
   useEffect(() => {
     if (!sessions.length) return;
@@ -488,7 +515,6 @@ export default function StationCopilotPage() {
     setObjectKey(nextKey);
   }, [location.search, searchParams]);
 
-  const activeSession = useMemo(() => sessions.find((item) => item.id === activeSessionId) || sessions[0] || null, [activeSessionId, sessions]);
   const activeFocusObjectType = activeSession?.objectType || objectType;
   const activeFocusObjectKey = activeSession?.objectKey || objectKey;
   const activeSessionRuns = activeSession?.runs || [];
@@ -529,7 +555,7 @@ export default function StationCopilotPage() {
         ? { error: latestRun.errorMessage || '工具执行失败', details: latestRun.outputJson || null }
         : latestRun.outputJson || null
     );
-  }, [activeSession, latestRun?.id]);
+  }, [activeSession, latestRun]);
 
   useEffect(() => {
     if (!sessions.length) return;
@@ -572,7 +598,9 @@ export default function StationCopilotPage() {
 
   useEffect(() => {
     if (selectedToolName) {
-      setToolPayload((prev) => (prev && prev.trim() ? prev : buildToolPayload(selectedToolName, activeFocusObjectType, activeFocusObjectKey)));
+      setToolPayload((prev) =>
+        prev && prev.trim() ? prev : buildToolPayload(selectedToolName, activeFocusObjectType, activeFocusObjectKey)
+      );
     }
   }, [activeFocusObjectKey, activeFocusObjectType, selectedToolName]);
 
@@ -594,7 +622,10 @@ export default function StationCopilotPage() {
     return [contextMessage, planMessage, ...buildSessionTimeline(activeSession?.messages || [], activeSession?.runs || [])];
   }, [activeSession, agentSessionContext, agentSessionPlan, agentSessionId, focusLabel, refreshNonce]);
 
-  const auditPreviewItems = useMemo(() => buildAuditItems(objectAuditEvents, objectAuditTransitions), [objectAuditEvents, objectAuditTransitions]);
+  const auditPreviewItems = useMemo(
+    () => buildAuditItems(objectAuditEvents, objectAuditTransitions),
+    [objectAuditEvents, objectAuditTransitions]
+  );
 
   const sessionCards = useMemo(() => {
     return [...sessions].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -617,6 +648,7 @@ export default function StationCopilotPage() {
       title: buildSessionTitle(objectType, objectKey),
       objectType,
       objectKey,
+      remote: Boolean(created?.data?.session_id),
       status: 'active',
       messages: [createMessage('assistant', `已创建新的 Copilot 会话，当前对象为 ${focusLabel}。`)],
       runs: [],
@@ -666,8 +698,9 @@ export default function StationCopilotPage() {
         title: buildSessionTitle(objectType, nextKey),
         objectType,
         objectKey: nextKey,
+        remote: activeSession?.remote ?? false,
         status: 'active',
-        messages: activeSession?.messages || [createMessage('assistant', `已切换到 ${buildStationObjectLabel(objectType, nextKey)}。`)],
+        messages: activeSession?.messages || [createMessage('assistant', m(`已切换到 ${buildStationObjectLabel(objectType, nextKey)}。`))],
         runs: activeSession?.runs || [],
         createdAt: activeSession?.createdAt || now,
         updatedAt: now
@@ -701,7 +734,7 @@ export default function StationCopilotPage() {
         object_type: activeFocusObjectType,
         object_key: activeFocusObjectKey
       });
-      const assistantReply = response?.data?.assistant_message || `已记录你的问题。当前对象 ${focusLabel} 的建议步骤已在右侧显示。`;
+      const assistantReply = response?.data?.assistant_message || m(`已记录你的问题。当前对象 ${focusLabel} 的建议步骤已在右侧显示。`);
 
       setSessions((prev) =>
         prev.map((session) =>
@@ -723,7 +756,7 @@ export default function StationCopilotPage() {
                 ...session,
                 messages: [
                   ...session.messages,
-                  createMessage('assistant', `当前对象 ${focusLabel} 已加载实时上下文。建议优先查看右侧对象留痕和工具面板。`, {
+                  createMessage('assistant', m(`当前对象 ${focusLabel} 已加载实时上下文。建议优先查看右侧对象留痕和工具面板。`), {
                     emphasis: 'copilot'
                   })
                 ],
@@ -769,20 +802,24 @@ export default function StationCopilotPage() {
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
-          eyebrow="Station / Copilot"
-          title="Copilot 交互层"
-          description="站内 Copilot 采用独立页面承载会话列表、消息流、工具调用和对象上下文，和业务详情页解耦。"
-          chips={[buildStationObjectLabel(activeFocusObjectType, activeFocusObjectKey), `Session ${activeSession?.id || '--'}`, `Tools ${agentTools.length}`]}
+          eyebrow={m('货站 / Copilot')}
+          title={m('Copilot 交互层')}
+          description={m('站内 Copilot 采用独立页面承载会话列表、消息流、工具调用和对象上下文，和业务详情页解耦。')}
+          chips={[
+            buildStationObjectLabel(activeFocusObjectType, activeFocusObjectKey),
+            `${m('会话')} ${activeSession?.id || '--'}`,
+            `${m('工具')} ${agentTools.length}`
+          ]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component="button" onClick={createNewSession} variant="contained" startIcon={<PlusOutlined />}>
-                新建会话
+                {m('新建会话')}
               </Button>
               <Button component="button" onClick={applyObjectFocus} variant="outlined">
-                应用对象
+                {m('应用对象')}
               </Button>
               <Button onClick={() => navigate(currentDetailPath)} variant="outlined">
-                打开对象详情
+                {m('打开对象详情')}
               </Button>
             </Stack>
           }
@@ -790,7 +827,7 @@ export default function StationCopilotPage() {
       </Grid>
 
       <Grid size={{ xs: 12, lg: 3 }}>
-        <MainCard title="会话列表" secondary={<StatusChip label={`${sessionCards.length} threads`} />}>
+        <MainCard title={m('会话列表')} secondary={<StatusChip label={localizeUiText(locale, `${sessionCards.length} 会话`)} />}>
           <Stack sx={{ gap: 1.5 }}>
             <List disablePadding sx={{ gap: 1, display: 'grid' }}>
               {sessionCards.map((session) => {
@@ -813,17 +850,22 @@ export default function StationCopilotPage() {
                       sx={{ ml: 1.25 }}
                       primary={
                         <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
-                          <Typography variant="subtitle2">{buildSessionDisplayLabel(session)}</Typography>
-                          <Chip size="small" label={(session.messages?.length || 0) + (session.runs?.length || 0)} variant="light" color="secondary" />
+                          <Typography variant="subtitle2">{localizeUiText(locale, buildSessionDisplayLabel(session))}</Typography>
+                          <Chip
+                            size="small"
+                            label={(session.messages?.length || 0) + (session.runs?.length || 0)}
+                            variant="light"
+                            color="secondary"
+                          />
                         </Stack>
                       }
                       secondary={
                         <Stack sx={{ gap: 0.35, mt: 0.5 }}>
                           <Typography variant="caption" color="text.secondary">
-                            {buildSessionCardLabel(session)}
+                            {localizeUiText(locale, buildSessionCardLabel(session))}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            更新 {formatTime(session.updatedAt)}
+                            {m('更新')} {formatTime(session.updatedAt)}
                           </Typography>
                         </Stack>
                       }
@@ -841,13 +883,15 @@ export default function StationCopilotPage() {
           title={
             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
               <Stack sx={{ gap: 0.35 }}>
-                <Typography variant="subtitle1">{buildSessionDisplayLabel(activeSession || { objectType, objectKey })}</Typography>
+                <Typography variant="subtitle1">
+                  {localizeUiText(locale, buildSessionDisplayLabel(activeSession || { objectType, objectKey }))}
+                </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  消息流会记录本地输入、工具执行结果和实时上下文摘要。
+                  {m('消息流会记录本地输入、工具执行结果和实时上下文摘要。')}
                 </Typography>
               </Stack>
               <Button size="small" variant="outlined" startIcon={<ReloadOutlined />} onClick={refreshSessionContext}>
-                刷新上下文
+                {m('刷新上下文')}
               </Button>
             </Stack>
           }
@@ -885,7 +929,17 @@ export default function StationCopilotPage() {
                       })}
                     >
                       <Stack direction="row" sx={{ gap: 1, alignItems: 'center', mb: 1 }}>
-                        <StatusChip label={message.role} />
+                        <StatusChip
+                          label={localizeUiText(
+                            locale,
+                            {
+                              user: '用户',
+                              assistant: '助手',
+                              system: '系统',
+                              tool: '工具'
+                            }[message.role] || message.role
+                          )}
+                        />
                         {message.toolName ? <Chip size="small" label={message.toolName} variant="outlined" /> : null}
                         <Typography variant="caption" color="text.secondary">
                           {formatTime(message.time)}
@@ -899,7 +953,7 @@ export default function StationCopilotPage() {
                           fontFamily: message.role === 'tool' ? 'monospace' : undefined
                         }}
                       >
-                        {message.content}
+                        {localizeUiText(locale, message.content)}
                       </Typography>
                     </Box>
                   </Box>
@@ -912,17 +966,17 @@ export default function StationCopilotPage() {
             <Box sx={{ p: 2.5 }}>
               <Stack sx={{ gap: 1.25 }}>
                 <TextField
-                  label="输入问题或操作说明"
+                  label={m('输入问题或操作说明')}
                   multiline
                   minRows={3}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="例如：检查当前对象的阻断原因，并给出可执行步骤。"
+                  placeholder={m('例如：检查当前对象的阻断原因，并给出可执行步骤。')}
                 />
                 <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip label={focusLabel} variant="outlined" />
+                  <Chip label={localizeUiText(locale, focusLabel)} variant="outlined" />
                   <Button startIcon={<SendOutlined />} variant="contained" onClick={handleSend} disabled={!draft.trim()}>
-                    发送消息
+                    {m('发送消息')}
                   </Button>
                 </Stack>
               </Stack>
@@ -933,17 +987,17 @@ export default function StationCopilotPage() {
 
       <Grid size={{ xs: 12, lg: 3 }}>
         <Stack sx={{ gap: 2.5 }}>
-          <MainCard title="对象上下文">
+          <MainCard title={m('对象上下文')}>
             <Stack sx={{ gap: 1.25 }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5 }}>
                 <Typography variant="body2" color="text.secondary">
-                  当前对象
+                  {m('当前对象')}
                 </Typography>
-                <StatusChip label={activeFocusObjectType} />
+                <StatusChip label={localizeUiText(locale, activeFocusObjectType === 'station' ? '站点' : activeFocusObjectType)} />
               </Stack>
               <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Object Key
+                  {m('对象键')}
                 </Typography>
                 <Typography variant="body2" fontWeight={600}>
                   {activeFocusObjectKey}
@@ -951,7 +1005,7 @@ export default function StationCopilotPage() {
               </Stack>
               <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5 }}>
                 <Typography variant="body2" color="text.secondary">
-                  目标详情页
+                  {m('目标详情页')}
                 </Typography>
                 <Typography variant="body2" fontWeight={600}>
                   {currentDetailPath}
@@ -969,8 +1023,13 @@ export default function StationCopilotPage() {
                   })}
                 >
                   {buildDocumentContextLines(documentContext).map((line) => (
-                    <Typography key={line} variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                      {line}
+                    <Typography
+                      key={line}
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                    >
+                      {localizeUiText(locale, line)}
                     </Typography>
                   ))}
                 </Stack>
@@ -992,32 +1051,32 @@ export default function StationCopilotPage() {
               </Stack>
               <Divider />
               <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
-                {agentSessionContext?.system_prompt || '上下文尚未加载。'}
+                {agentSessionContext?.system_prompt || m('上下文尚未加载。')}
               </Typography>
             </Stack>
           </MainCard>
 
           <TaskQueueCard
-            title="建议步骤"
+            title={m('建议步骤')}
             items={(agentSessionPlan?.steps || []).map((step, index) => ({
               id: `${agentSessionId}-step-${index}`,
-              title: step,
-              description: `Step ${index + 1}`,
-              status: index === 0 ? 'Next' : 'Queued'
+              title: localizeUiText(locale, step),
+              description: `${m('步骤')} ${index + 1}`,
+              status: index === 0 ? m('下一步') : m('已排队')
             }))}
-            emptyText="当前没有可用建议步骤。"
+            emptyText={m('当前没有可用建议步骤。')}
           />
 
-          <TaskQueueCard title="对象留痕" items={auditPreviewItems} emptyText="当前对象还没有审计记录。" />
+          <TaskQueueCard title={m('对象留痕')} items={auditPreviewItems} emptyText={m('当前对象还没有审计记录。')} />
 
           <MainCard
-            title="工具调用器"
+            title={m('工具调用器')}
             secondary={<ToolOutlined style={{ fontSize: 18 }} />}
             contentSX={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}
           >
             <TextField
               select
-              label="工具"
+              label={m('工具')}
               value={selectedToolName}
               onChange={(event) => {
                 const nextTool = event.target.value;
@@ -1032,12 +1091,12 @@ export default function StationCopilotPage() {
               ))}
             </TextField>
             <TextField
-              label="JSON payload"
+              label={m('JSON 参数')}
               multiline
               minRows={10}
               value={toolPayload}
               onChange={(event) => setToolPayload(event.target.value)}
-              placeholder="请输入工具参数 JSON"
+              placeholder={m('请输入工具参数 JSON')}
             />
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', justifyContent: 'space-between' }}>
               <Button
@@ -1045,10 +1104,10 @@ export default function StationCopilotPage() {
                 onClick={() => setToolPayload(buildToolPayload(selectedToolName, activeFocusObjectType, activeFocusObjectKey))}
                 disabled={!selectedToolName}
               >
-                填充当前对象
+                {m('填充当前对象')}
               </Button>
               <Button variant="contained" onClick={handleExecuteTool} disabled={!selectedToolName || toolLoading}>
-                {toolLoading ? '执行中...' : '执行工具'}
+                {toolLoading ? m('执行中...') : m('执行工具')}
               </Button>
             </Stack>
             <Divider />
@@ -1063,18 +1122,18 @@ export default function StationCopilotPage() {
               })}
             >
               <Typography variant="caption" color="text.secondary">
-                最近结果
+                {m('最近结果')}
               </Typography>
               <Typography variant="body2" sx={{ mt: 0.75, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace' }}>
-                {formatToolResult(toolResult) || '暂无工具结果。'}
+                {formatToolResult(toolResult) || m('暂无工具结果。')}
               </Typography>
             </Box>
           </MainCard>
 
-          <MainCard title="对象切换器" contentSX={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+          <MainCard title={m('对象切换器')} contentSX={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
             <TextField
               select
-              label="对象类型"
+              label={m('对象类型')}
               value={objectType}
               onChange={(event) => {
                 const nextType = event.target.value;
@@ -1085,23 +1144,23 @@ export default function StationCopilotPage() {
             >
               {objectTypeOptions.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
-                  {option.label}
+                  {m(option.label)}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField select label="对象键" value={objectKey} onChange={(event) => setObjectKey(event.target.value)}>
+            <TextField select label={m('对象键')} value={objectKey} onChange={(event) => setObjectKey(event.target.value)}>
               {currentOptions.map((option) => (
                 <MenuItem key={`${objectType}-${option.value}`} value={option.value}>
-                  {option.label}
+                  {localizeUiText(locale, option.label)}
                 </MenuItem>
               ))}
             </TextField>
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', justifyContent: 'space-between' }}>
               <Typography variant="caption" color="text.secondary">
-                选择对象后点击“应用对象”即可同步消息流与上下文。
+                {m('选择对象后点击“应用对象”即可同步消息流与上下文。')}
               </Typography>
               <Button variant="outlined" onClick={applyObjectFocus}>
-                应用对象
+                {m('应用对象')}
               </Button>
             </Stack>
           </MainCard>

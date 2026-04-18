@@ -1,3 +1,5 @@
+import { localizeUiText, normalizeAppLanguage } from 'utils/app-i18n';
+
 export const runtimeStatusDictionary = [
   { key: 'Scheduled', label: 'Scheduled', color: 'default', group: 'runtime' },
   { key: 'Pre-Arrival', label: 'Pre-Arrival', color: 'info', group: 'runtime' },
@@ -122,16 +124,24 @@ const dictionaries = [
 ];
 
 const dictionaryMap = new Map(dictionaries.map((item) => [item.label, item]));
+const dictionaryKeyMap = new Map(dictionaries.map((item) => [item.key, item]));
 
 export function getStatusMeta(label) {
   if (!label) {
     return { label: '', color: 'default', group: 'unknown' };
   }
 
-  return dictionaryMap.get(label) || { label, color: 'default', group: 'unknown' };
+  return dictionaryMap.get(label) || dictionaryKeyMap.get(label) || { label, color: 'default', group: 'unknown' };
 }
 
 export function getStatusColor(label, color) {
   if (color) return color;
   return getStatusMeta(label).color;
+}
+
+export function getLocalizedStatusLabel(label, language = 'zh') {
+  const meta = getStatusMeta(label);
+  const locale = normalizeAppLanguage(language);
+  const source = meta.key || meta.label || label;
+  return localizeUiText(locale, source);
 }

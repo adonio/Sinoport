@@ -1,3 +1,4 @@
+import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
 import Stack from '@mui/material/Stack';
@@ -18,6 +19,8 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import { useGetPlatformStationDetail } from 'api/platform';
+import { useIntl } from 'react-intl';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
 function renderCapabilitySymbol(status) {
   if (status === 'yes') {
@@ -29,64 +32,35 @@ function renderCapabilitySymbol(status) {
   return <CloseOutlined style={{ color: '#8c8c8c', fontSize: 18 }} />;
 }
 
-function buildFallbackTeams(stationCode) {
-  return [
-    { station: stationCode, team: `${stationCode} Ops Team`, workers: 6, shift: '白班', mappedLanes: `${stationCode} 基础运行`, status: '建设中' },
-    { station: stationCode, team: `${stationCode} Support Team`, workers: 4, shift: '夜班', mappedLanes: `${stationCode} 支援与异常处理`, status: '待处理' }
-  ];
-}
-
-function buildFallbackZones(stationCode) {
-  return [
-    { station: stationCode, zone: `${stationCode}-ZONE-01`, type: 'Inbound Buffer', linkedLane: `${stationCode} Inbound`, status: '建设中' },
-    { station: stationCode, zone: `${stationCode}-ZONE-02`, type: 'Dispatch', linkedLane: `${stationCode} Delivery`, status: '待处理' }
-  ];
-}
-
-function buildFallbackDevices(stationCode) {
-  return [
-    { station: stationCode, device: `PDA-${stationCode}-01`, role: 'Station Operator', owner: `${stationCode} Ops Team`, status: '建设中' },
-    { station: stationCode, device: `PDA-${stationCode}-02`, role: 'Supervisor', owner: `${stationCode} Support Team`, status: '待处理' }
-  ];
-}
-
 function buildScheduleRows(teamRows) {
   return teamRows.map((item, index) => ({
-    team: item.team,
-    shift: item.shift,
-    workers: item.workers,
-    slot: item.shift === '夜班' ? '20:00 - 08:00' : item.shift === '白班' ? '08:00 - 20:00' : '待排班',
+    team: item.team || item.team_name || item.name || item.code,
+    shift: item.shift || '--',
+    workers: item.workers ?? item.headcount ?? 0,
+    slot: item.shift === '夜班' ? '20:00 - 08:00' : item.shift === '白班' ? '08:00 - 20:00' : '--',
     lead: index % 2 === 0 ? 'Supervisor A' : 'Supervisor B',
-    status: item.status
+    status: item.status,
+    mappedLanes: item.mappedLanes || item.mapped_lanes || '-'
   }));
-}
-
-function buildFallbackCapability(columns) {
-  return {
-    promise: '-',
-    risk: '-',
-    capabilityMatrix: columns.reduce((acc, column) => {
-      acc[column.key] = 'no';
-      return acc;
-    }, {})
-  };
 }
 
 export default function PlatformStationDetailPage() {
   const { stationCode } = useParams();
   const { station, capability, teamRows, zoneRows, deviceRows, stationCapabilityColumns } = useGetPlatformStationDetail(stationCode);
-  const effectiveStation = station || { code: stationCode || '--', name: '未找到站点', region: '-', control: '-', phase: '-', scope: '-' };
-  const effectiveCapability = capability || buildFallbackCapability(stationCapabilityColumns);
-  const effectiveTeams = teamRows.length ? teamRows : buildFallbackTeams(effectiveStation.code);
-  const effectiveZones = zoneRows.length ? zoneRows : buildFallbackZones(effectiveStation.code);
-  const effectiveDevices = deviceRows.length ? deviceRows : buildFallbackDevices(effectiveStation.code);
+  const effectiveStation = station || { code: stationCode || '--', name: 'Station Not Found', region: '-', control: '-', phase: '-', scope: '-' };
+  const effectiveCapability = capability || { promise: '-', risk: '-', capabilityMatrix: {} };
+  const effectiveTeams = teamRows || [];
+  const effectiveZones = zoneRows || [];
+  const effectiveDevices = deviceRows || [];
   const scheduleRows = buildScheduleRows(effectiveTeams);
+  const intl = useIntl();
+  const l = (value) => localizeUiText(intl.locale, value);
 
   const metrics = [
-    { title: '控制层级', value: effectiveStation.control, helper: effectiveStation.name, chip: 'Control', color: 'primary' },
-    { title: '当前阶段', value: effectiveStation.phase, helper: effectiveStation.region, chip: 'Phase', color: 'secondary' },
-    { title: '服务口径', value: effectiveCapability.promise, helper: effectiveStation.scope, chip: 'SLA', color: 'success' },
-    { title: '班组数量', value: `${effectiveTeams.length}`, helper: '当前站点已配置班组', chip: 'Teams', color: 'warning' }
+    { title: formatLocalizedMessage(intl, '控制层级'), value: l(effectiveStation.control), helper: l(effectiveStation.name), chip: 'Control', color: 'primary' },
+    { title: formatLocalizedMessage(intl, '当前阶段'), value: l(effectiveStation.phase), helper: l(effectiveStation.region), chip: 'Phase', color: 'secondary' },
+    { title: formatLocalizedMessage(intl, '服务口径'), value: l(effectiveCapability.promise), helper: l(effectiveStation.scope), chip: 'SLA', color: 'success' },
+    { title: formatLocalizedMessage(intl, '班组数量'), value: `${effectiveTeams.length}`, helper: formatLocalizedMessage(intl, '当前站点已配置班组'), chip: 'Teams', color: 'warning' }
   ];
 
   return (
@@ -94,22 +68,25 @@ export default function PlatformStationDetailPage() {
       <Grid size={12}>
         <PageHeader
           eyebrow="Station Detail"
-          title={`站点详情 / ${effectiveStation.code}`}
-          description="平台侧查看单个站点的能力状态、区位映射、设备映射和班组排班情况，作为站点接入和样板站管理的统一详情页。"
-          chips={[effectiveStation.name, effectiveStation.region, effectiveStation.control, effectiveStation.phase]}
+          title={`${formatLocalizedMessage(intl, '站点详情')} / ${effectiveStation.code}`}
+          description={formatLocalizedMessage(
+            intl,
+            '平台侧查看单个站点的能力状态、区位映射、设备映射和班组排班情况，作为站点接入和样板站管理的统一详情页。'
+          )}
+          chips={[l(effectiveStation.name), l(effectiveStation.region), l(effectiveStation.control), l(effectiveStation.phase)]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component={RouterLink} to="/platform/stations/capabilities" variant="outlined">
-                返回能力矩阵
+                {formatLocalizedMessage(intl, '返回能力矩阵')}
               </Button>
               <Button component={RouterLink} to="/platform/stations/zones" variant="outlined">
-                区位映射
+                {formatLocalizedMessage(intl, '区位映射')}
               </Button>
               <Button component={RouterLink} to="/platform/stations/devices" variant="outlined">
-                设备映射
+                {formatLocalizedMessage(intl, '设备映射')}
               </Button>
               <Button component={RouterLink} to="/platform/stations/teams" variant="outlined">
-                班组映射
+                {formatLocalizedMessage(intl, '班组映射')}
               </Button>
             </Stack>
           }
@@ -123,130 +100,146 @@ export default function PlatformStationDetailPage() {
       ))}
 
       <Grid size={12}>
-        <MainCard title="站点能力情况">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                {stationCapabilityColumns.map((column) => (
-                  <TableCell key={column.key} align="center">
-                    {column.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow hover>
-                {stationCapabilityColumns.map((column) => (
-                  <TableCell key={`${effectiveStation.code}-${column.key}`} align="center">
-                    <Stack sx={{ alignItems: 'center', gap: 0.75 }}>
-                      {renderCapabilitySymbol(effectiveCapability.capabilityMatrix[column.key])}
-                      <Typography variant="caption" color="text.secondary">
-                        {effectiveCapability.capabilityMatrix[column.key] === 'yes'
-                          ? '有'
-                          : effectiveCapability.capabilityMatrix[column.key] === 'building'
-                            ? '建设中'
-                            : '无'}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ maxWidth: 140, lineHeight: 1.5, textAlign: 'center', display: 'block' }}
-                      >
-                        {column.note}
-                      </Typography>
-                    </Stack>
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableBody>
-          </Table>
+        <MainCard title={formatLocalizedMessage(intl, '站点能力情况')}>
+          {!stationCapabilityColumns.length ? (
+            <Alert severity="info">{formatLocalizedMessage(intl, '当前站点还没有正式治理能力模板。')}</Alert>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {stationCapabilityColumns.map((column) => (
+                    <TableCell key={column.key} align="center">
+                      {l(column.label)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow hover>
+                  {stationCapabilityColumns.map((column) => {
+                    const status = effectiveCapability.capabilityMatrix?.[column.key] || 'no';
+
+                    return (
+                      <TableCell key={`${effectiveStation.code}-${column.key}`} align="center">
+                        <Stack sx={{ alignItems: 'center', gap: 0.75 }}>
+                          {renderCapabilitySymbol(status)}
+                          <Typography variant="caption" color="text.secondary">
+                            {status === 'yes' ? formatLocalizedMessage(intl, '有') : status === 'building' ? formatLocalizedMessage(intl, '建设中') : formatLocalizedMessage(intl, '无')}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ maxWidth: 140, lineHeight: 1.5, textAlign: 'center', display: 'block' }}
+                          >
+                            {l(column.note)}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
         </MainCard>
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="区域映射管理">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Zone</TableCell>
-                <TableCell>类型</TableCell>
-                <TableCell>链路绑定</TableCell>
-                <TableCell>状态</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {effectiveZones.map((item) => (
-                <TableRow key={`${item.station}-${item.zone}`} hover>
-                  <TableCell>{item.zone}</TableCell>
-                  <TableCell>{item.type}</TableCell>
-                  <TableCell>{item.linkedLane}</TableCell>
-                  <TableCell>
-                    <StatusChip label={item.status} />
-                  </TableCell>
+        <MainCard title={formatLocalizedMessage(intl, '区域映射管理')}>
+          {!effectiveZones.length ? (
+            <Alert severity="info">{formatLocalizedMessage(intl, '当前站点还没有正式区位记录。')}</Alert>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{localizeUiText(intl.locale, 'Zone')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '类型')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '链路绑定')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '状态')}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {effectiveZones.map((item) => (
+                  <TableRow key={`${item.station}-${item.zone}`} hover>
+                    <TableCell>{l(item.zone)}</TableCell>
+                    <TableCell>{l(item.type)}</TableCell>
+                    <TableCell>{l(item.linkedLane)}</TableCell>
+                    <TableCell>
+                      <StatusChip label={localizeUiText(intl.locale, item.status)} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </MainCard>
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="设备映射管理">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>设备</TableCell>
-                <TableCell>绑定角色</TableCell>
-                <TableCell>Owner</TableCell>
-                <TableCell>状态</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {effectiveDevices.map((item) => (
-                <TableRow key={`${item.station}-${item.device}`} hover>
-                  <TableCell>{item.device}</TableCell>
-                  <TableCell>{item.role}</TableCell>
-                  <TableCell>{item.owner}</TableCell>
-                  <TableCell>
-                    <StatusChip label={item.status} />
-                  </TableCell>
+        <MainCard title={formatLocalizedMessage(intl, '设备映射管理')}>
+          {!effectiveDevices.length ? (
+            <Alert severity="info">{formatLocalizedMessage(intl, '当前站点还没有正式设备记录。')}</Alert>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{formatLocalizedMessage(intl, '设备')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '绑定角色')}</TableCell>
+                  <TableCell>{localizeUiText(intl.locale, 'Owner')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '状态')}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {effectiveDevices.map((item) => (
+                  <TableRow key={`${item.station}-${item.device}`} hover>
+                    <TableCell>{l(item.device)}</TableCell>
+                    <TableCell>{l(item.role)}</TableCell>
+                    <TableCell>{l(item.owner)}</TableCell>
+                    <TableCell>
+                      <StatusChip label={localizeUiText(intl.locale, item.status)} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </MainCard>
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="班组排班情况">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>班组</TableCell>
-                <TableCell>班次</TableCell>
-                <TableCell>排班时段</TableCell>
-                <TableCell>人数</TableCell>
-                <TableCell>班组长</TableCell>
-                <TableCell>链路</TableCell>
-                <TableCell>状态</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {scheduleRows.map((item) => (
-                <TableRow key={`${effectiveStation.code}-${item.team}`} hover>
-                  <TableCell>{item.team}</TableCell>
-                  <TableCell>{item.shift}</TableCell>
-                  <TableCell>{item.slot}</TableCell>
-                  <TableCell>{item.workers}</TableCell>
-                  <TableCell>{item.lead}</TableCell>
-                  <TableCell>{effectiveTeams.find((team) => team.team === item.team)?.mappedLanes || '-'}</TableCell>
-                  <TableCell>
-                    <StatusChip label={item.status} />
-                  </TableCell>
+        <MainCard title={formatLocalizedMessage(intl, '班组排班情况')}>
+          {!scheduleRows.length ? (
+            <Alert severity="info">{formatLocalizedMessage(intl, '当前站点还没有正式班组与排班记录。')}</Alert>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{formatLocalizedMessage(intl, '班组')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '班次')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '排班时段')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '人数')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '班组长')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '链路')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '状态')}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {scheduleRows.map((item) => (
+                  <TableRow key={`${effectiveStation.code}-${item.team}`} hover>
+                    <TableCell>{l(item.team)}</TableCell>
+                    <TableCell>{l(item.shift)}</TableCell>
+                    <TableCell>{l(item.slot)}</TableCell>
+                    <TableCell>{item.workers}</TableCell>
+                    <TableCell>{item.lead}</TableCell>
+                    <TableCell>{l(item.mappedLanes)}</TableCell>
+                    <TableCell>
+                      <StatusChip label={localizeUiText(intl.locale, item.status)} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </MainCard>
       </Grid>
     </Grid>

@@ -4,7 +4,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 const repoRoot = resolve(process.cwd());
 const appDist = join(repoRoot, 'admin-console', 'dist');
 const assetSource = join(appDist, 'assets');
-const assetTarget = join(repoRoot, 'admin-assets');
+const outputRoot = resolve(process.env.PUBLISH_STATIC_OUTPUT_ROOT || join(repoRoot, '.generated', 'admin-static'));
+const assetTarget = join(outputRoot, 'admin-assets');
 const distIndex = join(appDist, 'index.html');
 
 const routes = [
@@ -85,7 +86,7 @@ function getFaviconName() {
 }
 
 function routeIndexPath(route) {
-  return join(repoRoot, route, 'index.html');
+  return join(outputRoot, route, 'index.html');
 }
 
 function assetPrefixFor(route) {
@@ -106,6 +107,8 @@ function main() {
     throw new Error('admin-console build output not found. Run `npm --prefix admin-console run build` first.');
   }
 
+  rmSync(outputRoot, { recursive: true, force: true });
+  mkdirSync(outputRoot, { recursive: true });
   rmSync(assetTarget, { recursive: true, force: true });
   mkdirSync(assetTarget, { recursive: true });
   cpSync(assetSource, assetTarget, { recursive: true });

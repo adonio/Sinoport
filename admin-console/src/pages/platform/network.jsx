@@ -18,6 +18,8 @@ import 'leaflet/dist/leaflet.css';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import { useGetPlatformNetwork } from 'api/platform';
+import { useIntl } from 'react-intl';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
 const stationGeoMap = {
   URC: { lat: 43.8256, lng: 87.6168 },
@@ -137,6 +139,8 @@ function FitNetworkBounds({ stations }) {
 }
 
 function RouteArcLayer({ edge }) {
+  const intl = useIntl();
+  const l = (value) => localizeUiText(intl.locale, value);
   const from = stationGeoMap[edge.from];
   const to = stationGeoMap[edge.to];
 
@@ -164,7 +168,7 @@ function RouteArcLayer({ edge }) {
           className: `network-flow-line${edge.dashed ? ' network-flow-line--dashed' : ''}`
         }}
       >
-        <Tooltip sticky>{edge.label}</Tooltip>
+        <Tooltip sticky>{l(edge.label)}</Tooltip>
       </Polyline>
 
       {arrowPoints.map((arrow) => (
@@ -178,7 +182,7 @@ function RouteArcLayer({ edge }) {
 
       <Marker position={planePoint} icon={buildFlowIcon('✈', 'network-plane-marker', planeAngle, color)} interactive={false}>
         <Tooltip direction="top" offset={[0, -6]}>
-          {edge.label}
+          {l(edge.label)}
         </Tooltip>
       </Marker>
     </>
@@ -186,7 +190,9 @@ function RouteArcLayer({ edge }) {
 }
 
 export default function PlatformNetworkPage() {
-  const { stationCatalog, routeMatrix } = useGetPlatformNetwork();
+  const { stationCatalog, routeMatrix, networkScenarioRows } = useGetPlatformNetwork();
+  const intl = useIntl();
+  const l = (value) => localizeUiText(intl.locale, value);
   const allStations = [...stationCatalog, ...virtualStations]
     .map((station) => ({ ...station, coordinates: stationGeoMap[station.code] }))
     .filter((station) => station.coordinates);
@@ -196,16 +202,19 @@ export default function PlatformNetworkPage() {
       <Grid size={12}>
         <PageHeader
           eyebrow="Route Governance"
-          title="航线网络与链路配置"
-          description="平台侧按链路维护货站协作关系、承诺时效、关键事件覆盖和节点边界。当前页已接入真实免费地图底图，用站点坐标和虚拟航线直接展示当前网络连接。"
+          title={formatLocalizedMessage(intl, '航线网络与链路配置')}
+          description={formatLocalizedMessage(
+            intl,
+            '平台侧按链路维护货站协作关系、承诺时效、关键事件覆盖和节点边界。当前页已接入真实免费地图底图，用站点坐标和虚拟航线直接展示当前网络连接。'
+          )}
           chips={['OpenStreetMap', 'Lane Matrix', 'Station Collaboration', 'Virtual Routes']}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component={RouterLink} to="/platform/network/lanes" variant="outlined">
-                链路模板
+                {formatLocalizedMessage(intl, '链路模板')}
               </Button>
               <Button component={RouterLink} to="/platform/network/scenarios" variant="outlined">
-                场景模板
+                {formatLocalizedMessage(intl, '场景模板')}
               </Button>
             </Stack>
           }
@@ -213,7 +222,7 @@ export default function PlatformNetworkPage() {
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="站点连接地图">
+        <MainCard title={formatLocalizedMessage(intl, '站点连接地图')}>
           <Box
             component="style"
             sx={{ display: 'none' }}
@@ -280,8 +289,8 @@ export default function PlatformNetworkPage() {
                   <Tooltip direction="top" offset={[0, -4]}>
                     <Stack sx={{ gap: 0.35 }}>
                       <Typography variant="subtitle2">{station.code}</Typography>
-                      <Typography variant="caption">{station.name}</Typography>
-                      <Typography variant="caption">{station.scope}</Typography>
+                      <Typography variant="caption">{l(station.name)}</Typography>
+                      <Typography variant="caption">{l(station.scope)}</Typography>
                     </Stack>
                   </Tooltip>
                 </CircleMarker>
@@ -292,44 +301,44 @@ export default function PlatformNetworkPage() {
           <Stack direction="row" sx={{ gap: 2.5, flexWrap: 'wrap', mt: 2.5 }}>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#1677ff' }} />
-              <Typography variant="caption">强控制站点</Typography>
+              <Typography variant="caption">{formatLocalizedMessage(intl, '强控制站点')}</Typography>
             </Stack>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#52c41a' }} />
-              <Typography variant="caption">协同控制站点</Typography>
+              <Typography variant="caption">{formatLocalizedMessage(intl, '协同控制站点')}</Typography>
             </Stack>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#8c8c8c' }} />
-              <Typography variant="caption">外部协同节点</Typography>
+              <Typography variant="caption">{formatLocalizedMessage(intl, '外部协同节点')}</Typography>
             </Stack>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               <Box sx={{ width: 18, height: 0, borderTop: '4px dashed #52c41a' }} />
-              <Typography variant="caption">虚拟补段 / 卡转连接</Typography>
+              <Typography variant="caption">{formatLocalizedMessage(intl, '虚拟补段 / 卡转连接')}</Typography>
             </Stack>
           </Stack>
         </MainCard>
       </Grid>
 
       <Grid size={{ xs: 12, lg: 8 }}>
-        <MainCard title="主链路矩阵">
+        <MainCard title={formatLocalizedMessage(intl, '主链路矩阵')}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>链路</TableCell>
-                <TableCell>业务模式</TableCell>
-                <TableCell>站点协作</TableCell>
-                <TableCell>承诺口径</TableCell>
-                <TableCell>关键事件</TableCell>
+                <TableCell>{formatLocalizedMessage(intl, '链路')}</TableCell>
+                <TableCell>{formatLocalizedMessage(intl, '业务模式')}</TableCell>
+                <TableCell>{formatLocalizedMessage(intl, '站点协作')}</TableCell>
+                <TableCell>{formatLocalizedMessage(intl, '承诺口径')}</TableCell>
+                <TableCell>{formatLocalizedMessage(intl, '关键事件')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {routeMatrix.map((item) => (
                 <TableRow key={item.lane} hover>
                   <TableCell>{item.lane}</TableCell>
-                  <TableCell>{item.pattern}</TableCell>
-                  <TableCell>{item.stations}</TableCell>
-                  <TableCell>{item.promise}</TableCell>
-                  <TableCell>{item.events}</TableCell>
+                  <TableCell>{l(item.pattern)}</TableCell>
+                  <TableCell>{l(item.stations)}</TableCell>
+                  <TableCell>{l(item.promise)}</TableCell>
+                  <TableCell>{l(item.events)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -338,24 +347,47 @@ export default function PlatformNetworkPage() {
       </Grid>
 
       <Grid size={{ xs: 12, lg: 4 }}>
-        <MainCard title="网络准备度">
-          <Stack sx={{ gap: 2.5 }}>
-            {stationCatalog.map((station, index) => (
-              <Stack key={station.code} sx={{ gap: 0.75 }}>
-                <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-                  <Typography variant="subtitle2">{station.code}</Typography>
+        <Stack sx={{ gap: 3 }}>
+          <MainCard title={formatLocalizedMessage(intl, '网络准备度')}>
+            <Stack sx={{ gap: 2.5 }}>
+              {stationCatalog.map((station, index) => (
+                <Stack key={station.code} sx={{ gap: 0.75 }}>
+                  <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                    <Typography variant="subtitle2">{station.code}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {80 + ((index * 3) % 18)}%
+                    </Typography>
+                  </Stack>
+                  <LinearProgress variant="determinate" value={80 + ((index * 3) % 18)} />
                   <Typography variant="caption" color="text.secondary">
-                    {80 + ((index * 3) % 18)}%
+                    {l(station.scope)}
                   </Typography>
                 </Stack>
-                <LinearProgress variant="determinate" value={80 + ((index * 3) % 18)} />
-                <Typography variant="caption" color="text.secondary">
-                  {station.scope}
+              ))}
+            </Stack>
+          </MainCard>
+
+          <MainCard title={formatLocalizedMessage(intl, '场景覆盖摘要')} subheader={formatLocalizedMessage(intl, '场景摘要主读源已切到正式 network_scenarios。')}>
+            <Stack sx={{ gap: 1.5 }}>
+              {networkScenarioRows.slice(0, 3).map((scenario) => (
+                <Stack key={scenario.id || scenario.scenario_id} sx={{ gap: 0.35 }}>
+                  <Typography variant="subtitle2">{l(scenario.title)}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {l(scenario.lane)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {l(scenario.entryRule)}
+                  </Typography>
+                </Stack>
+              ))}
+              {!networkScenarioRows.length ? (
+                <Typography variant="body2" color="text.secondary">
+                  {formatLocalizedMessage(intl, '当前暂无场景模板。')}
                 </Typography>
-              </Stack>
-            ))}
-          </Stack>
-        </MainCard>
+              ) : null}
+            </Stack>
+          </MainCard>
+        </Stack>
       </Grid>
     </Grid>
   );

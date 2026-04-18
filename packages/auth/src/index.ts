@@ -1,6 +1,8 @@
 import type { ClientSource, RoleCode } from '@sinoport/contracts';
 import { compare, hash } from 'bcryptjs';
 
+export const LOCAL_AUTH_TOKEN_SECRET = 'sinoport-local-dev-secret';
+
 export interface AuthActor {
   userId: string;
   roleIds: RoleCode[];
@@ -21,6 +23,42 @@ export interface AuthTokenClaims {
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
+
+export function isLocalEnvironment(environment?: string | null) {
+  return (environment || 'local') === 'local';
+}
+
+export function allowLocalOnlyAuth(environment?: string | null, enabled?: string | null) {
+  return isLocalEnvironment(environment) && enabled === 'true';
+}
+
+export function hasDebugActorHeaders(headers: Headers) {
+  return Boolean(
+    headers.get('X-Debug-User-Id') ||
+      headers.get('X-Debug-Roles') ||
+      headers.get('X-Debug-Station-Scope') ||
+      headers.get('X-Debug-Tenant-Id')
+  );
+}
+
+export class MissingAuthSecretError extends Error {
+  constructor() {
+    super('AUTH_TOKEN_SECRET is required outside local development');
+    this.name = 'MissingAuthSecretError';
+  }
+}
+
+export function resolveAuthTokenSecret(secret: string | undefined | null, environment?: string | null) {
+  if (secret) {
+    return secret;
+  }
+
+  if (isLocalEnvironment(environment)) {
+    return LOCAL_AUTH_TOKEN_SECRET;
+  }
+
+  throw new MissingAuthSecretError();
+}
 
 export function buildActorFromHeaders(headers: Headers): AuthActor {
   const roleHeader = headers.get('X-Debug-Roles') ?? 'station_supervisor';

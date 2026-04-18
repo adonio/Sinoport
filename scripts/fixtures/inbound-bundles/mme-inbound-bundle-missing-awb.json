@@ -1,0 +1,36 @@
+{
+  "request_id": "W6-03-MME-INBOUND-BUNDLE-MISSING-AWB-20260414",
+  "source": "validation-test",
+  "station_id": "MME",
+  "station": {
+    "station_name": "MME Trial Station",
+    "region": "APAC",
+    "control_level": "Tier 1",
+    "phase": "Inbound"
+  },
+  "flight": {
+    "flight_id": "FLIGHT-SE998-2026-04-14-MME",
+    "flight_no": "SE998",
+    "flight_date": "2026-04-14",
+    "origin_code": "HKG",
+    "destination_code": "MME",
+    "runtime_status": "Landed",
+    "service_level": "Express",
+    "aircraft_type": "B77F",
+    "actual_landed_at": "2026-04-14T03:00:00Z"
+  },
+  "awbs": [
+    {
+      "shipment": {
+        "shipment_id": "SHIP-MME-MISSING-AWB",
+        "current_node": "Inbound Handling",
+        "fulfillment_status": "Inbound Handling",
+        "service_level": "Express",
+        "total_pieces": 2,
+        "total_weight": 18.5
+      },
+      "pieces": 2,
+      "gross_weight": 18.5
+    }
+  ]
+}

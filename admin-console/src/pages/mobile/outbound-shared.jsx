@@ -23,16 +23,21 @@ import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
 import {
   acceptMobileTask,
+  archiveOutboundContainer,
+  archiveOutboundReceipt,
   completeMobileTask,
   saveOutboundContainer,
   saveOutboundReceipt,
   startMobileTask,
+  updateOutboundContainer,
+  updateOutboundReceipt,
+  useGetMobileOutboundOptions,
   uploadMobileTaskEvidence,
   useGetMobileOutboundDetail,
   useGetMobileTasks
 } from 'api/station';
 import { openSnackbar } from 'api/snackbar';
-import { getMobileRoleKey, readMobileSession } from 'utils/mobile/session';
+import { readMobileSession } from 'utils/mobile/session';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
@@ -132,8 +137,17 @@ function bindTaskCardActions(card, runAction) {
 
   return {
     ...card,
+    title: localizeOutboundTaskCardText(card.title),
+    node: localizeOutboundTaskCardText(card.node),
+    role: localizeOutboundTaskCardText(card.role),
+    status: localizeOutboundTaskCardText(card.status),
+    sla: localizeOutboundTaskCardText(card.sla),
+    description: localizeOutboundTaskCardText(card.description),
+    evidence: toArray(card.evidence).map(localizeOutboundTaskCardText),
+    blockers: toArray(card.blockers).map(localizeOutboundTaskCardText),
     actions: toArray(card.actions).map((action) => ({
       ...action,
+      label: localizeOutboundTaskCardText(action.label),
       onClick: () => runAction(action.label, `${card.node} / ${card.role}`)
     }))
   };
@@ -149,11 +163,47 @@ export function normalizeCode(value) {
 }
 
 function mobileLanguage() {
-  return readMobileSession()?.language || readMobileLanguage();
+  return readMobileLanguage() || readMobileSession()?.language;
 }
 
 function mt(value) {
   return localizeMobileText(mobileLanguage(), value);
+}
+
+function isMobileEnglish() {
+  return String(mobileLanguage() || '').toLowerCase().startsWith('en');
+}
+
+function localizeOutboundTaskCardText(value) {
+  if (typeof value !== 'string' || !value) return value;
+  if (!isMobileEnglish()) return value;
+
+  return value
+    .replace(/待复核/gu, 'Pending Review')
+    .replace(/待Review/gu, 'Pending Review')
+    .replace(/出港机场货站操作/gu, 'Outbound Station Actions')
+    .replace(/OUTBOUND机场STATIONACTIONS/gu, 'Outbound Station Actions')
+    .replace(/出港机场机坪操作/gu, 'Outbound Airport Ramp Operations')
+    .replace(/OUTBOUND机场机坪ACTIONS/gu, 'Outbound Airport Ramp Operations')
+    .replace(/按 AWB 录入收货件数并完成重量复核。/gu, 'Enter received pieces by AWB and complete the weight review.')
+    .replace(/按 AWB Enter ReCeived PieCes并CompleteWeight Review。/gu, 'Enter received pieces by AWB and complete the weight review.')
+    .replace(/收货后 30 分钟/gu, '30 minutes after receiving')
+    .replace(/SLA ReCeiving后 30 分钟/gu, 'SLA 30 minutes after receiving')
+    .replace(/SLA Load to AirCraft前 45 分钟/gu, 'SLA 45 minutes before load to aircraft')
+    .replace(/SLA ETD 前 30 分钟/gu, 'SLA 30 minutes before ETD')
+    .replace(/SLA Airborne前闭环/gu, 'SLA close before airborne')
+    .replace(/未完成收货不得打开组板和机坪放行。/gu, 'Do not open pallet build-up or ramp release until receiving is complete.')
+    .replace(/未CompleteReCeiving不得Open组板和机坪Release。/gu, 'Do not open pallet build-up or ramp release until receiving is complete.')
+    .replace(/NoneContainer Code或ReviewWeight时不得OpenLoad to AirCraft。/gu, 'Load to Aircraft cannot be opened without a container code or reviewed weight.')
+    .replace(/NoneContainer号或ReviewWeight时不得OpenLoad to AirCraft。/gu, 'Load to Aircraft cannot be opened without a container code or reviewed weight.');
+}
+
+function localizeReviewStatus(value) {
+  if (!isMobileEnglish()) return mt(value);
+  if (value === '待复核' || value === '待Review') return 'Pending Review';
+  if (value === '已复核') return 'Reviewed';
+  if (value === '已收货') return 'Received';
+  return mt(value);
 }
 
 function recognizeContainerCode(file) {
@@ -184,85 +234,100 @@ export function getOutboundSummary(flight) {
 
 export function useOutboundStorage(flightNo) {
   const { mobileOutboundFlightDetail } = useOutboundDetailData(flightNo);
-  const [pmcBoards, setPmcBoardsState] = useState([]);
-  const [receiptMap, setReceiptMapState] = useState({});
-
-  useEffect(() => {
-    if (!flightNo) return;
-    const serverBoards = toArray(mobileOutboundFlightDetail?.containers).map(cloneOutboundContainer);
-    const serverReceipts = cloneOutboundReceiptMap(mobileOutboundFlightDetail?.receipts);
-
-    setPmcBoardsState((prev) => {
-      const prevByCode = new Map((prev || []).map((item) => [item.boardCode, item]));
-      return serverBoards.map((item) => {
-        const previous = prevByCode.get(item.boardCode);
-        return previous ? { ...item, ...previous, entries: previous.entries || item.entries } : item;
-      });
-    });
-
-    setReceiptMapState((prev) =>
-      Object.fromEntries(
-        Object.entries(serverReceipts).map(([awbNo, item]) => {
-          const previous = prev?.[awbNo] || {};
-          return [
-            awbNo,
-            {
-              ...item,
-              ...previous,
-              reviewStatus: previous.reviewStatus || item.reviewStatus,
-              reviewedWeight: previous.reviewedWeight ?? item.reviewedWeight,
-              reviewedAt: previous.reviewedAt || item.reviewedAt
-            }
-          ];
-        })
-      )
-    );
-  }, [flightNo, mobileOutboundFlightDetail?.containers, mobileOutboundFlightDetail?.receipts]);
-
-  const setPmcBoards = (updater) => {
-    setPmcBoardsState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (flightNo) {
-        (next || []).forEach((item) => {
-          void saveOutboundContainer(flightNo, {
-            container_id: item.containerId,
-            boardCode: item.boardCode,
-            totalBoxes: item.totalBoxes,
-            totalWeightKg: item.totalWeightKg,
-            reviewedWeightKg: item.reviewedWeightKg,
-            status: item.status,
-            loadedAt: item.loadedAt,
-            note: item.note,
-            entries: item.entries
-          });
-        });
-      }
-      return next;
-    });
-  };
-
-  const setReceiptMap = (updater) => {
-    setReceiptMapState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (flightNo) {
-        Object.entries(next || {}).forEach(([awbNo, value]) => {
-          void saveOutboundReceipt(flightNo, awbNo, {
-            received_pieces: value?.receivedPieces || 0,
-            received_weight: value?.receivedWeight || 0,
-            status: value?.status || '已收货',
-            note: value?.note || ''
-          });
-        });
-      }
-      return next;
-    });
-  };
+  const { mobileOutboundOptions } = useGetMobileOutboundOptions(flightNo);
+  const pmcBoards = toArray(mobileOutboundFlightDetail?.containers).map(cloneOutboundContainer);
+  const receiptMap = cloneOutboundReceiptMap(mobileOutboundFlightDetail?.receipts);
 
   return {
     pmcBoards,
-    setPmcBoards,
+    setPmcBoards: (updater) => {
+      const next = typeof updater === 'function' ? updater(pmcBoards) : updater;
+      const nextByCode = new Map((next || []).map((item) => [item.boardCode, item]));
+      const currentByCode = new Map((pmcBoards || []).map((item) => [item.boardCode, item]));
+
+      (next || []).forEach((item) => {
+        const previous = currentByCode.get(item.boardCode);
+        const payload = {
+          container_id: item.containerId,
+          boardCode: item.boardCode,
+          totalBoxes: item.totalBoxes,
+          totalWeightKg: item.totalWeightKg,
+          reviewedWeightKg: item.reviewedWeightKg,
+          status: item.status,
+          loadedAt: item.loadedAt,
+          note: item.note,
+          offloadBoxes: item.offloadBoxes,
+          offloadStatus: item.offloadStatus,
+          offloadRecordedAt: item.offloadRecordedAt,
+          archived: item.archived,
+          entries: item.entries
+        };
+
+        if (!previous) {
+          void saveOutboundContainer(flightNo, payload);
+          return;
+        }
+
+        if (JSON.stringify(previous) !== JSON.stringify(item)) {
+          void updateOutboundContainer(item.boardCode, payload);
+        }
+      });
+
+      (pmcBoards || []).forEach((item) => {
+        if (!nextByCode.has(item.boardCode)) {
+          void archiveOutboundContainer(item.boardCode, true);
+        }
+      });
+    },
     receiptMap,
-    setReceiptMap
+    setReceiptMap: (updater) => {
+      const next = typeof updater === 'function' ? updater(receiptMap) : updater;
+      const nextEntries = Object.entries(next || {});
+      const currentEntries = Object.entries(receiptMap || {});
+      const nextMap = new Map(nextEntries);
+      const currentMap = new Map(currentEntries);
+
+      nextEntries.forEach(([awbNo, value]) => {
+        const previous = currentMap.get(awbNo);
+        const payload = {
+          received_pieces: value?.receivedPieces || 0,
+          received_weight: value?.receivedWeight || 0,
+          status: value?.status || '待收货',
+          review_status: value?.reviewStatus || '待复核',
+          reviewed_weight: value?.reviewedWeight || 0,
+          reviewed_at: value?.reviewedAt || null,
+          note: value?.note || '',
+          archived: value?.archived || false
+        };
+
+        if (!previous) {
+          void saveOutboundReceipt(flightNo, awbNo, payload);
+          return;
+        }
+
+        if (JSON.stringify(previous) !== JSON.stringify(value)) {
+          void updateOutboundReceipt(flightNo, awbNo, payload);
+        }
+      });
+
+      currentEntries.forEach(([awbNo]) => {
+        if (!nextMap.has(awbNo)) {
+          void archiveOutboundReceipt(flightNo, awbNo, true);
+        }
+      });
+    },
+    receiptStatusOptions: mobileOutboundOptions.receiptStatusOptions || [],
+    reviewStatusOptions: mobileOutboundOptions.reviewStatusOptions || [],
+    containerStatusOptions: mobileOutboundOptions.containerStatusOptions || [],
+    offloadStatusOptions: mobileOutboundOptions.offloadStatusOptions || [],
+    awbOptions: mobileOutboundOptions.awbOptions || [],
+    containerOptions: mobileOutboundOptions.containerOptions || [],
+    createOutboundContainer: async (payload) => saveOutboundContainer(flightNo, payload),
+    updateOutboundContainer: async (containerCode, payload) => updateOutboundContainer(containerCode, payload),
+    archiveOutboundContainer: async (containerCode, archived = true) => archiveOutboundContainer(containerCode, archived),
+    createOutboundReceipt: async (awbNo, payload) => saveOutboundReceipt(flightNo, awbNo, payload),
+    updateOutboundReceipt: async (awbNo, payload) => updateOutboundReceipt(flightNo, awbNo, payload),
+    archiveOutboundReceipt: async (awbNo, archived = true) => archiveOutboundReceipt(flightNo, awbNo, archived)
   };
 }
 
@@ -313,27 +378,27 @@ export function OutboundFlightHeroCard({ flight }) {
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
           <div>
             <Typography variant="overline" color="primary.main">
-              当前航班
+              {mt('当前航班')}
             </Typography>
             <Typography variant="h3" sx={{ mt: 0.5 }}>
               {liveFlight.flightNo}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              ETD {liveFlight.etd} · 当前阶段 {liveFlight.stage} · Manifest {liveFlight.manifest}
+              ETD {liveFlight.etd} · {mt('当前阶段')} {mt(liveFlight.stage)} · Manifest {mt(liveFlight.manifest)}
             </Typography>
           </div>
-          <StatusChip label={liveFlight.status} />
+          <StatusChip label={mt(liveFlight.status)} />
         </Stack>
 
         <Grid container spacing={1.5}>
           <Grid size={4}>
-            <MetricCard title="提单总数" value={`${summary.plannedAwbCount}`} helper="当前航班计划提单数" chip="AWB" />
+            <MetricCard title={mt('提单总数')} value={`${summary.plannedAwbCount}`} helper={mt('当前航班计划提单数')} chip={mt('提单')} />
           </Grid>
           <Grid size={4}>
-            <MetricCard title="计划件数" value={`${summary.plannedPieces}`} helper="来自航班计划数据" color="secondary" />
+            <MetricCard title={mt('计划件数')} value={`${summary.plannedPieces}`} helper={mt('来自航班计划数据')} color="secondary" />
           </Grid>
           <Grid size={4}>
-            <MetricCard title="计划重量" value={`${summary.plannedWeight.toFixed(1)} kg`} helper="用于装机校验" color="success" />
+            <MetricCard title={mt('计划重量')} value={`${summary.plannedWeight.toFixed(1)} kg`} helper={mt('用于装机校验')} color="success" />
           </Grid>
         </Grid>
       </Stack>
@@ -353,28 +418,28 @@ export function OutboundOverviewPanel({ flight, pmcBoards = [], receiptMap = {} 
     <Stack sx={{ gap: 2 }}>
       {overviewTaskCard ? <TaskCard {...overviewTaskCard} /> : null}
 
-      <MainCard title="航班概览">
+      <MainCard title={mt('航班概览')}>
         <Grid container spacing={1.5}>
           <Grid size={4}>
-            <MetricCard title="已收货提单" value={`${flightReceipts.length}`} helper="已开始收货的提单" />
+            <MetricCard title={mt('已收货提单')} value={`${flightReceipts.length}`} helper={mt('已开始收货的提单')} />
           </Grid>
           <Grid size={4}>
-            <MetricCard title="集装器数量" value={`${flightContainers.length}`} helper="当前航班已建集装器" color="secondary" />
+            <MetricCard title={mt('集装器数量')} value={`${flightContainers.length}`} helper={mt('当前航班已建集装器')} color="secondary" />
           </Grid>
           <Grid size={4}>
-            <MetricCard title="计划重量" value={`${summary.plannedWeight.toFixed(1)} kg`} helper="用于装机校验" color="success" />
+            <MetricCard title={mt('计划重量')} value={`${summary.plannedWeight.toFixed(1)} kg`} helper={mt('用于装机校验')} color="success" />
           </Grid>
         </Grid>
       </MainCard>
 
-      <MainCard title="计划提单明细">
+      <MainCard title={mt('计划提单明细')}>
         <Stack sx={{ gap: 1.25 }}>
           {flightAwbs.map((item) => (
             <Box key={item.awb} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
               <Typography variant="subtitle2">{item.awb}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                目的地 {item.destination} · 计划件数 {item.totalPieces} · 计划重量 {item.totalWeight} kg
-              </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {`${mt('目的地')} ${mt(item.destination)} · ${mt('计划件数')} ${item.totalPieces} · ${mt('计划重量')} ${item.totalWeight} kg`}
+                      </Typography>
             </Box>
           ))}
         </Stack>
@@ -403,14 +468,14 @@ export function OutboundFlightAppShell({ flight, children, showHero = true, show
 
       openSnackbar({
         open: true,
-        message: `任务 ${task.task_id} 已执行 ${action}`,
+        message: mt(`任务 ${task.task_id} 已执行 ${mt(action)}`),
         variant: 'alert',
         alert: { color: 'success' }
       });
     } catch (error) {
       openSnackbar({
         open: true,
-        message: error?.error?.message || `任务 ${action} 失败`,
+        message: error?.error?.message || mt(`任务 ${mt(action)} 失败`),
         variant: 'alert',
         alert: { color: 'error' }
       });
@@ -425,10 +490,14 @@ export function OutboundFlightAppShell({ flight, children, showHero = true, show
           <TaskOpsPanel
             scopeKey={`outbound-flight-${flight.flightNo}`}
             currentLabel={flight.flightNo}
-            contextChips={[`角色 ${mt(roleView.label)}`, `当前阶段 ${liveFlight.stage}`, `Manifest ${liveFlight.manifest}`]}
+            contextChips={[
+              `${mt('角色')} ${mt(roleView.label)}`,
+              `${mt('当前阶段')} ${mt(liveFlight.stage)}`,
+              `Manifest ${mt(liveFlight.manifest)}`
+            ]}
             quickLinks={[
-              { label: '节点选择', onClick: () => navigate('/mobile/select') },
-              { label: '航班列表', onClick: () => navigate('/mobile/outbound') }
+              { label: mt('节点选择'), onClick: () => navigate('/mobile/select') },
+              { label: mt('航班列表'), onClick: () => navigate('/mobile/outbound') }
             ]}
             liveTasks={liveTasks}
             onTaskAction={handleLiveTaskAction}
@@ -449,7 +518,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
   const [receiptCount, setReceiptCount] = useState('');
   const [reviewAwb, setReviewAwb] = useState('');
   const [reviewWeight, setReviewWeight] = useState('');
-  const [message, setMessage] = useState('先扫描一个提单号，再录入该提单的收货件数。');
+  const [message, setMessage] = useState(mt('先扫描一个提单号，再录入该提单的收货件数。'));
 
   useEffect(() => {
     scanInputRef.current?.focus();
@@ -464,7 +533,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
     const matched = flightAwbs.find((item) => normalizeCode(item.awb) === code);
 
     if (!matched) {
-      setMessage(`未找到提单 ${rawCode}。`);
+      setMessage(mt(`未找到提单 ${rawCode}。`));
       return;
     }
 
@@ -472,7 +541,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
     setScanValue(matched.awb);
     setReceiptCount(receiptMap[matched.awb]?.receivedPieces ? String(receiptMap[matched.awb].receivedPieces) : '');
     runScopedAction('扫码', `出港收货 / ${matched.awb}`);
-    setMessage(`提单 ${matched.awb} 已识别，请录入该提单的收货件数。`);
+    setMessage(mt(`提单 ${matched.awb} 已识别，请录入该提单的收货件数。`));
   };
 
   const saveReceiptCount = () => {
@@ -487,12 +556,14 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
         ...matched,
         flightNo,
         receivedPieces: parseNumber(receiptCount),
+        status: '已收货',
+        reviewStatus: prev[matched.awb]?.reviewStatus || '待复核',
         receivedAt: new Date().toISOString(),
-        status: '已收货'
+        archived: false
       }
     }));
     runScopedAction('确认', `收货件数 / ${matched.awb}`);
-    setMessage(`提单 ${matched.awb} 收货件数已记录为 ${receiptCount}。`);
+    setMessage(mt(`提单 ${matched.awb} 收货件数已记录为 ${receiptCount}。`));
     setReceiptCount('');
   };
 
@@ -502,6 +573,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
       ...prev,
       [reviewAwb]: {
         ...prev[reviewAwb],
+        status: '已复核',
         reviewedWeight: parseNumber(reviewWeight),
         reviewedAt: new Date().toISOString(),
         reviewStatus: '已复核'
@@ -514,7 +586,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
 
   return (
     <Stack sx={{ gap: 2 }}>
-      <MainCard title="收货扫描">
+      <MainCard title={mt('收货扫描')}>
         <Stack sx={{ gap: 2 }}>
           <Stack direction="row" sx={{ gap: 1.5 }}>
             <TextField
@@ -530,7 +602,7 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
                   attachReceipt(scanValue);
                 }
               }}
-              placeholder="扫码后自动回车"
+              placeholder={mt('扫码后自动回车')}
             />
             <Button variant="contained" startIcon={<InboxOutlined />} onClick={() => attachReceipt(scanValue)}>
               {mt('收货')}
@@ -538,24 +610,24 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
           </Stack>
 
           <Typography variant="body2" color="text.secondary">
-            {message}
+            {mt(message)}
           </Typography>
         </Stack>
       </MainCard>
 
       {activeAwb ? (
-        <MainCard title="录入收货件数">
+        <MainCard title={mt('录入收货件数')}>
           <Stack sx={{ gap: 2 }}>
             <Typography variant="subtitle2">{activeAwb}</Typography>
-            <TextField label="收货件数" value={receiptCount} onChange={(event) => setReceiptCount(event.target.value)} />
+            <TextField label={mt('收货件数')} value={receiptCount} onChange={(event) => setReceiptCount(event.target.value)} />
             <Button variant="contained" disabled={!receiptCount} onClick={saveReceiptCount}>
-              保存件数
+              {mt('保存件数')}
             </Button>
           </Stack>
         </MainCard>
       ) : null}
 
-      <MainCard title="已收货提单">
+      <MainCard title={mt('已收货提单')}>
         <Stack sx={{ gap: 1.25 }}>
           {receivedItems.length ? (
             receivedItems.map((item) => {
@@ -566,14 +638,14 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
                     <div>
                       <Typography variant="subtitle2">{item.awb}</Typography>
                       <Typography variant="caption" color="text.secondary">
-                        收货件数 {receipt?.receivedPieces || 0} / 计划件数 {item.totalPieces} · 计划重量 {item.totalWeight} kg
+                        {`${mt('收货件数')} ${receipt?.receivedPieces || 0} / ${mt('计划件数')} ${item.totalPieces} · ${mt('计划重量')} ${item.totalWeight} kg`}
                       </Typography>
                     </div>
-                    <StatusChip label={receipt?.reviewStatus || '已收货'} color={receipt?.reviewStatus === '已复核' ? 'success' : 'secondary'} />
+                    <StatusChip label={localizeReviewStatus(receipt?.reviewStatus || '已收货')} color={receipt?.reviewStatus === '已复核' ? 'success' : 'secondary'} />
                   </Stack>
                   <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1, gap: 1 }}>
                     <Button size="small" variant="outlined" onClick={() => navigate(`/mobile/outbound/${flightNo}/receipt/counting/${encodeURIComponent(item.awb)}`)}>
-                      点数
+                      {mt('点数')}
                     </Button>
                     <Button
                       size="small"
@@ -583,14 +655,33 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
                         setReviewWeight(receipt?.reviewedWeight ? String(receipt.reviewedWeight) : '');
                       }}
                     >
-                      复核
+                      {mt('复核')}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() =>
+                        setReceiptMap((prev) => ({
+                          ...prev,
+                          [item.awb]: {
+                            ...prev[item.awb],
+                            status: '待收货',
+                            reviewStatus: '待复核',
+                            reviewedWeight: 0,
+                            reviewedAt: null,
+                            archived: false
+                          }
+                        }))
+                      }
+                    >
+                      {mt('重开')}
                     </Button>
                   </Stack>
                 </Box>
               );
             })
           ) : (
-            <Typography color="text.secondary">当前航班还没有已收货提单。</Typography>
+            <Typography color="text.secondary">{mt('当前航班还没有已收货提单。')}</Typography>
           )}
         </Stack>
       </MainCard>
@@ -598,17 +689,17 @@ export function ReceiptPanel({ flightNo, receiptMap, setReceiptMap }) {
       {receiptTaskCard ? <TaskCard {...receiptTaskCard} /> : null}
 
       <Dialog open={!!reviewAwb} fullWidth maxWidth="xs" onClose={() => setReviewAwb('')}>
-        <DialogTitle>重量复核</DialogTitle>
+        <DialogTitle>{mt('重量复核')}</DialogTitle>
         <DialogContent>
           <Stack sx={{ gap: 2, pt: 0.5 }}>
             <Typography variant="subtitle2">{reviewAwb}</Typography>
-            <TextField label="复核重量(kg)" value={reviewWeight} onChange={(event) => setReviewWeight(event.target.value)} />
+            <TextField label={mt('复核重量(kg)')} value={reviewWeight} onChange={(event) => setReviewWeight(event.target.value)} />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setReviewAwb('')}>取消</Button>
+          <Button onClick={() => setReviewAwb('')}>{mt('取消')}</Button>
           <Button variant="contained" onClick={saveReviewWeight} disabled={!reviewWeight}>
-            保存复核
+            {mt('保存复核')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -627,10 +718,10 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
       <MainCard title={mt('集装器')}>
         <Stack sx={{ gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            ULD / 集装器应由后台办公室先完成预排并分配机位；PDA 仅执行已排好的集装与装机。
+            {mt('ULD / 集装器应由后台办公室先完成预排并分配机位；PDA 仅执行已排好的集装与装机。')}
           </Typography>
           <Button variant="outlined" onClick={() => navigate('/station/outbound/flights')}>
-            去后台排 ULD
+            {mt('去后台排 ULD')}
           </Button>
         </Stack>
       </MainCard>
@@ -643,11 +734,11 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                   <div>
                     <Typography variant="subtitle2">{container.boardCode}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {container.entries.length} 票 / {container.totalBoxes} 箱 / {container.reviewedWeightKg || container.totalWeightKg} kg
-                    </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {`${container.entries.length} ${mt('票')} / ${container.totalBoxes} ${mt('箱')} / ${container.reviewedWeightKg || container.totalWeightKg} kg`}
+                      </Typography>
                   </div>
-                  <StatusChip label={container.status} />
+                  <StatusChip label={mt(container.status)} />
                 </Stack>
                 <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1 }}>
                   <Button size="small" variant="contained" onClick={() => navigate(`/mobile/outbound/${flightNo}/pmc/${encodeURIComponent(container.boardCode)}`)}>
@@ -657,7 +748,7 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前航班还没有集装器。</Typography>
+            <Typography color="text.secondary">{mt('当前航班还没有集装器。')}</Typography>
           )}
         </Stack>
       </MainCard>
@@ -670,7 +761,7 @@ export function ContainerListPanel({ flightNo, pmcBoards }) {
 export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
   const { taskCards, runScopedAction } = useOutboundTaskContext(flightNo);
   const navigate = useNavigate();
-  const [message, setMessage] = useState('输入集装器号码或拍照识别后，点击完成即可创建。');
+  const [message, setMessage] = useState(mt('输入集装器号码或拍照识别后，点击完成即可创建。'));
   const [form, setForm] = useState({ boardCode: '', photoName: '' });
 
   const canSubmit = form.boardCode.trim();
@@ -683,7 +774,7 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
       <MainCard title={mt('新建集装器')}>
         <Stack sx={{ gap: 2 }}>
           <Button component="label" fullWidth variant="contained" startIcon={<CameraOutlined />}>
-            拍摄 / 上传集装器照片
+            {mt('拍摄 / 上传集装器照片')}
             <input
               hidden
               type="file"
@@ -694,24 +785,24 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
                 if (!file) return;
                 const boardCode = recognizeContainerCode(file);
                 setForm({ boardCode, photoName: file.name });
-                setMessage(`已识别集装器号：${boardCode}`);
+                setMessage(`${mt('已识别集装器号：')}${boardCode}`);
               }}
             />
           </Button>
 
           <TextField
-            label="集装器号码"
+            label={mt('集装器号码')}
             value={form.boardCode}
             onChange={(event) => setForm((prev) => ({ ...prev, boardCode: event.target.value.toUpperCase() }))}
           />
 
           <Typography variant="body2" color="text.secondary">
-            {message}
+            {mt(message)}
           </Typography>
         </Stack>
       </MainCard>
 
-      <MainCard title="完成创建">
+      <MainCard title={mt('完成创建')}>
         <Stack sx={{ gap: 2 }}>
           <Button
             fullWidth
@@ -738,7 +829,7 @@ export function ContainerCreatePanel({ flightNo, pmcBoards, setPmcBoards }) {
               navigate(`/mobile/outbound/${flightNo}/pmc`, { replace: true });
             }}
           >
-            完成
+            {mt('完成')}
           </Button>
         </Stack>
       </MainCard>
@@ -752,7 +843,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
   const scanInputRef = useRef(null);
   const [scanValue, setScanValue] = useState('');
   const [activeAwb, setActiveAwb] = useState('');
-  const [message, setMessage] = useState('使用条码枪扫描提单号后，会按件数逐件累加到当前集装器。');
+  const [message, setMessage] = useState(mt('使用条码枪扫描提单号后，会按件数逐件累加到当前集装器。'));
   const [entry, setEntry] = useState({ awb: '', boxes: '', pieces: '' });
 
   const flightAwbs = buildOutboundWaybills(flightNo);
@@ -772,7 +863,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
         <Stack sx={{ gap: 2 }}>
           <Typography variant="h5">{container.boardCode}</Typography>
           <Typography variant="body2" color="text.secondary">
-            当前已录入 {container.entries.length} 票 / {container.totalBoxes} 箱 / {container.reviewedWeightKg || container.totalWeightKg} kg
+            {`${mt('当前已录入')} ${container.entries.length} ${mt('票')} / ${container.totalBoxes} ${mt('箱')} / ${container.reviewedWeightKg || container.totalWeightKg} kg`}
           </Typography>
 
           <Stack direction="row" sx={{ gap: 1.5 }}>
@@ -801,7 +892,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
                   event.preventDefault();
                   const matched = flightAwbs.find((item) => normalizeCode(item.awb) === normalizeCode(scanValue));
                   if (!matched) {
-                    setMessage(`未找到提单 ${scanValue}。`);
+                    setMessage(mt(`未找到提单 ${scanValue}。`));
                     return;
                   }
                   setActiveAwb(matched.awb);
@@ -812,10 +903,10 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
                     boxes: prev.boxes || '1'
                   }));
                   setScanValue(matched.awb);
-                  setMessage(`提单 ${matched.awb} 已扫描，当前准备追加 ${Number(entry.pieces || 0) + 1} 件。`);
+                  setMessage(mt(`提单 ${matched.awb} 已扫描，当前准备追加 ${Number(entry.pieces || 0) + 1} 件。`));
                 }
               }}
-              placeholder="扫码后自动回车逐件累加"
+              placeholder={mt('扫码后自动回车逐件累加')}
             />
             <Button
               variant="contained"
@@ -823,7 +914,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
               onClick={() => {
                 const matched = flightAwbs.find((item) => normalizeCode(item.awb) === normalizeCode(scanValue));
                 if (!matched) {
-                  setMessage(`未找到提单 ${scanValue}。`);
+                  setMessage(mt(`未找到提单 ${scanValue}。`));
                   return;
                 }
                 runScopedAction('扫码', `集装器扫描 / ${matched.awb}`);
@@ -835,7 +926,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
                   boxes: prev.boxes || '1'
                 }));
                 setScanValue(matched.awb);
-                setMessage(`提单 ${matched.awb} 已扫描，当前准备追加 ${Number(entry.pieces || 0) + 1} 件。`);
+                setMessage(mt(`提单 ${matched.awb} 已扫描，当前准备追加 ${Number(entry.pieces || 0) + 1} 件。`));
               }}
             >
               {mt('扫描')}
@@ -846,7 +937,7 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
             <Grid size={6}>
               <TextField
                 select
-                label="提单号"
+                label={mt('提单号')}
                 value={entry.awb}
                 onChange={(event) => setEntry((prev) => ({ ...prev, awb: event.target.value }))}
               >
@@ -858,10 +949,10 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
               </TextField>
             </Grid>
             <Grid size={3}>
-              <TextField label="件数" value={entry.pieces} onChange={(event) => setEntry((prev) => ({ ...prev, pieces: event.target.value }))} />
+              <TextField label={mt('件数')} value={entry.pieces} onChange={(event) => setEntry((prev) => ({ ...prev, pieces: event.target.value }))} />
             </Grid>
             <Grid size={3}>
-              <TextField label="箱数" value={entry.boxes} onChange={(event) => setEntry((prev) => ({ ...prev, boxes: event.target.value }))} />
+              <TextField label={mt('箱数')} value={entry.boxes} onChange={(event) => setEntry((prev) => ({ ...prev, boxes: event.target.value }))} />
             </Grid>
           </Grid>
 
@@ -901,11 +992,11 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
               setActiveAwb('');
             }}
           >
-            追加提单
+            {mt('追加提单')}
           </Button>
 
           <Typography variant="body2" color="text.secondary">
-            {message}
+            {mt(message)}
           </Typography>
         </Stack>
       </MainCard>
@@ -917,15 +1008,15 @@ export function ContainerDetailPanel({ flightNo, containerCode, pmcBoards, setPm
               <Box key={`${item.awb}-${index}`} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                   <Typography variant="subtitle2">{item.awb}</Typography>
-                  <Typography variant="subtitle2">{item.pieces} 件</Typography>
+                  <Typography variant="subtitle2">{`${item.pieces} ${mt('件')}`}</Typography>
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  箱数 {item.boxes} / 重量 {item.weight} kg
+                  {`${mt('箱数')} ${item.boxes} / ${mt('重量')} ${item.weight} kg`}
                 </Typography>
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前集装器还没有提单。</Typography>
+            <Typography color="text.secondary">{mt('当前集装器还没有提单。')}</Typography>
           )}
         </Stack>
       </MainCard>
@@ -953,7 +1044,7 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                   <div>
                     <Typography variant="subtitle2">{item.boardCode}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {item.entries.length} 票 / {item.totalBoxes} 箱 / 复核 {item.reviewedWeightKg || item.totalWeightKg} kg
+                      {`${item.entries.length} ${mt('票')} / ${item.totalBoxes} ${mt('箱')} / ${mt('复核')} ${item.reviewedWeightKg || item.totalWeightKg} kg`}
                     </Typography>
                   </div>
                   <Button
@@ -968,13 +1059,13 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                       );
                     }}
                   >
-                    {mobileLanguage() === 'en' ? 'Load' : '装机'}
+                    {mt('装机')}
                   </Button>
                 </Stack>
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前航班没有待装机集装器。</Typography>
+            <Typography color="text.secondary">{mt('当前航班没有待装机集装器。')}</Typography>
           )}
         </Stack>
       </MainCard>
@@ -988,16 +1079,16 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                   <div>
                     <Typography variant="subtitle2">{item.boardCode}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      已装机 · {item.totalBoxes} 箱 / {item.reviewedWeightKg || item.totalWeightKg} kg
+                      {`${mt('已装机')} · ${item.totalBoxes} ${mt('箱')} / ${item.reviewedWeightKg || item.totalWeightKg} kg`}
                     </Typography>
                   </div>
-                  <StatusChip label={item.offloadBoxes ? '警戒' : '已完成'} color={item.offloadBoxes ? 'warning' : 'success'} />
+                  <StatusChip label={item.offloadBoxes ? mt('警戒') : mt('已完成')} color={item.offloadBoxes ? 'warning' : 'success'} />
                 </Stack>
 
                 <Stack direction="row" sx={{ gap: 1, mt: 1 }}>
                   <TextField
                     size="small"
-                    label="拉货箱数"
+                    label={mt('拉货箱数')}
                     value={activeContainerCode === item.boardCode ? offloadBoxes : item.offloadBoxes || ''}
                     onChange={(event) => {
                       setActiveContainerCode(item.boardCode);
@@ -1023,19 +1114,42 @@ export function LoadingPanel({ flightNo, pmcBoards, setPmcBoards }) {
                       );
                     }}
                   >
-                    记录拉货
+                    {mt('记录拉货')}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      runScopedAction('确认', `重开装机 / ${item.boardCode}`);
+                      setPmcBoards((prev) =>
+                        prev.map((container) =>
+                          container.boardCode === item.boardCode
+                            ? {
+                                ...container,
+                                status: '待装机',
+                                loadedAt: null,
+                                offloadBoxes: 0,
+                                offloadStatus: '无拉货',
+                                offloadRecordedAt: null
+                              }
+                            : container
+                        )
+                      );
+                    }}
+                  >
+                    {mt('重开')}
                   </Button>
                 </Stack>
 
                 {item.offloadBoxes ? (
                   <Typography variant="caption" color="warning.main" sx={{ mt: 0.75, display: 'block' }}>
-                    已记录拉货 {item.offloadBoxes} 箱
+                    {`${mt('已记录拉货')} ${item.offloadBoxes} ${mt('箱')}`}
                   </Typography>
                 ) : null}
               </Box>
             ))
           ) : (
-            <Typography color="text.secondary">当前航班还没有已装机集装器。</Typography>
+            <Typography color="text.secondary">{mt('当前航班还没有已装机集装器。')}</Typography>
           )}
         </Stack>
       </MainCard>

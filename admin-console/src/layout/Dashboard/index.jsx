@@ -44,7 +44,7 @@ export default function DashboardLayout() {
 
   return (
     <AuthGuard>
-      <Box sx={{ display: 'flex', width: '100%' }}>
+      <Box data-dashboard-shell="true" sx={{ display: 'flex', width: '100%' }}>
         <Header />
         {!isHorizontal ? <Drawer /> : <HorizontalBar />}
 

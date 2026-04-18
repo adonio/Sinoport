@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 // material-ui
@@ -29,9 +29,10 @@ import useConfig from 'hooks/useConfig';
 import useMenuCollapse from 'hooks/useMenuCollapse';
 import { useGetMenuMaster } from 'api/menu';
 import { matchesMenuTree } from 'utils/menuMatch';
+import { localizeUiText } from 'utils/app-i18n';
 
 // third-party
-import { FormattedMessage } from 'react-intl';
+import { useIntl } from 'react-intl';
 
 // assets
 import BorderOutlined from '@ant-design/icons/BorderOutlined';
@@ -76,6 +77,8 @@ const PopperStyled = styled(Popper)(({ theme }) => ({
 }));
 
 export default function NavCollapse({ menu, level, parentId, setSelectedItems, selectedItems, setSelectedLevel, selectedLevel }) {
+  const intl = useIntl();
+  const locale = intl.locale;
   const theme = useTheme();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
@@ -140,7 +143,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
     setAnchorEl(null);
   };
 
-  useMemo(() => {
+  useEffect(() => {
     if (selected === selectedItems) {
       if (level === 1) {
         setOpen(true);
@@ -272,13 +275,13 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
               <ListItemText
                 primary={
                   <Typography variant="h6" color={isSelected || anchorEl ? 'primary' : textColor}>
-                    <FormattedMessage id={menu.title} />
+                    {localizeUiText(locale, menu.title)}
                   </Typography>
                 }
                 secondary={
                   menu.caption && (
                     <Typography variant="caption" color="secondary">
-                      <FormattedMessage id={menu.caption} />
+                      {localizeUiText(locale, menu.caption)}
                     </Typography>
                   )
                 }
@@ -385,7 +388,7 @@ export default function NavCollapse({ menu, level, parentId, setSelectedItems, s
             <ListItemText
               primary={
                 <Typography variant="body1" color="inherit" sx={{ my: 'auto' }}>
-                  <FormattedMessage id={menu.title} />
+                  {localizeUiText(locale, menu.title)}
                 </Typography>
               }
             />

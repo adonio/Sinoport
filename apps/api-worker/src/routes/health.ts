@@ -6,7 +6,12 @@ export function registerHealthRoutes(app: ApiApp) {
       data: {
         service: c.env.APP_NAME ?? 'sinoport-api-worker',
         environment: c.env.ENVIRONMENT ?? 'local',
-        status: 'ok'
+        status: 'ok',
+        version: {
+          sha: c.env.APP_VERSION ?? null,
+          tag: c.env.APP_RELEASE_TAG ?? null,
+          deployed_at: c.env.APP_DEPLOYED_AT ?? null
+        }
       }
     })
   );

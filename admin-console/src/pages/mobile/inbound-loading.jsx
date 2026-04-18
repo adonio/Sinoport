@@ -1,18 +1,23 @@
 import { Navigate, useParams } from 'react-router-dom';
 
-import { buildFlightWaybills, getInboundFlight, InboundFlightAppShell, LoadingPanel, useInboundLoadingStorage, useInboundStorage } from 'pages/mobile/inbound-shared';
+import { InboundFlightAppShell, LoadingPanel, useInboundLoadingStorage, useInboundStorage } from 'pages/mobile/inbound-shared';
+import { useGetMobileInboundDetail } from 'api/station';
 
 export default function MobileInboundLoadingPage() {
   const { flightNo } = useParams();
-  const flight = getInboundFlight(flightNo);
+  const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading } = useGetMobileInboundDetail(flightNo);
   const { taskMap } = useInboundStorage(flightNo);
   const { loadingPlans, setLoadingPlans } = useInboundLoadingStorage(flightNo);
+  const flight = mobileInboundFlightDetail?.flight || null;
+  const waybills = mobileInboundFlightDetail?.waybills || [];
+
+  if (mobileInboundFlightDetailLoading) {
+    return null;
+  }
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;
   }
-
-  const waybills = buildFlightWaybills(flight.flightNo);
 
   return (
     <InboundFlightAppShell flight={flight} waybills={waybills} taskMap={taskMap} showHero={false}>

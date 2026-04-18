@@ -9,6 +9,9 @@ import { getStationServices } from './lib/services';
 
 type ApiBindings = {
   APP_NAME?: string;
+  APP_DEPLOYED_AT?: string;
+  APP_RELEASE_TAG?: string;
+  APP_VERSION?: string;
   AUTH_TOKEN_SECRET?: string;
   DB?: D1DatabaseLike;
   ENVIRONMENT?: string;
@@ -27,7 +30,7 @@ app.use(
   cors({
     origin: '*',
     allowHeaders: ['Authorization', 'Content-Type', 'X-Request-Id', 'X-Client-Source', 'Idempotency-Key'],
-    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS']
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   })
 );
 

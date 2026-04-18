@@ -12,30 +12,45 @@ import MainCard from 'components/MainCard';
 import sinoportLogo from 'assets/images/sinoport-logo.png';
 import { openSnackbar } from 'api/snackbar';
 import { fetchMobileLoginOptions, mobileLogin } from 'api/station';
+import useConfig from 'hooks/useConfig';
+import { normalizeAppLanguage } from 'utils/app-i18n';
 import { writeMobileSession } from 'utils/mobile/session';
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, writeMobileLanguage } from 'utils/mobile/i18n';
+import { isTestStationEnvironment, TEST_DEFAULT_STATION_CREDENTIALS } from 'utils/stationApi';
 
 function normalizeOptions(value) {
   return Array.isArray(value) ? value : [];
 }
 
+const defaultCredentials = isTestStationEnvironment()
+  ? TEST_DEFAULT_STATION_CREDENTIALS
+  : { email: '', password: '' };
+
 export default function MobileLoginPage() {
   const navigate = useNavigate();
-  const [language, setLanguage] = useState(readMobileLanguage());
+  const { state, setField } = useConfig();
+  const [language, setLanguage] = useState(normalizeAppLanguage(state.i18n || readMobileLanguage()));
   const [submitting, setSubmitting] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState('');
   const [loginOptions, setLoginOptions] = useState({
     stationOptions: [],
-    roleOptions: []
+    roleOptions: [],
+    requiresFormalAuth: false
   });
   const [form, setForm] = useState({
     operator: '',
     employeeId: '',
+    email: defaultCredentials.email,
+    password: defaultCredentials.password,
     station: '',
     roleKey: ''
   });
   const languageOptions = getMobileLanguageOptions(language);
+
+  useEffect(() => {
+    setLanguage(normalizeAppLanguage(state.i18n || readMobileLanguage()));
+  }, [state.i18n]);
 
   useEffect(() => {
     let active = true;
@@ -49,15 +64,16 @@ export default function MobileLoginPage() {
         const stationOptions = normalizeOptions(data.station_options);
         const roleOptions = normalizeOptions(data.role_options);
         const defaults = data.defaults || {};
+        const requiresFormalAuth = Boolean(data.requires_formal_auth);
 
-        setLoginOptions({ stationOptions, roleOptions });
+        setLoginOptions({ stationOptions, roleOptions, requiresFormalAuth });
         setForm((prev) => ({
           ...prev,
           station: prev.station || defaults.station || stationOptions[0]?.value || '',
           roleKey: prev.roleKey || defaults.role_key || roleOptions[0]?.value || ''
         }));
         setOptionsError('');
-      } catch {
+        } catch {
         if (active) {
           setOptionsError('登录选项加载失败');
         }
@@ -75,12 +91,12 @@ export default function MobileLoginPage() {
 
   const selectedStation = loginOptions.stationOptions.find((item) => item.value === form.station) || loginOptions.stationOptions[0];
   const selectedRole = loginOptions.roleOptions.find((item) => item.value === form.roleKey) || loginOptions.roleOptions[0];
-  const canSubmit =
-    !optionsLoading &&
-    Boolean(form.operator.trim()) &&
-    Boolean(form.employeeId.trim()) &&
-    Boolean(form.station) &&
-    Boolean(form.roleKey);
+  const requiresFormalAuth = Boolean(loginOptions.requiresFormalAuth);
+  const canSubmit = !optionsLoading && Boolean(form.station) && Boolean(form.roleKey) && (
+    requiresFormalAuth
+      ? Boolean(form.email.trim()) && Boolean(form.password)
+      : Boolean(form.operator.trim()) && Boolean(form.employeeId.trim())
+  );
   const loadingLabel = localizeMobileText(language, '登录中…');
 
   return (
@@ -103,6 +119,7 @@ export default function MobileLoginPage() {
               onChange={(event) => {
                 const nextLanguage = event.target.value;
                 setLanguage(nextLanguage);
+                setField('i18n', nextLanguage);
                 writeMobileLanguage(nextLanguage);
               }}
             >
@@ -113,20 +130,43 @@ export default function MobileLoginPage() {
               ))}
             </TextField>
 
-            <TextField
-              name="operator"
-              label={t(language, 'operator_name')}
-              value={form.operator}
-              onChange={(event) => setForm((prev) => ({ ...prev, operator: event.target.value }))}
-              placeholder={t(language, 'operator_placeholder')}
-            />
-            <TextField
-              name="employee_id"
-              label={t(language, 'employee_id')}
-              value={form.employeeId}
-              onChange={(event) => setForm((prev) => ({ ...prev, employeeId: event.target.value }))}
-              placeholder={t(language, 'employee_placeholder')}
-            />
+            {requiresFormalAuth ? (
+              <>
+                <TextField
+                  name="email"
+                  label={t(language, 'email')}
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                  placeholder="operator@sinoport.co"
+                />
+                <TextField
+                  name="password"
+                  label={t(language, 'password')}
+                  type="password"
+                  value={form.password}
+                  onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+                  placeholder={t(language, 'password')}
+                />
+              </>
+            ) : (
+              <>
+                <TextField
+                  name="operator"
+                  label={t(language, 'operator_name')}
+                  value={form.operator}
+                  onChange={(event) => setForm((prev) => ({ ...prev, operator: event.target.value }))}
+                  placeholder={t(language, 'operator_placeholder')}
+                />
+                <TextField
+                  name="employee_id"
+                  label={t(language, 'employee_id')}
+                  value={form.employeeId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, employeeId: event.target.value }))}
+                  placeholder={t(language, 'employee_placeholder')}
+                />
+              </>
+            )}
             <TextField
               name="station"
               select
@@ -134,7 +174,7 @@ export default function MobileLoginPage() {
               value={form.station}
               disabled={optionsLoading || !loginOptions.stationOptions.length}
               onChange={(event) => setForm((prev) => ({ ...prev, station: event.target.value }))}
-              helperText={optionsError || undefined}
+              helperText={optionsError ? localizeMobileText(language, optionsError) : undefined}
             >
               {optionsLoading ? (
                 <MenuItem value="" disabled>
@@ -151,7 +191,7 @@ export default function MobileLoginPage() {
             <TextField
               name="demo_role"
               select
-              label={localizeMobileText(language, 'Demo 角色')}
+              label={localizeMobileText(language, '角色')}
               value={form.roleKey}
               disabled={optionsLoading || !loginOptions.roleOptions.length}
               onChange={(event) => setForm((prev) => ({ ...prev, roleKey: event.target.value }))}
@@ -181,6 +221,8 @@ export default function MobileLoginPage() {
                   const response = await mobileLogin({
                     operator: form.operator.trim(),
                     employeeId: form.employeeId.trim(),
+                    email: form.email.trim(),
+                    password: form.password,
                     stationCode: station.code,
                     roleKey: role.value,
                     language
@@ -191,8 +233,8 @@ export default function MobileLoginPage() {
                   }
 
                   writeMobileSession({
-                    operator: form.operator.trim(),
-                    employeeId: form.employeeId.trim(),
+                    operator: form.operator.trim() || response?.data?.user?.display_name || form.email.trim(),
+                    employeeId: form.employeeId.trim() || response?.data?.user?.user_id || '',
                     stationCode: station.code,
                     station: station.label,
                     roleKey: role.value,
@@ -205,7 +247,7 @@ export default function MobileLoginPage() {
 
                   openSnackbar({
                     open: true,
-                    message: '移动端登录成功',
+                    message: localizeMobileText(language, '移动端登录成功'),
                     variant: 'alert',
                     alert: { color: 'success' }
                   });
@@ -214,7 +256,7 @@ export default function MobileLoginPage() {
                 } catch (error) {
                   openSnackbar({
                     open: true,
-                    message: error?.error?.message || '移动端登录失败',
+                    message: error?.error?.message || localizeMobileText(language, '移动端登录失败'),
                     variant: 'alert',
                     alert: { color: 'error' }
                   });

@@ -1,8 +1,10 @@
 import { createMiddleware } from 'hono/factory';
 import {
+  allowLocalOnlyAuth,
   buildActorFromClaims,
   buildActorFromHeaders,
   hasAnyRole,
+  resolveAuthTokenSecret,
   verifyAuthToken,
   type AuthActor
 } from '@sinoport/auth';
@@ -16,6 +18,7 @@ export type ApiVariables = {
 type AuthBindings = {
   AUTH_TOKEN_SECRET?: string;
   ENVIRONMENT?: string;
+  ENABLE_LOCAL_DEBUG_AUTH?: string;
 };
 
 export const actorMiddleware = createMiddleware<{ Variables: ApiVariables; Bindings: AuthBindings }>(async (c, next) => {
@@ -25,14 +28,20 @@ export const actorMiddleware = createMiddleware<{ Variables: ApiVariables; Bindi
   }
 
   const authorization = c.req.header('Authorization');
+  const localDebugAuthEnabled = allowLocalOnlyAuth(c.env.ENVIRONMENT, c.env.ENABLE_LOCAL_DEBUG_AUTH);
 
   if (!authorization) {
     return jsonError(c, 401, 'UNAUTHORIZED', 'Missing Authorization header');
   }
 
   const token = authorization.replace(/^Bearer\s+/i, '').trim();
-  const secret = c.env.AUTH_TOKEN_SECRET || 'sinoport-local-dev-secret';
-  const isLocal = (c.env.ENVIRONMENT || 'local') === 'local';
+  let secret: string;
+
+  try {
+    secret = resolveAuthTokenSecret(c.env.AUTH_TOKEN_SECRET, c.env.ENVIRONMENT);
+  } catch (error) {
+    return jsonError(c, 500, 'AUTH_CONFIG_ERROR', error instanceof Error ? error.message : 'Missing auth secret');
+  }
 
   if (token && token !== 'demo-token') {
     const claims = await verifyAuthToken(token, secret);
@@ -46,7 +55,7 @@ export const actorMiddleware = createMiddleware<{ Variables: ApiVariables; Bindi
     return;
   }
 
-  if (isLocal && token === 'demo-token') {
+  if (localDebugAuthEnabled && token === 'demo-token') {
     c.set('actor', buildActorFromHeaders(c.req.raw.headers));
     await next();
     return;

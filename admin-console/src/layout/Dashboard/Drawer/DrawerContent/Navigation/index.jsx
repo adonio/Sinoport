@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useIntl } from 'react-intl';
 
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Divider from '@mui/material/Divider';
@@ -17,10 +18,12 @@ import menuItems from 'menu-items';
 import useConfig from 'hooks/useConfig';
 import { HORIZONTAL_MAX_ITEM, MenuOrientation } from 'config';
 import { useGetMenuMaster } from 'api/menu';
+import { formatLocalizedMessage } from 'utils/app-i18n';
 
 // ==============================|| DRAWER CONTENT - NAVIGATION ||============================== //
 
 export default function Navigation() {
+  const intl = useIntl();
   const { state } = useConfig();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
@@ -36,20 +39,20 @@ export default function Navigation() {
 
   const backendSwitchGroup = {
     id: 'backend-switch-group',
-    title: '后台切换',
+    title: formatLocalizedMessage(intl, '后台切换'),
     type: 'group',
     children: [
       isStationRoute
         ? {
             id: 'switch-to-platform',
-            title: '平台',
+            title: formatLocalizedMessage(intl, '平台'),
             type: 'item',
             url: '/platform/operations',
             icon: ApartmentOutlined
           }
         : {
             id: 'switch-to-station',
-            title: '货站',
+            title: formatLocalizedMessage(intl, '货站'),
             type: 'item',
             url: '/station/dashboard',
             icon: ImportOutlined
@@ -113,7 +116,7 @@ export default function Navigation() {
       default:
         return (
           <Typography key={item.id} variant="h6" color="error" align="center">
-            Fix - Navigation Group
+            {formatLocalizedMessage(intl, 'Fix - Navigation Group')}
           </Typography>
         );
     }
