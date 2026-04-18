@@ -2227,7 +2227,8 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
 
   app.get('/api/v1/mobile/options/login', async (c) => {
     return c.json({
-      data: buildMobileUnifiedOptionsPayload('login', {
+      data: {
+        ...buildMobileUnifiedOptionsPayload('login', {
         station_options: mobileLoginStationOptions.map((item) => ({
           value: item.value,
           label: item.label,
@@ -2239,7 +2240,13 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
           label: item.label,
           disabled: false
         }))
-      })
+        }),
+        requires_formal_auth: !allowLocalMobileDemoLogin(c),
+        defaults: {
+          station: mobileLoginStationOptions[0]?.value || '',
+          role_key: mobileLoginRoleOptions[0]?.value || ''
+        }
+      }
     });
   });
 

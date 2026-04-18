@@ -7,7 +7,7 @@ const generatedAdminRoot = resolve(process.env.PUBLISH_STATIC_OUTPUT_ROOT || joi
 
 const rootFiles = ['CNAME', 'index.html', 'about.html', 'network.html', 'scenarios.html', 'sinoport-os.html', 'solutions.html'];
 const rootDirs = ['assets', 'en'];
-const generatedDirs = ['platform', 'station', 'mobile', 'admin-assets'];
+const generatedDirs = ['login', 'platform', 'station', 'mobile', 'admin-assets'];
 
 function copyEntry(entry) {
   const source = join(repoRoot, entry);

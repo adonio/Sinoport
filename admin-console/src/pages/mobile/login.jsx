@@ -22,6 +22,20 @@ function normalizeOptions(value) {
   return Array.isArray(value) ? value : [];
 }
 
+const fallbackLoginOptions = {
+  stationOptions: [
+    { value: 'mme', code: 'MME', label: 'MME 样板站' },
+    { value: 'urc', code: 'URC', label: 'URC 前置站' },
+    { value: 'mst', code: 'MST', label: 'MST 分拨站' }
+  ],
+  roleOptions: [
+    { value: 'receiver', label: '收货员' },
+    { value: 'checker', label: '复核员' },
+    { value: 'supervisor', label: '主管 / 复核岗' },
+    { value: 'document_clerk', label: '单证文员' }
+  ]
+};
+
 const defaultCredentials = isTestStationEnvironment()
   ? TEST_DEFAULT_STATION_CREDENTIALS
   : { email: '', password: '' };
@@ -75,7 +89,17 @@ export default function MobileLoginPage() {
         setOptionsError('');
         } catch {
         if (active) {
-          setOptionsError('登录选项加载失败');
+          setLoginOptions({
+            stationOptions: fallbackLoginOptions.stationOptions,
+            roleOptions: fallbackLoginOptions.roleOptions,
+            requiresFormalAuth: false
+          });
+          setForm((prev) => ({
+            ...prev,
+            station: prev.station || fallbackLoginOptions.stationOptions[0]?.value || '',
+            roleKey: prev.roleKey || fallbackLoginOptions.roleOptions[0]?.value || ''
+          }));
+          setOptionsError(isTestStationEnvironment() ? '' : '登录选项加载失败');
         }
       } finally {
         if (active) {

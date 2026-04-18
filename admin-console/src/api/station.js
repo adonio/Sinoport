@@ -1,7 +1,7 @@
 import useSWR, { mutate } from 'swr';
 import { useMemo } from 'react';
 
-import { stationAxios, stationDeleter, stationFetcher, stationPatcher, stationPoster, stationPublicPoster, stationPut, stationUpload } from 'utils/stationApi';
+import { stationAxios, stationDeleter, stationFetcher, stationPatcher, stationPoster, stationPublicFetcher, stationPublicPoster, stationPut, stationUpload } from 'utils/stationApi';
 import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 
 const endpoints = {
@@ -2874,9 +2874,38 @@ export async function mobileLogin(payload) {
   return stationPublicPoster('/api/v1/mobile/login', payload);
 }
 
+function normalizeMobileLoginOptionsPayload(payload) {
+  const data = payload?.data || payload || {};
+  const groups = data.groups || {};
+  const stationOptions = Array.isArray(groups.station_options)
+    ? groups.station_options
+    : Array.isArray(data.station_options)
+      ? data.station_options
+      : [];
+  const roleOptions = Array.isArray(groups.role_options) ? groups.role_options : Array.isArray(data.role_options) ? data.role_options : [];
+  const defaults = data.defaults || {};
+
+  return {
+    data: {
+      station_options: stationOptions,
+      role_options: roleOptions,
+      requires_formal_auth: Boolean(data.requires_formal_auth),
+      defaults: {
+        station: defaults.station || stationOptions[0]?.value || '',
+        role_key: defaults.role_key || roleOptions[0]?.value || ''
+      }
+    }
+  };
+}
+
 export async function fetchMobileLoginOptions() {
-  const response = await axios.get(`${stationApiBaseUrl}/api/v1/mobile/login`);
-  return response.data;
+  try {
+    const response = await stationPublicFetcher('/api/v1/mobile/options/login');
+    return normalizeMobileLoginOptionsPayload(response);
+  } catch {
+    const response = await stationPublicFetcher('/api/v1/mobile/login');
+    return normalizeMobileLoginOptionsPayload(response);
+  }
 }
 
 export async function loginStation(payload) {

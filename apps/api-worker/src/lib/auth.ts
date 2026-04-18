@@ -22,7 +22,15 @@ type AuthBindings = {
 };
 
 export const actorMiddleware = createMiddleware<{ Variables: ApiVariables; Bindings: AuthBindings }>(async (c, next) => {
-  if (['/api/v1/healthz', '/api/v1/mobile/login', '/api/v1/station/login', '/api/v1/station/refresh'].includes(c.req.path)) {
+  if (
+    [
+      '/api/v1/healthz',
+      '/api/v1/mobile/login',
+      '/api/v1/mobile/options/login',
+      '/api/v1/station/login',
+      '/api/v1/station/refresh'
+    ].includes(c.req.path)
+  ) {
     await next();
     return;
   }

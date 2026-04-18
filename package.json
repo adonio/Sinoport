@@ -9,6 +9,12 @@
   ],
   "scripts": {
     "dev:api": "npm run dev --workspace @sinoport/api-worker",
+    "prepare:acceptance:local": "node ./scripts/prepare-customer-acceptance-local.mjs",
+    "prepare:acceptance:local:full": "node ./scripts/prepare-customer-acceptance-local.mjs --with-frontend-smoke",
+    "prepare:acceptance:staging": "node ./scripts/prepare-customer-acceptance-local.mjs --env staging",
+    "prepare:acceptance:staging:full": "node ./scripts/prepare-customer-acceptance-local.mjs --env staging --with-frontend-smoke",
+    "prepare:acceptance:production": "node ./scripts/prepare-customer-acceptance-local.mjs --env production",
+    "prepare:acceptance:production:full": "node ./scripts/prepare-customer-acceptance-local.mjs --env production --with-frontend-smoke",
     "test:frontend:smoke": "node ./scripts/test-frontend-smoke.mjs",
     "test:frontend:i18n": "node ./scripts/test-frontend-i18n-scan.mjs",
     "dev:agent": "npm run dev --workspace @sinoport/agent-worker",

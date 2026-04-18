@@ -42,8 +42,8 @@ jobs:
       - name: Build admin console
         working-directory: admin-console
         env:
-          VITE_APP_STATION_API_URL: https://sinoport.co
-          VITE_APP_AGENT_API_URL: https://adonio-sinoport-admin.pages.dev
+          VITE_APP_STATION_API_URL: https://api.sinoport.co
+          VITE_APP_AGENT_API_URL: https://agent.sinoport.co
         run: npm run build
 
       - name: Publish admin static routes

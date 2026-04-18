@@ -9,6 +9,7 @@ const assetTarget = join(outputRoot, 'admin-assets');
 const distIndex = join(appDist, 'index.html');
 
 const routes = [
+  'login',
   'platform/operations',
   'platform/stations',
   'platform/stations/capabilities',

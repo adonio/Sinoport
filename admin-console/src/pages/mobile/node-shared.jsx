@@ -221,7 +221,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const navigate = useNavigate();
   const nodeData = useGetMobileNodeDetail(flowKey, itemId);
   const session = nodeData.session?.roleKey ? nodeData.session : readMobileSession();
-  const roleView = nodeData.roleView;
+  const roleView = nodeData.roleView || { label: '', taskRoles: [], inboundTabs: [], outboundTabs: [], flowKeys: [], actionTypes: [] };
   const language = readMobileLanguage() || session?.language;
   const [activeSection, setActiveSection] = useState(flowKey === 'flightRuntime' ? 'summary' : 'ops');
   const storage = useMobileState(getMobileFlowStorageKey(session, `${flowKey}-${itemId}`), {});
@@ -229,7 +229,10 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const { mobileTasks } = useGetMobileTasks();
   const loading = nodeData.mobileNodeDetailLoading && !nodeData.detail;
   const detail = nodeData.detail;
-  const taskCard = nodeData.taskCard || detail;
+  const taskCard = nodeData.taskCard || detail || {};
+  const summaryRows = Array.isArray(taskCard.summaryRows) ? taskCard.summaryRows : [];
+  const forecastWaybills = Array.isArray(taskCard.forecastWaybills) ? taskCard.forecastWaybills : [];
+  const recordItems = Array.isArray(taskCard.records) ? taskCard.records : [];
   const state = useMemo(() => {
     if (!detail) return null;
     return storage.state[itemId] || defaultActionState(detail);
@@ -274,16 +277,16 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
     }));
 
     opsStorage.setState((prev) =>
-      recordMobileAction(
-        prev,
-        buildMobileQueueEntry(session, {
-          label,
-          taskLabel: detail.title,
-          payloadSummary: `${detail.node} / ${detail.role}`,
-          roleLabel: roleView.label
-        })
-      )
-    );
+          recordMobileAction(
+            prev,
+            buildMobileQueueEntry(session, {
+              label,
+              taskLabel: detail.title,
+              payloadSummary: `${detail.node} / ${detail.role}`,
+              roleLabel: roleView.label || ''
+            })
+          )
+        );
   };
 
   const taskActions = (taskCard.actions || []).map((action) => ({
@@ -512,18 +515,18 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
               subtitle={localizeMobileText(language, detail.description)}
               status={state.status}
               rows={[
-                { label: localizeMobileText(language, '当前角色'), value: localizeMobileText(language, roleView.label) },
-                ...taskCard.summaryRows.map((item) => ({
+                { label: localizeMobileText(language, '当前角色'), value: localizeMobileText(language, roleView.label || '') },
+                ...summaryRows.map((item) => ({
                   label: localizeMobileText(language, item.label),
                   value: localizeMobileText(language, item.value)
                 }))
               ]}
             />
 
-            {taskCard.forecastWaybills?.length ? (
+            {forecastWaybills.length ? (
               <TaskQueueCard
                 title={localizeMobileText(language, '车载提单预报')}
-                items={taskCard.forecastWaybills.map((item) => ({
+                items={forecastWaybills.map((item) => ({
                   id: `${itemId}-${item.awb}`,
                   title: item.awb,
                   description: localizeMobileText(language, item.consignee),
@@ -553,7 +556,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
             <TaskQueueCard
               title={localizeMobileText(language, '关键检查项')}
-              items={taskCard.records.map((item, index) => ({
+              items={recordItems.map((item, index) => ({
                 id: `${itemId}-${index}`,
                 title: localizeMobileText(language, item),
                 status: index === 0 ? state.status : localizeMobileText(language, '待处理')

@@ -282,6 +282,11 @@ export const stationPublicPoster = async (url, payload) => {
   return res.data;
 };
 
+export const stationPublicFetcher = async (url, config = {}) => {
+  const res = await axios.get(`${stationApiBaseUrl}${url}`, config);
+  return res.data;
+};
+
 export const stationUpload = async (url, formData) => {
   const res = await stationAxios.post(url, formData, {
     headers: {

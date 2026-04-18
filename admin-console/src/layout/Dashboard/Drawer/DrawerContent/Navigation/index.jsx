@@ -9,6 +9,7 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 import ApartmentOutlined from '@ant-design/icons/ApartmentOutlined';
 import ImportOutlined from '@ant-design/icons/ImportOutlined';
+import MobileOutlined from '@ant-design/icons/MobileOutlined';
 
 // project imports
 import NavItem from './NavItem';
@@ -56,7 +57,14 @@ export default function Navigation() {
             type: 'item',
             url: '/station/dashboard',
             icon: ImportOutlined
-          }
+          },
+      {
+        id: 'switch-to-mobile',
+        title: formatLocalizedMessage(intl, '移动端'),
+        type: 'item',
+        url: '/mobile/select',
+        icon: MobileOutlined
+      }
     ]
   };
 
