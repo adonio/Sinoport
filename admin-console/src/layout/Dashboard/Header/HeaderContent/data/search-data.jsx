@@ -71,3 +71,5 @@ export const searchData = [
     childs: [{ id: 'prd-rules', title: '平台与货站 PRD', icon: <QuestionCircleOutlined />, path: '/platform/rules' }]
   }
 ];
+
+export default searchData;

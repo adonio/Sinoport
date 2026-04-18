@@ -1,4 +1,7 @@
+import { getAppLanguageOptions, localizeUiText, normalizeAppLanguage, translateRenderedText as translateAppRenderedText } from 'utils/app-i18n';
+
 const MOBILE_LANGUAGE_KEY = 'sinoport-mobile-language-v1';
+const APP_CONFIG_KEY = 'mantis-react-js-config';
 
 const dictionaries = {
   zh: {
@@ -11,6 +14,8 @@ const dictionaries = {
     operator_placeholder: '例如：陈志明',
     employee_id: '工号',
     employee_placeholder: '例如：MME-OPS-07',
+    email: '邮箱',
+    password: '密码',
     station: '所属站点',
     login_continue: '登录并继续',
     select_business_title: '选择业务类型',
@@ -77,6 +82,8 @@ const dictionaries = {
     operator_placeholder: 'e.g. Alex Chen',
     employee_id: 'Employee ID',
     employee_placeholder: 'e.g. MME-OPS-07',
+    email: 'Email',
+    password: 'Password',
     station: 'Station',
     login_continue: 'Sign In',
     select_business_title: 'Choose Business',
@@ -138,7 +145,10 @@ const dictionaries = {
 const renderedTextMap = [
   ['条码枪扫码后的回车会直接被识别成一次确认，并自动完成点数加 1。', 'Each scanner trigger is treated as one confirmation and automatically adds 1 count.'],
   ['使用 PDA 条码枪扫描提单后，会直接进入该票的计数器。', 'Scan an AWB with the PDA scanner to start counting that AWB immediately.'],
+  ['使用 PDA items码枪SCan AWB后，会直接Open该AWBs的计数器。', 'Scan an AWB with the PDA scanner to open that AWB counter immediately.'],
   ['使用条码枪扫描提单号后，会按件数逐件累加到当前集装器。', 'After scanning an AWB, pieces will be added one by one into the current container.'],
+  ['处理Driver / TruCk Plate登记、装车Verify、发车和交接文pieCes。', 'Handle driver / truck plate registration, loading verification, dispatch, and handover documents.'],
+  ['处理Driver / TruCk Plate登记、装车Verify、发车和交接DoCuments。', 'Handle driver / truck plate registration, loading verification, dispatch, and handover documents.'],
   ['先扫描一个提单号，再录入该提单的收货件数。', 'Scan one AWB first, then enter the received pieces for that AWB.'],
   ['扫描托盘号或提单号', 'Scan Pallet or AWB'],
   ['扫描提单号', 'Scan AWB'],
@@ -228,6 +238,7 @@ const renderedTextMap = [
   ['已点', 'Counted'],
   ['剩余', 'Remaining'],
   ['箱数：', 'Boxes: '],
+  ['boxes数：', 'Boxes: '],
   ['重量：', 'Weight: '],
   ['转运状态：', 'Transfer: '],
   ['扫描提单', 'Scan AWB'],
@@ -249,6 +260,7 @@ const renderedTextMap = [
   ['历史托盘记录', 'Pallet History'],
   ['打印标签', 'Print Label'],
   ['当前托盘', 'Current Pallet'],
+  ['托盘', 'pallet'],
   ['扫描计数', 'Scan Counting'],
   ['当前托盘明细', 'Current Pallet Details'],
   ['完成提交', 'Finish'],
@@ -278,6 +290,7 @@ const renderedTextMap = [
   ['当前集装器还没有提单。', 'No AWBs in this container yet.'],
   ['待装机集装器', 'Pending Containers'],
   ['已装机集装器', 'Loaded Containers'],
+  ['Loaded集装器', 'Loaded Containers'],
   ['记录拉货', 'Save Offload'],
   ['拉货箱数', 'Offload Boxes'],
   ['已记录拉货', 'Offload Recorded'],
@@ -311,6 +324,37 @@ const renderedTextMap = [
   ['恢复任务', 'Resume Task'],
   ['对象摘要', 'Object Summary'],
   ['现场记录', 'On-site Notes'],
+  ['SLA 落地后 12h', 'SLA within 12h after landing'],
+  ['SLA 理货Node 30 分钟初判', 'SLA initial counting judgment within 30 minutes'],
+  ['SLA Counting Complete后立即执行', 'SLA execute immediately after counting is complete'],
+  ['SLA VehiCle到场后 15 分钟内启动', 'SLA start within 15 minutes after vehicle arrival'],
+  ['FINAL MILE卡车LOADING与运输', 'Final Mile Truck Loading and Transport'],
+  ['SLA Airborne前闭环', 'SLA close before airborne'],
+  ['SLA ReCeipt后 30 分钟', 'SLA within 30 minutes after receipt'],
+  ['SLA Load to AirCraft前 45 分钟', 'SLA 45 minutes before load to aircraft'],
+  ['SLA ETD 前 30 分钟', 'SLA 30 minutes before ETD'],
+  ['Current Role Supervisor / Verify 仅可View，不可执行 CheCk Worker Task。', 'The current role Supervisor / Verify can only view and cannot execute check-worker tasks.'],
+  ['Current Role Supervisor / Verify 仅可View，不可执行 Pallet Builder Task。', 'The current role Supervisor / Verify can only view and cannot execute pallet-builder tasks.'],
+  ['Current Role Supervisor / Verify 仅可View，不可执行 Loading Coordinator Task。', 'The current role Supervisor / Verify can only view and cannot execute loading-coordinator tasks.'],
+  ['Current Role Supervisor / Verify 仅可View，不可执行 Export ReCeiver Task。', 'The current role Supervisor / Verify can only view and cannot execute export-receiver tasks.'],
+  ['AWB / boxes号SCan记录', 'AWB / box-code scan records'],
+  ['Current Role Supervisor / Verify', 'The current role Supervisor / Verify'],
+  ['新建Pallet', 'New Pallet'],
+  ['新建pallet', 'New Pallet'],
+  ['历史pallet记录', 'Pallet History'],
+  ['已Yespallet', 'existing pallets'],
+  ['Open新Page面', 'open a new page'],
+  ['继续下一轮ACtions', 'continue with the next actions'],
+  ['进港 / 移动作业终端', 'Inbound / Mobile Operations Terminal'],
+  ['INBOUND / 移动作业终端', 'Inbound / Mobile Operations Terminal'],
+  ['INBOUND / 移动OPERATIONS终端', 'Inbound / Mobile Operations Terminal'],
+  ['先浏览该Flightexisting pallets，再open a new page新建pallet。每Complete一个pallet后，会回到这里continue with the next actions。', 'Review existing pallets for the flight first, then open a new page to create another one. After each pallet is completed, return here for the next action.'],
+  ['先浏览该Flightexisting pallets，再open a new pageNew Pallet。每Complete一个pallet后，会回到这里continue with the next actions。', 'Review existing pallets for the flight first, then open a new page to create another one. After each pallet is completed, return here for the next action.'],
+  ['仅可View，不可执行', 'can only view and cannot execute'],
+  ['boxes数：3 boxes', 'Boxes: 3 boxes'],
+  ['boxes数：50 boxes', 'Boxes: 50 boxes'],
+  ['boxes数：32 boxes', 'Boxes: 32 boxes'],
+  ['Driver Pending · CN-INT-001 · 1 托盘', 'Driver Pending · CN-INT-001 · 1 pallet'],
   ['关键检查项', 'Key Checks'],
   ['返回列表', 'Back to List'],
   ['处理前置仓收货、件重体确认、异常标记和冻结放行。', 'Handle pre-warehouse receiving, piece/weight checks, issue tagging, and release freeze.'],
@@ -443,7 +487,9 @@ export function readMobileLanguage() {
   if (typeof window === 'undefined') return 'zh';
 
   try {
-    return window.localStorage.getItem(MOBILE_LANGUAGE_KEY) || 'zh';
+    const configRaw = window.localStorage.getItem(APP_CONFIG_KEY);
+    const config = configRaw ? JSON.parse(configRaw) : null;
+    return normalizeAppLanguage(config?.i18n || window.localStorage.getItem(MOBILE_LANGUAGE_KEY) || 'zh');
   } catch {
     return 'zh';
   }
@@ -451,32 +497,54 @@ export function readMobileLanguage() {
 
 export function writeMobileLanguage(language) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MOBILE_LANGUAGE_KEY, language);
+  const nextLanguage = normalizeAppLanguage(language);
+  window.localStorage.setItem(MOBILE_LANGUAGE_KEY, nextLanguage);
+
+  try {
+    const configRaw = window.localStorage.getItem(APP_CONFIG_KEY);
+    const currentConfig = configRaw ? JSON.parse(configRaw) : {};
+    window.localStorage.setItem(APP_CONFIG_KEY, JSON.stringify({ ...currentConfig, i18n: nextLanguage }));
+  } catch {
+    // ignore storage sync failures and keep compatibility key as fallback
+  }
 }
 
 export function t(language, key) {
-  return dictionaries[language]?.[key] || dictionaries.zh[key] || key;
+  const locale = normalizeAppLanguage(language);
+  return dictionaries[locale]?.[key] || dictionaries.zh[key] || key;
 }
 
 export function translateRenderedText(language, input) {
-  if (language !== 'en' || !input) return input;
+  if (!input) return input;
 
-  let output = String(input);
-  orderedRenderedReplacements.forEach(([from, to]) => {
-    output = output.split(from).join(to);
-  });
-  return output;
+  const locale = normalizeAppLanguage(language);
+  if (locale === 'en') {
+    let output = String(input);
+    orderedRenderedReplacements.forEach(([from, to]) => {
+      output = output.split(from).join(to);
+    });
+    return output;
+  }
+
+  return translateAppRenderedText(locale, input);
 }
 
 export function getMobileLanguageOptions(language) {
-  return [
-    { value: 'zh', label: language === 'en' ? 'Chinese' : '中文' },
-    { value: 'en', label: 'English' }
-  ];
+  return getAppLanguageOptions(language);
 }
 
 export function localizeMobileText(language, input) {
-  return language === 'en' ? translateRenderedText(language, input) : input;
+  if (!input) return input;
+
+  const locale = normalizeAppLanguage(language);
+  const raw = String(input);
+
+  if (locale !== 'en') {
+    return translateAppRenderedText(locale, localizeUiText(locale, raw));
+  }
+
+  const mobileFirst = translateRenderedText(locale, raw);
+  return translateRenderedText(locale, localizeUiText(locale, mobileFirst));
 }
 
 export const MOBILE_LANGUAGE_OPTIONS = getMobileLanguageOptions('zh');

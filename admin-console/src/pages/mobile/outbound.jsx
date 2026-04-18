@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
+import TablePagination from '@mui/material/TablePagination';
 import Typography from '@mui/material/Typography';
 
 import RightOutlined from '@ant-design/icons/RightOutlined';
@@ -14,14 +15,16 @@ import InboxOutlined from '@ant-design/icons/InboxOutlined';
 import MainCard from 'components/MainCard';
 import StatusChip from 'components/sinoport/StatusChip';
 import { openSnackbar } from 'api/snackbar';
-import { acceptMobileTask, completeMobileTask, startMobileTask, uploadMobileTaskEvidence, useGetMobileOutboundOverview } from 'api/station';
+import { acceptMobileTask, completeMobileTask, startMobileTask, uploadMobileTaskEvidence, useGetMobileOutboundOverview, useGetOutboundFlights } from 'api/station';
 import { readMobileSession, writeMobileSession } from 'utils/mobile/session';
-import { t } from 'utils/mobile/i18n';
+import { localizeMobileText, t } from 'utils/mobile/i18n';
+
+const PAGE_SIZE = 20;
 
 const tabDefinitions = [
   { key: 'receipt', label: (language) => t(language, 'receipt'), pathOf: (flightNo) => `/mobile/outbound/${flightNo}/receipt`, icon: InboxOutlined },
   { key: 'container', label: (language) => t(language, 'container'), pathOf: (flightNo) => `/mobile/outbound/${flightNo}/pmc`, icon: BarcodeOutlined },
-  { key: 'loading', label: (language) => (language === 'en' ? 'Aircraft' : '装机'), pathOf: (flightNo) => `/mobile/outbound/${flightNo}/loading`, icon: CarOutlined },
+  { key: 'loading', label: (language) => t(language, 'aircraft_loading'), pathOf: (flightNo) => `/mobile/outbound/${flightNo}/loading`, icon: CarOutlined },
   { key: 'overview', label: (language) => t(language, 'overview'), pathOf: (flightNo) => `/mobile/outbound/${flightNo}`, icon: RightOutlined }
 ];
 
@@ -30,13 +33,20 @@ export default function MobileOutboundPage() {
   const session = readMobileSession();
   const language = session?.language || 'zh';
   const {
-    mobileOutboundFlights,
     mobileOutboundTasks,
     mobileOutboundRoleView,
     mobileOutboundAvailableTabs,
-    mobileOutboundAvailableActions
+    mobileOutboundAvailableActions,
+    mobileOutboundLoading
   } = useGetMobileOutboundOverview();
+  const [page, setPage] = useState(0);
+  const { outboundFlights, outboundFlightPage, outboundFlightsLoading } = useGetOutboundFlights({
+    page: page + 1,
+    page_size: PAGE_SIZE
+  });
   const [activeTaskMutation, setActiveTaskMutation] = useState('');
+  const mt = (value) => localizeMobileText(language, value);
+  const roleLabel = mt(mobileOutboundRoleView.label || session?.roleLabel || session?.role || '-');
 
   const visibleTabKeys = mobileOutboundAvailableTabs.length ? mobileOutboundAvailableTabs : mobileOutboundRoleView.outboundTabs;
   const taskEntries = tabDefinitions
@@ -72,14 +82,14 @@ export default function MobileOutboundPage() {
 
       openSnackbar({
         open: true,
-        message: `任务 ${taskId} 已执行 ${action}`,
+        message: mt(`任务 ${taskId} 已执行 ${mt(actionKeyToLabel(action))}`),
         variant: 'alert',
         alert: { color: 'success' }
       });
     } catch (error) {
       openSnackbar({
         open: true,
-        message: error?.error?.message || `任务动作 ${action} 失败`,
+        message: error?.error?.message || mt(`任务动作 ${mt(actionKeyToLabel(action))} 失败`),
         variant: 'alert',
         alert: { color: 'error' }
       });
@@ -100,7 +110,7 @@ export default function MobileOutboundPage() {
             {t(language, 'outbound_flight_tip')}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            当前角色：{mobileOutboundRoleView.label || '未识别'}
+            {mt(`当前角色：${roleLabel}`)}
           </Typography>
           {mobileOutboundAvailableTabs.length ? (
             <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', pt: 0.5 }}>
@@ -114,15 +124,23 @@ export default function MobileOutboundPage() {
           {mobileOutboundAvailableActions.length ? (
             <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', pt: 0.5 }}>
               {mobileOutboundAvailableActions.map((actionKey) => (
-                <Chip key={actionKey} label={actionKey} size="small" color="secondary" variant="outlined" />
+                <Chip key={actionKey} label={mt(actionKeyToLabel(actionKey))} size="small" color="secondary" variant="outlined" />
               ))}
             </Stack>
           ) : null}
         </Stack>
       </MainCard>
 
-      {mobileOutboundFlights.length ? (
-        mobileOutboundFlights.map((flight) => {
+      {mobileOutboundLoading && outboundFlightsLoading && !outboundFlights.length ? (
+        <MainCard>
+          <Typography variant="body2" color="text.secondary">
+            {mt('正在加载出港航班...')}
+          </Typography>
+        </MainCard>
+      ) : null}
+
+      {outboundFlights.length ? (
+        outboundFlights.map((flight) => {
           const flightTasks = (flight.tasks?.length ? flight.tasks : mobileOutboundTasks.filter((task) => task.flight_no === flight.flightNo)).map((task) => task);
 
           return (
@@ -136,20 +154,20 @@ export default function MobileOutboundPage() {
                   <div>
                     <Typography variant="h5">{flight.flightNo}</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {t(language, 'etd')} {flight.etd} · {t(language, 'current_step')} {flight.stage}
+                      {mt(`${t(language, 'etd')} ${flight.etd} · ${t(language, 'current_step')} ${flight.stage}`)}
                     </Typography>
                   </div>
                   <StatusChip label={flight.status} />
                 </Stack>
 
                 <Typography variant="body2" color="text.secondary">
-                  {t(language, 'manifest')}：{flight.manifest} · {flight.cargo}
+                  {mt(`${t(language, 'manifest')}：${flight.manifest} · ${flight.cargo}`)}
                 </Typography>
 
                 {flightTasks.length ? (
                   <Stack sx={{ gap: 1 }}>
                     <Typography variant="caption" color="text.secondary">
-                      任务 {flightTasks.length}
+                      {mt('任务')} {flightTasks.length}
                     </Typography>
                     {flightTasks.map((task) => (
                       <Stack
@@ -157,7 +175,7 @@ export default function MobileOutboundPage() {
                         sx={{ gap: 0.75, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}
                       >
                         <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
-                          <Typography variant="body2">{task.task_type}</Typography>
+                          <Typography variant="body2">{mt(task.task_type)}</Typography>
                           <StatusChip label={task.task_status} />
                         </Stack>
                         <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap' }}>
@@ -169,9 +187,9 @@ export default function MobileOutboundPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
                                 runTaskAction(task.task_id, 'accept');
-                              }}
-                            >
-                              领取
+                            }}
+                          >
+                              {mt('领取')}
                             </Button>
                           ) : null}
                           {task.allowed_actions.includes('start') ? (
@@ -182,9 +200,9 @@ export default function MobileOutboundPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
                                 runTaskAction(task.task_id, 'start');
-                              }}
-                            >
-                              开始
+                            }}
+                          >
+                              {mt('开始')}
                             </Button>
                           ) : null}
                           {task.allowed_actions.includes('upload_evidence') ? (
@@ -195,9 +213,9 @@ export default function MobileOutboundPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
                                 runTaskAction(task.task_id, 'evidence');
-                              }}
-                            >
-                              证据
+                            }}
+                          >
+                              {mt('证据')}
                             </Button>
                           ) : null}
                           {task.allowed_actions.includes('complete') ? (
@@ -208,13 +226,13 @@ export default function MobileOutboundPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
                                 runTaskAction(task.task_id, 'complete');
-                              }}
-                            >
-                              完成
+                            }}
+                          >
+                              {mt('完成')}
                             </Button>
                           ) : null}
                           {task.blockers?.map((item) => (
-                            <Chip key={`${task.task_id}-${item}`} label={item} size="small" color="warning" variant="outlined" />
+                            <Chip key={`${task.task_id}-${item}`} label={mt(item)} size="small" color="warning" variant="outlined" />
                           ))}
                         </Stack>
                       </Stack>
@@ -233,7 +251,7 @@ export default function MobileOutboundPage() {
                         navigate(entry.pathOf(flight.flightNo));
                       }}
                     >
-                      {index === 0 ? `进入${entry.label}` : entry.label}
+                      {entry.label}
                     </Button>
                   ))}
                 </Stack>
@@ -244,10 +262,29 @@ export default function MobileOutboundPage() {
       ) : (
         <MainCard>
           <Typography variant="body2" color="text.secondary">
-            当前没有可见的出港航班。
+            {mt('当前没有可见的出港航班。')}
           </Typography>
         </MainCard>
       )}
+
+      <MainCard>
+        <TablePagination
+          component="div"
+          rowsPerPageOptions={[PAGE_SIZE]}
+          rowsPerPage={PAGE_SIZE}
+          count={outboundFlightPage.total || outboundFlights.length}
+          page={Math.max(0, Number(outboundFlightPage.page || 1) - 1)}
+          onPageChange={(_event, nextPage) => setPage(nextPage)}
+        />
+      </MainCard>
     </Stack>
   );
+}
+
+function actionKeyToLabel(action) {
+  if (action === 'upload_evidence' || action === 'evidence') return '证据';
+  if (action === 'accept') return '领取';
+  if (action === 'start') return '开始';
+  if (action === 'complete') return '完成';
+  return action;
 }

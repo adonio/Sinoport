@@ -1,46 +1,50 @@
-# Cloudflare Bootstrap Notes
+# Cloudflare Runtime Notes
 
-当前目录用于承接后端一期的 Cloudflare 配置说明。
-
-## Worker 入口
+当前 Cloudflare 运行入口：
 
 - `apps/api-worker/wrangler.jsonc`
 - `apps/agent-worker/wrangler.jsonc`
 
-## 当前约定
+## 环境资源
 
-- `api-worker` 承接正式业务 API
-- `agent-worker` 预留给 Agent 会话与工具入口
-- D1 与 R2 先使用本地占位配置，待实际创建资源后再替换
-- D1 migration 目录位于 `apps/api-worker/migrations`
+### staging
 
-## 需要替换的占位项
+- API Worker：`sinoport-api-worker-staging`
+- Agent Worker：`sinoport-agent-worker-staging`
+- D1：`sinoport-api-staging`
+- R2：`sinoport-files-staging`
+- 域名：
+  - `staging-api.sinoport.co`
+  - `staging-agent.sinoport.co`
 
-上线前至少替换以下配置：
+### production
 
-1. `apps/api-worker/wrangler.jsonc` 中的 `database_id`
-2. `apps/api-worker/wrangler.jsonc` 中的 `bucket_name`
-3. 两个 worker 的 `name`
-4. `vars` 中的环境标识
+- API Worker：`sinoport-api-worker-production`
+- Agent Worker：`sinoport-agent-worker-production`
+- D1：`sinoport-api-production`
+- R2：`sinoport-files-production`
+- 域名：
+  - `api.sinoport.co`
+  - `agent.sinoport.co`
 
-## 建议的资源命名
+## 运行约定
 
-- D1: `sinoport-api-dev`
-- R2: `sinoport-files-dev`
-- Queue: `document-events-dev`
-- Queue: `analytics-refresh-dev`
+1. `api-worker` 承接正式业务 API
+2. `agent-worker` 承接 Agent 会话与工具入口
+3. D1 migration 目录位于 `apps/api-worker/migrations`
+4. 本地环境允许 `local-only` 的 demo/debug auth
+5. staging / production 禁止使用本地 demo/debug auth
 
-## 当前阶段边界
+## 发布与运维
 
-当前仅完成骨架与目录边界：
+发布、回滚、D1/R2 备份恢复口径已经单独冻结在：
 
-- 还未创建真实 D1 schema
-- 还未接入真实 R2 上传
-- 还未接入 Cloudflare Agents SDK
-- 还未接入 Workflows / Queues 实现
+- [Sinoport_OS_发布与运维基线_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_发布与运维基线_v1.0.md)
 
-更新：
+若只是本地开发：
 
-- 已提供 `apps/api-worker/migrations/0001_initial_schema.sql`
-- 已提供 `apps/api-worker/migrations/0002_seed_mme_reference.sql`
-- 可通过 `npm run db:migrate:local --workspace @sinoport/api-worker` 应用到本地 D1
+```bash
+npm run db:migrate:local --workspace @sinoport/api-worker
+npm run dev:api
+npm run dev:agent
+```

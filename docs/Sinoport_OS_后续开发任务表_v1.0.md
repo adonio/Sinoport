@@ -99,7 +99,7 @@
 | --- | --- | --- | --- |
 | G-01 | 生产 secret 收口 | 未完成 | `AUTH_TOKEN_SECRET` 仍为占位值，需要切到 Cloudflare secret |
 | G-02 | demo 本地账号治理 | 未完成 | 当前仍保留本地 demo 账号与 bootstrap 逻辑，需按生产策略收紧 |
-| G-03 | 构建产物治理 | 未完成 | `admin-assets/` 和静态路由产物会污染主工作区，需要明确是否入库 |
+| G-03 | 构建产物治理 | 已完成 | 默认发布链已切到 `.generated/admin-static -> site-dist`，后续仅剩历史遗留产物的一次性清理 |
 | G-04 | PR 远端 checks 最终转绿确认 | 进行中 | 最新修复已推送，需要等 GitHub Actions 刷新 |
 
 ## 7. 推荐执行顺序
@@ -108,8 +108,7 @@
 
 1. `G-01`
 2. `G-02`
-3. `G-03`
-4. `G-04`
+3. `G-04`
 
 ## 8. 负责人建议
 
@@ -167,8 +166,7 @@
 
 1. 把 `AUTH_TOKEN_SECRET` 改成真正的 Cloudflare secret
 2. 收紧 demo 登录与本地 fallback
-3. 明确 `admin-assets / 静态路由产物` 是否继续入库
-4. 再启动真实业务数据接入
+3. 再启动真实业务数据接入
 
 一句话总结：
 

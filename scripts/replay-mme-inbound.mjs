@@ -149,7 +149,7 @@ async function main() {
       headers: {
         Authorization: `Bearer ${stationToken}`,
         'Content-Type': 'application/json',
-        'X-Request-Id': inboundBundlePayload.request_id
+        'Idempotency-Key': inboundBundlePayload.request_id
       },
       body: JSON.stringify(inboundBundlePayload)
     });
@@ -159,6 +159,20 @@ async function main() {
     assertPositiveCount(inboundBundle.json?.data?.awbs, 'awbs');
     assertPositiveCount(inboundBundle.json?.data?.tasks, 'tasks');
     assertPositiveCount(inboundBundle.json?.data?.audit_events, 'audit_events');
+    assert(inboundBundle.json?.data?.idempotency_status === 'executed', 'first inbound import should execute');
+
+    const replayInboundBundle = await jsonRequest('/api/v1/station/imports/inbound-bundle', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': inboundBundlePayload.request_id
+      },
+      body: JSON.stringify(inboundBundlePayload)
+    });
+    assert(replayInboundBundle.ok, 'replayed station/imports/inbound-bundle failed');
+    assert(replayInboundBundle.json?.data?.idempotency_status === 'replayed', 'replayed inbound import should be idempotent');
+    assert(replayInboundBundle.json?.data?.request_id === inboundBundlePayload.request_id, 'replayed inbound import request_id mismatch');
 
     const importedFlightId = inboundBundlePayload.flight.flight_id;
     const importedAwbOneId = inboundBundlePayload.awbs[0].awb_id;
@@ -221,7 +235,7 @@ async function main() {
 
     console.log('\nMME inbound replay summary');
     console.log(`- station/login: ${stationLogin.status}`);
-    console.log(`- inbound bundle import: ${inboundBundle.status}`);
+    console.log(`- inbound bundle import/replay: ${inboundBundle.status}/${replayInboundBundle.status}`);
     console.log(`- flight/awb/shipment/task/audit reads: ${importedFlight.status}/${importedAwbOne.status}/${importedShipmentOne.status}/${importedTasks.status}/${importedAudit.status}`);
   } finally {
     await stopWorker(worker);

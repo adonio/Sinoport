@@ -14,3 +14,5 @@ export const workspaceData = [
     path: '/station/dashboard'
   }
 ];
+
+export default workspaceData;

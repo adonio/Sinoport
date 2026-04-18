@@ -13,11 +13,13 @@ import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import { useIntl } from 'react-intl';
 
 // project imports
 import { PopupTransition } from 'components/@extended/Transitions';
 import MainCard from 'components/MainCard';
 import { searchData } from './data/search-data';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
 // assets
 import SearchOutlined from '@ant-design/icons/SearchOutlined';
@@ -25,6 +27,8 @@ import SearchOutlined from '@ant-design/icons/SearchOutlined';
 // ==============================|| HEADER CONTENT - SEARCH ||============================== //
 
 export default function Search() {
+  const intl = useIntl();
+  const locale = intl.locale;
   const theme = useTheme();
   const downSM = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
@@ -60,7 +64,7 @@ export default function Search() {
 
       const result = searchData
         .map((group) => {
-          const matchedChilds = group.childs.filter((child) => child.title.toLowerCase().includes(lower));
+          const matchedChilds = group.childs.filter((child) => localizeUiText(locale, child.title).toLowerCase().includes(lower));
 
           if (matchedChilds.length > 0) {
             return { ...group, childs: matchedChilds };
@@ -160,7 +164,7 @@ export default function Search() {
             id="header-search"
             aria-describedby="header-search-text"
             slotProps={{ input: { 'aria-label': 'weight' } }}
-            placeholder="Search..."
+            placeholder={formatLocalizedMessage(intl, 'Search...')}
             disableUnderline
             autoFocus
             fullWidth
@@ -184,7 +188,7 @@ export default function Search() {
             <Stack sx={{ gap: 2 }}>
               {filteredData.map((item, index) => (
                 <Stack key={index} sx={{ gap: 1 }}>
-                  <Typography sx={{ color: 'text.secondary' }}>{item.title}</Typography>
+                  <Typography sx={{ color: 'text.secondary' }}>{localizeUiText(locale, item.title)}</Typography>
                   <Grid container spacing={{ xs: 1.5, sm: 3 }}>
                     {item.childs.map((childItem, index) => (
                       <Grid key={index} size={{ xs: 6, sm: 4, md: 3 }}>
@@ -207,7 +211,7 @@ export default function Search() {
                             }}
                           >
                             <Box sx={{ fontSize: { xs: 24, sm: 30 }, color: 'primary.main' }}>{childItem.icon}</Box>
-                            {childItem.title}
+                            {localizeUiText(locale, childItem.title)}
                           </Stack>
                         </MainCard>
                       </Grid>
@@ -218,9 +222,9 @@ export default function Search() {
             </Stack>
           ) : (
             <Stack sx={{ gap: 1, textAlign: 'center', py: 6 }}>
-              <Typography variant="h6">No Results Found</Typography>
+              <Typography variant="h6">{formatLocalizedMessage(intl, 'No Results Found')}</Typography>
               <Typography variant="body2" color="text.secondary">
-                Try searching with different keywords or check your spelling.
+                {formatLocalizedMessage(intl, 'Try searching with different keywords or check your spelling.')}
               </Typography>
             </Stack>
           )}

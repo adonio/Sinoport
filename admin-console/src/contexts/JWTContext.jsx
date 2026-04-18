@@ -120,7 +120,7 @@ export const JWTProvider = ({ children }) => {
   };
 
   const register = async (_email, password) => {
-    await login('supervisor@sinoport.local', password || 'Sinoport123!');
+    throw new Error('Self registration is not available');
   };
 
   const logout = async () => {

@@ -59,6 +59,35 @@ const STABLE_STATION_RESOURCE_VEHICLE_FALLBACK_KEYS = [
   'sinoport.stationResourceVehicles'
 ];
 
+// `demo_datasets` is frozen as a compatibility fixture layer only.
+// Completed CRUD pages and accepted business objects must read formal tables
+// or formal aggregate DTOs instead of treating these payloads as source of truth.
+export const DEMO_DATASET_BOUNDARY = Object.freeze({
+  role: 'fixture/replay/sample-import-only',
+  primaryTruthForbiddenForAcceptedCrud: true,
+  retainedGroups: Object.freeze({
+    platformStations: Object.freeze([...STABLE_PLATFORM_STATIONS_FALLBACK_KEYS]),
+    platformNetwork: Object.freeze([...STABLE_PLATFORM_NETWORK_FALLBACK_KEYS]),
+    platformRules: Object.freeze([...STABLE_PLATFORM_RULES_FALLBACK_KEYS]),
+    platformReports: Object.freeze([...STABLE_PLATFORM_REPORTS_FALLBACK_KEYS]),
+    stationResources: Object.freeze([...STABLE_STATION_RESOURCES_FALLBACK_KEYS]),
+    stationReports: Object.freeze([...STABLE_STATION_REPORTS_FALLBACK_KEYS]),
+    stationResourceVehiclesPrefix: STATION_RESOURCE_VEHICLE_DATASET_PREFIX
+  })
+});
+
+export const DEMO_DATASET_FROZEN_KEYS = Object.freeze([
+  ...new Set([
+    ...STABLE_PLATFORM_STATIONS_FALLBACK_KEYS,
+    ...STABLE_PLATFORM_NETWORK_FALLBACK_KEYS,
+    ...STABLE_PLATFORM_RULES_FALLBACK_KEYS,
+    ...STABLE_PLATFORM_REPORTS_FALLBACK_KEYS,
+    ...STABLE_STATION_RESOURCES_FALLBACK_KEYS,
+    ...STABLE_STATION_REPORTS_FALLBACK_KEYS,
+    ...STABLE_STATION_RESOURCE_VEHICLE_FALLBACK_KEYS
+  ])
+]);
+
 type DemoDatasetRecord = {
   dataset_key: string;
   source_module: string;
@@ -67,11 +96,6 @@ type DemoDatasetRecord = {
   row_count: number;
   payload: unknown;
   updated_at: string;
-};
-
-type DemoDatasetPayloadRow = {
-  dataset_key: string;
-  payload_json: string;
 };
 
 export function buildDemoDatasetKey(sourceModule: string, exportName: string) {
@@ -118,31 +142,6 @@ function toTextArray(value: unknown) {
   return [];
 }
 
-function mapDemoDatasetPayloadRows(rows: DemoDatasetPayloadRow[]) {
-  return rows.reduce<Record<string, unknown>>((acc, row) => {
-    acc[row.dataset_key] = parseDemoDatasetPayloadJson(row.payload_json);
-    return acc;
-  }, {});
-}
-
-async function loadDemoDatasetPayloadsFromView(db: any, viewName: string) {
-  if (!db) {
-    return {};
-  }
-
-  const rows = await db
-    .prepare(
-      `
-        SELECT dataset_key, payload_json
-        FROM ${viewName}
-        ORDER BY dataset_key ASC
-      `
-    )
-    .all();
-
-  return mapDemoDatasetPayloadRows((rows?.results || []) as DemoDatasetPayloadRow[]);
-}
-
 async function loadDemoDatasetRecordFromView(db: any, viewName: string, datasetKey: string): Promise<DemoDatasetRecord | null> {
   if (!db) {
     return null;
@@ -173,18 +172,6 @@ async function loadDemoDatasetRecordFromView(db: any, viewName: string, datasetK
     payload: parseDemoDatasetPayloadJson(row.payload_json),
     updated_at: row.updated_at
   };
-}
-
-async function loadStableDemoDatasetPayloads(db: any, viewName: string, fallbackKeys: string[]) {
-  if (!db) {
-    return loadDemoDatasetPayloads(null, fallbackKeys);
-  }
-
-  try {
-    return await loadDemoDatasetPayloadsFromView(db, viewName);
-  } catch {
-    return loadDemoDatasetPayloads(db, fallbackKeys);
-  }
 }
 
 export function normalizeStationResourceVehiclePlan(item: any) {
@@ -258,47 +245,6 @@ export function buildDefaultStationResourceVehicles(stationId: string) {
   ];
 }
 
-export async function loadDemoDatasetPayloads(db: any, datasetKeys: string[]): Promise<Record<string, unknown>> {
-  const uniqueKeys = Array.from(new Set(datasetKeys.filter(Boolean)));
-
-  if (!uniqueKeys.length) {
-    return {};
-  }
-
-  if (!db) {
-    return uniqueKeys.reduce<Record<string, unknown>>((acc, key) => {
-      acc[key] = null;
-      return acc;
-    }, {});
-  }
-
-  const placeholders = uniqueKeys.map(() => '?').join(', ');
-  const rows = await db
-    .prepare(
-      `
-        SELECT dataset_key, payload_json
-        FROM ${DEMO_DATASETS_TABLE}
-        WHERE dataset_key IN (${placeholders})
-      `
-    )
-    .bind(...uniqueKeys)
-    .all();
-
-  const payloads: Record<string, unknown> = {};
-
-  for (const row of (rows?.results || []) as { dataset_key: string; payload_json: string }[]) {
-    payloads[row.dataset_key] = parseDemoDatasetPayloadJson(row.payload_json);
-  }
-
-  for (const key of uniqueKeys) {
-    if (!Object.prototype.hasOwnProperty.call(payloads, key)) {
-      payloads[key] = null;
-    }
-  }
-
-  return payloads;
-}
-
 export async function loadDemoDatasetCatalog(db: any) {
   if (!db) {
     return [];
@@ -354,30 +300,6 @@ export async function loadDemoDatasetRecord(db: any, datasetKey: string): Promis
     payload: parseDemoDatasetPayloadJson(row.payload_json),
     updated_at: row.updated_at
   };
-}
-
-export async function loadStablePlatformStationsPayloads(db: any) {
-  return loadStableDemoDatasetPayloads(db, STABLE_PLATFORM_STATIONS_VIEW, STABLE_PLATFORM_STATIONS_FALLBACK_KEYS);
-}
-
-export async function loadStablePlatformNetworkPayloads(db: any) {
-  return loadStableDemoDatasetPayloads(db, STABLE_PLATFORM_NETWORK_VIEW, STABLE_PLATFORM_NETWORK_FALLBACK_KEYS);
-}
-
-export async function loadStablePlatformRulesPayloads(db: any) {
-  return loadStableDemoDatasetPayloads(db, STABLE_PLATFORM_RULES_VIEW, STABLE_PLATFORM_RULES_FALLBACK_KEYS);
-}
-
-export async function loadStablePlatformReportsPayloads(db: any) {
-  return loadStableDemoDatasetPayloads(db, STABLE_PLATFORM_REPORTS_VIEW, STABLE_PLATFORM_REPORTS_FALLBACK_KEYS);
-}
-
-export async function loadStableStationResourcesPayloads(db: any) {
-  return loadStableDemoDatasetPayloads(db, STABLE_STATION_RESOURCES_VIEW, STABLE_STATION_RESOURCES_FALLBACK_KEYS);
-}
-
-export async function loadStableStationReportsPayloads(db: any) {
-  return loadStableDemoDatasetPayloads(db, STABLE_STATION_REPORTS_VIEW, STABLE_STATION_REPORTS_FALLBACK_KEYS);
 }
 
 export async function upsertDemoDataset(

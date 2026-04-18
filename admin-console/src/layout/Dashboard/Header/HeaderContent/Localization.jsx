@@ -18,6 +18,7 @@ import IconButton from 'components/@extended/IconButton';
 import Transitions from 'components/@extended/Transitions';
 
 import useConfig from 'hooks/useConfig';
+import { getAppLanguageOptions, normalizeAppLanguage } from 'utils/app-i18n';
 
 // assets
 import TranslationOutlined from '@ant-design/icons/TranslationOutlined';
@@ -28,6 +29,8 @@ export default function Localization() {
   const downMD = useMediaQuery((theme) => theme.breakpoints.down('md'));
 
   const { state, setField } = useConfig();
+  const language = normalizeAppLanguage(state.i18n);
+  const languageOptions = getAppLanguageOptions(language);
 
   const anchorRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -91,54 +94,17 @@ export default function Localization() {
                     borderRadius: 0.5
                   }}
                 >
-                  <ListItemButton selected={state.i18n === 'en'} onClick={() => handleListItemClick('en')}>
-                    <ListItemText
-                      primary={
-                        <Grid container>
-                          <Typography color="text.primary">English</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: '8px' }}>
-                            (UK)
-                          </Typography>
-                        </Grid>
-                      }
-                    />
-                  </ListItemButton>
-                  <ListItemButton selected={state.i18n === 'fr'} onClick={() => handleListItemClick('fr')}>
-                    <ListItemText
-                      primary={
-                        <Grid container>
-                          <Typography color="text.primary">français</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: '8px' }}>
-                            (French)
-                          </Typography>
-                        </Grid>
-                      }
-                    />
-                  </ListItemButton>
-                  <ListItemButton selected={state.i18n === 'ro'} onClick={() => handleListItemClick('ro')}>
-                    <ListItemText
-                      primary={
-                        <Grid container>
-                          <Typography color="text.primary">Română</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: '8px' }}>
-                            (Romanian)
-                          </Typography>
-                        </Grid>
-                      }
-                    />
-                  </ListItemButton>
-                  <ListItemButton selected={state.i18n === 'zh'} onClick={() => handleListItemClick('zh')}>
-                    <ListItemText
-                      primary={
-                        <Grid container>
-                          <Typography color="text.primary">中国人</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: '8px' }}>
-                            (Chinese)
-                          </Typography>
-                        </Grid>
-                      }
-                    />
-                  </ListItemButton>
+                  {languageOptions.map((item) => (
+                    <ListItemButton key={item.value} selected={language === item.value} onClick={() => handleListItemClick(item.value)}>
+                      <ListItemText
+                        primary={
+                          <Grid container>
+                            <Typography color="text.primary">{item.label}</Typography>
+                          </Grid>
+                        }
+                      />
+                    </ListItemButton>
+                  ))}
                 </List>
               </ClickAwayListener>
             </Paper>

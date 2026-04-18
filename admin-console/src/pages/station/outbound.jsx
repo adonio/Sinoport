@@ -7,6 +7,7 @@ import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
+import { useIntl } from 'react-intl';
 import { Link as RouterLink } from 'react-router-dom';
 
 import BlockingReasonAlert from 'components/sinoport/BlockingReasonAlert';
@@ -17,9 +18,13 @@ import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 import { useGetStationOutboundOverview } from 'api/station';
 
 export default function StationOutboundPage() {
+  const intl = useIntl();
+  const m = (value) => formatLocalizedMessage(intl, value);
+  const locale = intl.locale;
   const {
     outboundFlights,
     ffmForecastRows,
@@ -37,20 +42,20 @@ export default function StationOutboundPage() {
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
-          eyebrow="Outbound Ops"
-          title="出港管理"
-          description="出港后台按 PRD 拆成预报、接收、主单、装载、飞走、UWS 和 Manifest 板块，并补齐文件放行和任务阻断表达。"
-          chips={['FFM', 'Receipt', 'MAWB', 'Loading', 'Airborne', 'UWS', 'Manifest', 'Gate Control']}
+          eyebrow={m('出港作业')}
+          title={m('出港管理')}
+          description={m('出港后台按 PRD 拆成预报、接收、主单、装载、飞走、UWS 和 Manifest 板块，并补齐文件放行和任务阻断表达。')}
+          chips={[m('FFM'), m('收货'), m('主单'), m('装载'), m('已飞走'), m('UWS'), m('Manifest'), m('门槛控制')]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component={RouterLink} to="/station/outbound/flights" variant="outlined">
-                航班管理
+                {m('航班管理')}
               </Button>
               <Button component={RouterLink} to="/station/outbound/waybills" variant="outlined">
-                提单管理
+                {m('提单管理')}
               </Button>
               <Button component={RouterLink} to="/station/documents" variant="outlined">
-                单证与指令中心
+                {m('单证与指令中心')}
               </Button>
             </Stack>
           }
@@ -58,26 +63,50 @@ export default function StationOutboundPage() {
       </Grid>
 
       {[
-        { title: '待飞走航班', value: `${outboundFlights.length}`, helper: '出港排班与装载协同中', chip: 'Flights', color: 'primary' },
-        { title: 'Manifest 已导入', value: manifestSummary.version, helper: manifestSummary.exchange, chip: 'Docs', color: 'secondary' },
-        { title: '出港货物数量', value: manifestSummary.outboundCount, helper: '来自 UWS 与 Manifest 汇总', chip: 'Outbound', color: 'success' },
-        { title: '目的港到货数量', value: manifestSummary.destinationCount, helper: '等待目的港回传用于对账', chip: 'Arrival', color: 'warning' }
+        {
+          title: m('待飞走航班'),
+          value: `${outboundFlights.length}`,
+          helper: m('出港排班与装载协同中'),
+          chip: m('航班'),
+          color: 'primary'
+        },
+        {
+          title: m('Manifest 已导入'),
+          value: manifestSummary.version,
+          helper: manifestSummary.exchange,
+          chip: m('单证'),
+          color: 'secondary'
+        },
+        {
+          title: m('出港货物数量'),
+          value: manifestSummary.outboundCount,
+          helper: m('来自 UWS 与 Manifest 汇总'),
+          chip: m('出港'),
+          color: 'success'
+        },
+        {
+          title: m('目的港到货数量'),
+          value: manifestSummary.destinationCount,
+          helper: m('等待目的港回传用于对账'),
+          chip: m('到货'),
+          color: 'warning'
+        }
       ].map((item) => (
         <Grid key={item.title} size={{ xs: 12, sm: 6, lg: 3 }}>
           <MetricCard {...item} />
         </Grid>
-        ))}
+      ))}
 
       <Grid size={{ xs: 12, lg: 7 }}>
-        <MainCard title="出港航班总览">
+        <MainCard title={m('出港航班总览')}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>航班</TableCell>
-                <TableCell>ETD</TableCell>
-                <TableCell>阶段</TableCell>
-                <TableCell>Manifest</TableCell>
-                <TableCell>货量</TableCell>
+                <TableCell>{m('航班')}</TableCell>
+                <TableCell>{m('ETD')}</TableCell>
+                <TableCell>{m('阶段')}</TableCell>
+                <TableCell>{m('Manifest')}</TableCell>
+                <TableCell>{m('货量')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -87,14 +116,14 @@ export default function StationOutboundPage() {
                   <TableCell>{item.etd}</TableCell>
                   <TableCell>
                     <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
-                      <StatusChip label={item.status} />
+                      <StatusChip label={localizeUiText(locale, item.status)} />
                       <Typography variant="caption" color="text.secondary">
-                        {item.stage}
+                        {localizeUiText(locale, item.stage)}
                       </Typography>
                     </Stack>
                   </TableCell>
-                  <TableCell>{item.manifest}</TableCell>
-                  <TableCell>{item.cargo}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.manifest)}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.cargo)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -103,33 +132,33 @@ export default function StationOutboundPage() {
       </Grid>
 
       <Grid size={{ xs: 12, lg: 5 }}>
-        <MainCard title="出港状态链">
+        <MainCard title={m('出港状态链')}>
           <LifecycleStepList steps={outboundLifecycleRows} />
         </MainCard>
       </Grid>
 
       <Grid size={12}>
-        <BlockingReasonAlert title="当前出港阻断" reasons={stationBlockerQueue.map((item) => item.title)} />
+        <BlockingReasonAlert title={m('当前出港阻断')} reasons={stationBlockerQueue.map((item) => item.title)} />
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="1. 货物预报 FFM">
+        <MainCard title={`1. ${m('货物预报 FFM')}`}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>AWB</TableCell>
-                <TableCell>目的站</TableCell>
-                <TableCell>件数</TableCell>
-                <TableCell>重量</TableCell>
-                <TableCell>货描</TableCell>
-                <TableCell>ULD</TableCell>
+                <TableCell>{m('提单')}</TableCell>
+                <TableCell>{m('目的站')}</TableCell>
+                <TableCell>{m('件数')}</TableCell>
+                <TableCell>{m('重量')}</TableCell>
+                <TableCell>{m('货描')}</TableCell>
+                <TableCell>{m('ULD')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {ffmForecastRows.map((item) => (
                 <TableRow key={item.awb} hover>
                   <TableCell>{item.awb}</TableCell>
-                  <TableCell>{item.destination}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.destination)}</TableCell>
                   <TableCell>{item.pieces}</TableCell>
                   <TableCell>{item.weight}</TableCell>
                   <TableCell>{item.goods}</TableCell>
@@ -142,15 +171,15 @@ export default function StationOutboundPage() {
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="2. 货物接收">
+        <MainCard title={`2. ${m('货物接收')}`}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>AWB</TableCell>
-                <TableCell>预报</TableCell>
-                <TableCell>实收</TableCell>
-                <TableCell>结果</TableCell>
-                <TableCell>差异</TableCell>
+                <TableCell>{m('提单')}</TableCell>
+                <TableCell>{m('预报')}</TableCell>
+                <TableCell>{m('实收')}</TableCell>
+                <TableCell>{m('结果')}</TableCell>
+                <TableCell>{m('差异')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -160,9 +189,9 @@ export default function StationOutboundPage() {
                   <TableCell>{item.planned}</TableCell>
                   <TableCell>{item.actual}</TableCell>
                   <TableCell>
-                    <StatusChip label={item.result} />
+                    <StatusChip label={localizeUiText(locale, item.result)} />
                   </TableCell>
-                  <TableCell>{item.issue}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.issue)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -171,16 +200,16 @@ export default function StationOutboundPage() {
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="3. 货物主单">
+        <MainCard title={`3. ${m('货物主单')}`}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>AWB</TableCell>
-                <TableCell>发货人</TableCell>
-                <TableCell>收货人</TableCell>
-                <TableCell>航段</TableCell>
-                <TableCell>件数</TableCell>
-                <TableCell>重量</TableCell>
+                <TableCell>{m('提单')}</TableCell>
+                <TableCell>{m('发货人')}</TableCell>
+                <TableCell>{m('收货人')}</TableCell>
+                <TableCell>{m('航段')}</TableCell>
+                <TableCell>{m('件数')}</TableCell>
+                <TableCell>{m('重量')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -200,16 +229,16 @@ export default function StationOutboundPage() {
       </Grid>
 
       <Grid size={{ xs: 12, xl: 6 }}>
-        <MainCard title="4-6. 装载 / 飞走 / 装载信息 UWS">
+        <MainCard title={`4-6. ${m('装载 / 飞走 / 装载信息 UWS')}`}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>AWB</TableCell>
-                <TableCell>ULD</TableCell>
-                <TableCell>PCS</TableCell>
-                <TableCell>GW</TableCell>
-                <TableCell>POD</TableCell>
-                <TableCell>Destination</TableCell>
+                <TableCell>{m('提单')}</TableCell>
+                <TableCell>{m('ULD')}</TableCell>
+                <TableCell>{m('件数')}</TableCell>
+                <TableCell>{m('毛重')}</TableCell>
+                <TableCell>{m('POD')}</TableCell>
+                <TableCell>{m('目的站')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -219,8 +248,8 @@ export default function StationOutboundPage() {
                   <TableCell>{item.uld}</TableCell>
                   <TableCell>{item.pcs}</TableCell>
                   <TableCell>{item.weight}</TableCell>
-                  <TableCell>{item.pod}</TableCell>
-                  <TableCell>{item.destination}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.pod)}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.destination)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -229,21 +258,21 @@ export default function StationOutboundPage() {
       </Grid>
 
       <Grid size={12}>
-        <DocumentStatusCard title="出港文件放行" items={outboundDocumentGates} />
+        <DocumentStatusCard title={m('出港文件放行')} items={outboundDocumentGates} />
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="7. Manifest">
+        <MainCard title={`7. ${m('Manifest')}`}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>航班</TableCell>
-                <TableCell>ULD / PMC</TableCell>
-                <TableCell>AWB</TableCell>
-                <TableCell>件数</TableCell>
-                <TableCell>毛重</TableCell>
-                <TableCell>路由</TableCell>
-                <TableCell>货类</TableCell>
+                <TableCell>{m('航班')}</TableCell>
+                <TableCell>{m('ULD / PMC')}</TableCell>
+                <TableCell>{m('提单')}</TableCell>
+                <TableCell>{m('件数')}</TableCell>
+                <TableCell>{m('毛重')}</TableCell>
+                <TableCell>{m('路由')}</TableCell>
+                <TableCell>{m('货类')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -265,19 +294,19 @@ export default function StationOutboundPage() {
 
       <Grid size={12}>
         <TaskQueueCard
-          title="出港任务提示"
+          title={m('出港任务提示')}
           items={[
             {
               id: 'OUT-001',
-              title: 'SE913 Manifest 最终版待冻结',
-              description: 'Manifest 仍为待生成状态，不能进入飞走归档。',
-              status: '待处理'
+              title: m('SE913 Manifest 最终版待冻结'),
+              description: m('Manifest 仍为待生成状态，不能进入飞走归档。'),
+              status: m('待处理')
             },
             {
               id: 'OUT-002',
-              title: '装机复核待完成',
-              description: '缺少 Loaded 照片与独立复核签名。',
-              status: '警戒'
+              title: m('装机复核待完成'),
+              description: m('缺少 Loaded 照片与独立复核签名。'),
+              status: m('警戒')
             }
           ]}
         />

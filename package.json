@@ -10,6 +10,7 @@
   "scripts": {
     "dev:api": "npm run dev --workspace @sinoport/api-worker",
     "test:frontend:smoke": "node ./scripts/test-frontend-smoke.mjs",
+    "test:frontend:i18n": "node ./scripts/test-frontend-i18n-scan.mjs",
     "dev:agent": "npm run dev --workspace @sinoport/agent-worker",
     "check:no-demo-imports": "node ./scripts/check-no-demo-imports.mjs",
     "seed:demo:local": "node ./admin-console/scripts/import-demo-datasets.mjs --local",
@@ -17,7 +18,13 @@
     "seed:demo:production": "node ./admin-console/scripts/import-demo-datasets.mjs --remote --env production",
     "test:agent:smoke": "node ./scripts/test-agent-smoke.mjs",
     "test:integration:api": "node ./scripts/test-api-integration.mjs",
+    "test:validate:m10": "node ./scripts/validate-m10-copilot.mjs",
+    "test:validate:m9": "node ./scripts/validate-m9-station-governance.mjs",
+    "test:evaluate:data-quality": "node ./scripts/evaluate-mme-data-quality.mjs",
+    "test:evaluate:m10": "node ./scripts/evaluate-m10-copilot-value.mjs",
+    "test:replay:inbound": "node ./scripts/replay-mme-inbound.mjs",
     "test:smoke:api": "node ./scripts/smoke-api.mjs",
+    "test:validate:inbound": "node ./scripts/validate-mme-inbound-errors.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {

@@ -27,12 +27,17 @@ import AnimateButton from 'components/@extended/AnimateButton';
 import useAuth from 'hooks/useAuth';
 
 import { fetcher } from 'utils/axios';
+import { isTestStationEnvironment, TEST_DEFAULT_STATION_CREDENTIALS } from 'utils/stationApi';
 
 // assets
 import EyeOutlined from '@ant-design/icons/EyeOutlined';
 import EyeInvisibleOutlined from '@ant-design/icons/EyeInvisibleOutlined';
 
 // ============================|| JWT - LOGIN ||============================ //
+
+const defaultCredentials = isTestStationEnvironment()
+  ? TEST_DEFAULT_STATION_CREDENTIALS
+  : { email: '', password: '' };
 
 export default function AuthLogin({ isDemo = false }) {
   const [checked, setChecked] = React.useState(false);
@@ -55,8 +60,8 @@ export default function AuthLogin({ isDemo = false }) {
     <>
       <Formik
         initialValues={{
-          email: 'supervisor@sinoport.local',
-          password: 'Sinoport123!',
+          email: defaultCredentials.email,
+          password: defaultCredentials.password,
           submit: null
         }}
         validationSchema={Yup.object().shape({

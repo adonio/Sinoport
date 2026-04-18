@@ -1,10 +1,15 @@
 import { Navigate, useParams } from 'react-router-dom';
 
-import { getInboundFlight } from 'pages/mobile/inbound-shared';
+import { useGetMobileInboundDetail } from 'api/station';
 
 export default function MobileInboundLoadingNewPage() {
   const { flightNo } = useParams();
-  const flight = getInboundFlight(flightNo);
+  const { mobileInboundFlightDetail, mobileInboundFlightDetailLoading } = useGetMobileInboundDetail(flightNo);
+  const flight = mobileInboundFlightDetail?.flight || null;
+
+  if (mobileInboundFlightDetailLoading) {
+    return null;
+  }
 
   if (!flight) {
     return <Navigate to="/mobile/inbound" replace />;

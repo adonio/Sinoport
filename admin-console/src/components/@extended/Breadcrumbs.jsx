@@ -60,39 +60,56 @@ export default function Breadcrumbs({
   }
 
   useEffect(() => {
-    navigation?.items?.map((menu) => {
-      if (menu.type && menu.type === 'group') {
-        if (menu?.url && menu.url === customLocation) {
-          setMain(menu);
-          setItem(menu);
-        } else {
-          getCollapse(menu);
-        }
-      }
-      return false;
-    });
-  });
+    let nextMain = null;
+    let nextItem = null;
 
-  // set active item state
-  const getCollapse = (menu) => {
-    if (!custom && menu.children) {
-      menu.children.filter((collapse) => {
-        if (collapse.type && collapse.type === 'collapse') {
-          getCollapse(collapse);
-          if (collapse.url === customLocation) {
-            setMain(collapse);
-            setItem(collapse);
-          }
-        } else if (collapse.type && collapse.type === 'item') {
-          if (customLocation === collapse.url) {
-            setMain(menu);
-            setItem(collapse);
-          }
+    const walkMenu = (menu, parent = null) => {
+      if (!menu) return;
+
+      if (menu.type === 'group') {
+        if (menu.url === customLocation) {
+          nextMain = menu;
+          nextItem = menu;
+          return;
         }
-        return false;
-      });
-    }
-  };
+        if (menu.children) {
+          menu.children.forEach((child) => walkMenu(child, menu));
+        }
+        return;
+      }
+
+      if (custom || menu.type !== 'collapse') {
+        return;
+      }
+
+      if (menu.children) {
+        menu.children.forEach((child) => {
+          if (child.type === 'collapse' && child.url === customLocation) {
+            nextMain = menu;
+            nextItem = child;
+            return;
+          }
+
+          if (child.type === 'item') {
+            if (child.url === customLocation) {
+              nextMain = parent;
+              nextItem = child;
+            }
+            return;
+          }
+
+          if (child.type === 'collapse') {
+            walkMenu(child, menu);
+          }
+        });
+      }
+    };
+
+    (navigation?.items || []).forEach((menu) => walkMenu(menu));
+
+    setMain(nextMain);
+    setItem(nextItem);
+  }, [customLocation, custom, navigation?.items]);
 
   // item separator
   const SeparatorIcon = separator;
@@ -116,7 +133,7 @@ export default function Breadcrumbs({
         color={window.location.pathname === main.url ? 'text.primary' : 'text.secondary'}
       >
         {icons && <CollapseIcon style={iconSX} />}
-        <FormattedMessage id={main?.title} />
+        <FormattedMessage id={main?.title} defaultMessage={main?.title} />
       </Typography>
     );
 
@@ -140,7 +157,7 @@ export default function Breadcrumbs({
                 <Typography component={Link} to="/" color="text.secondary" variant="h6" sx={{ textDecoration: 'none' }}>
                   {icons && <HomeOutlined style={iconSX} />}
                   {icon && !icons && <HomeFilled style={{ ...iconSX, marginRight: 0 }} />}
-                  {(!icon || icons) && <FormattedMessage id="home" />}
+                  {(!icon || icons) && <FormattedMessage id="home" defaultMessage="home" />}
                 </Typography>
                 {mainContent}
               </MuiBreadcrumbs>
@@ -148,7 +165,7 @@ export default function Breadcrumbs({
             {title && titleBottom && (
               <Grid sx={{ mt: card === false ? 0.25 : 1 }}>
                 <Typography variant="h2">
-                  <FormattedMessage id={main.title} />
+                  <FormattedMessage id={main.title} defaultMessage={main.title} />
                 </Typography>
               </Grid>
             )}
@@ -167,7 +184,7 @@ export default function Breadcrumbs({
     itemContent = (
       <Typography variant="subtitle1" color="text.primary">
         {icons && <ItemIcon style={iconSX} />}
-        <FormattedMessage id={itemTitle} />
+        <FormattedMessage id={itemTitle} defaultMessage={itemTitle} />
       </Typography>
     );
 
@@ -176,7 +193,7 @@ export default function Breadcrumbs({
         <Typography component={Link} to="/" color="text.secondary" variant="h6" sx={{ textDecoration: 'none' }}>
           {icons && <HomeOutlined style={iconSX} />}
           {icon && !icons && <HomeFilled style={{ ...iconSX, marginRight: 0 }} />}
-          {(!icon || icons) && <FormattedMessage id="home" />}
+          {(!icon || icons) && <FormattedMessage id="home" defaultMessage="home" />}
         </Typography>
         {mainContent}
         {itemContent}
@@ -198,7 +215,7 @@ export default function Breadcrumbs({
                 color={!link.to ? 'text.primary' : 'text.secondary'}
               >
                 {link.icon && <CollapseIcon style={iconSX} />}
-                <FormattedMessage id={link.title} />
+                <FormattedMessage id={link.title} defaultMessage={link.title} />
               </Typography>
             );
           })}
@@ -225,7 +242,7 @@ export default function Breadcrumbs({
             {title && !titleBottom && (
               <Grid>
                 <Typography variant="h2">
-                  <FormattedMessage id={custom ? heading : item?.title} />
+                  <FormattedMessage id={custom ? heading : item?.title} defaultMessage={custom ? heading : item?.title} />
                 </Typography>
               </Grid>
             )}
@@ -233,7 +250,7 @@ export default function Breadcrumbs({
             {title && titleBottom && (
               <Grid sx={{ mt: card === false ? 0.25 : 1 }}>
                 <Typography variant="h2">
-                  <FormattedMessage id={custom ? heading : item?.title} />
+                  <FormattedMessage id={custom ? heading : item?.title} defaultMessage={custom ? heading : item?.title} />
                 </Typography>
               </Grid>
             )}

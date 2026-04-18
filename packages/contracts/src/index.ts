@@ -82,6 +82,23 @@ export interface ApiErrorBody {
   };
 }
 
+export interface UnifiedOptionItem {
+  value: string;
+  label: string;
+  disabled: boolean;
+  meta?: Record<string, unknown>;
+}
+
+export interface UnifiedOptionsResponse {
+  scope: 'platform' | 'station' | 'mobile';
+  resource: string;
+  station_id?: string;
+  direction?: 'inbound' | 'outbound';
+  flight_no?: string;
+  role_key?: string;
+  groups: Record<string, UnifiedOptionItem[]>;
+}
+
 export interface InboundFlightListItem {
   flight_id: string;
   flight_no: string;
@@ -108,10 +125,54 @@ export interface InboundFlightListItem {
 export interface InboundFlightListQuery extends PaginationQuery {
   date_from?: string;
   date_to?: string;
+  flight_no?: string;
+  include_archived?: string;
   keyword?: string;
   runtime_status?: FlightRuntimeStatus;
   service_level?: ServiceLevel;
   station_id?: string;
+}
+
+export interface StationFlightWriteInput {
+  station_id?: string;
+  flight_no: string;
+  flight_date?: string;
+  origin_code?: string;
+  destination_code?: string;
+  std_at?: string;
+  etd_at?: string;
+  sta_at?: string;
+  eta_at?: string;
+  runtime_status?: FlightRuntimeStatus;
+  service_level?: ServiceLevel;
+  aircraft_type?: string;
+  notes?: string;
+}
+
+export interface StationFlightUpdateInput {
+  station_id?: string;
+  flight_no?: string;
+  flight_date?: string;
+  origin_code?: string;
+  destination_code?: string;
+  std_at?: string;
+  etd_at?: string;
+  sta_at?: string;
+  eta_at?: string;
+  runtime_status?: FlightRuntimeStatus;
+  service_level?: ServiceLevel;
+  aircraft_type?: string;
+  notes?: string;
+  archived?: boolean;
+}
+
+export interface StationFlightMutationResult {
+  flight_id: string;
+  flight_no: string;
+  station_id: string;
+  runtime_status: FlightRuntimeStatus;
+  archived: boolean;
+  audit_action: string;
 }
 
 export interface InboundFlightDetail {
@@ -166,6 +227,7 @@ export interface InboundFlightDetail {
 export interface InboundWaybillListItem {
   awb_id: string;
   awb_no: string;
+  awb_type?: string;
   shipment_id: string;
   flight_id: string;
   flight_no: string;
@@ -176,6 +238,7 @@ export interface InboundWaybillListItem {
   noa_status: NoaStatus;
   pod_status: PodStatus;
   transfer_status: TransferStatus;
+  archived?: boolean;
   blocked: boolean;
   blocker_reason?: string;
 }
@@ -184,6 +247,7 @@ export interface InboundWaybillDetail {
   awb: {
     awb_id: string;
     awb_no: string;
+    awb_type?: string;
     shipment_id: string;
     flight_id: string;
     flight_no: string;
@@ -195,6 +259,7 @@ export interface InboundWaybillDetail {
     noa_status: NoaStatus;
     pod_status: PodStatus;
     transfer_status: TransferStatus;
+    archived?: boolean;
   };
   shipment: {
     shipment_id: string;
@@ -290,11 +355,19 @@ export interface OutboundFlightDetail {
     severity: ServiceLevel;
     blocker_flag: boolean;
   }>;
+  action_summary: Array<{
+    action_code: 'loaded' | 'manifest_finalize' | 'airborne';
+    title: string;
+    status: 'ready' | 'blocked' | 'completed';
+    blocker_reasons: string[];
+    recovery_actions: string[];
+  }>;
 }
 
 export interface OutboundWaybillListItem {
   awb_id: string;
   awb_no: string;
+  awb_type?: string;
   shipment_id: string;
   flight_id: string;
   flight_no: string;
@@ -306,12 +379,14 @@ export interface OutboundWaybillListItem {
   master_status: string;
   loading_status: string;
   manifest_status: string;
+  archived?: boolean;
 }
 
 export interface OutboundWaybillDetail {
   awb: {
     awb_id: string;
     awb_no: string;
+    awb_type?: string;
     shipment_id: string;
     flight_id: string;
     flight_no: string;
@@ -324,6 +399,13 @@ export interface OutboundWaybillDetail {
     master_status: string;
     loading_status: string;
     manifest_status: string;
+    archived?: boolean;
+  };
+  recovery_summary: {
+    gate_status: 'ready' | 'blocked' | 'completed';
+    open_blocker_count: number;
+    blocker_reasons: string[];
+    recovery_actions: string[];
   };
   documents: Array<{
     document_id: string;
@@ -377,6 +459,31 @@ export interface PodActionResult {
   message: string;
   document_id?: string;
   audit_action?: 'AWB_POD_RELEASED';
+}
+
+export interface StationWaybillUpdateInput {
+  awb_no?: string;
+  awb_type?: string;
+  flight_id?: string | null;
+  consignee_name?: string;
+  notify_name?: string;
+  pieces?: number;
+  gross_weight?: number;
+  current_node?: string;
+  noa_status?: NoaStatus;
+  pod_status?: PodStatus;
+  transfer_status?: TransferStatus;
+  manifest_status?: string;
+  archived?: boolean;
+}
+
+export interface StationWaybillMutationResult {
+  awb_id: string;
+  awb_no: string;
+  station_id: string;
+  direction: 'inbound' | 'outbound';
+  archived: boolean;
+  audit_action: string;
 }
 
 export interface CreateDocumentInput {
@@ -469,20 +576,142 @@ export interface StationDocumentPreviewResult {
   size_bytes?: number;
 }
 
+export interface StationDocumentUpdateInput {
+  document_type?: string;
+  document_name?: string;
+  related_object_type?: string;
+  related_object_id?: string;
+  document_status?: DocumentStatus;
+  retention_class?: 'temporary' | 'operational' | 'compliance';
+  required_for_release?: boolean;
+  archived?: boolean;
+  note?: string | null;
+}
+
+export interface StationDocumentMutationResult {
+  document_id: string;
+  station_id: string;
+  document_status: DocumentStatus;
+  archived: boolean;
+  audit_action: string;
+}
+
+export interface StationDocumentOptions {
+  document_type_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  document_status_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  retention_class_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  related_object_type_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  related_object_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+}
+
+export interface StationDocumentDetail {
+  document: StationDocumentListItem & {
+    station_id: string;
+    note?: string;
+    storage_key?: string;
+    upload_id?: string | null;
+    archived: boolean;
+  };
+  versions: Array<{
+    document_id: string;
+    version_no: string;
+    document_status: DocumentStatus;
+    document_name: string;
+    preview_type: 'pdf' | 'image' | 'office' | 'text' | 'other';
+    uploaded_at?: string;
+    updated_at?: string;
+    replaced_by?: string | null;
+    rollback_target?: string | null;
+    note?: string;
+  }>;
+  lifecycle: {
+    can_update: boolean;
+    can_archive: boolean;
+    can_restore: boolean;
+    can_download: boolean;
+    can_preview: boolean;
+  };
+}
+
 export interface StationShipmentListItem {
   id: string;
+  shipment_id: string;
   awb: string;
+  awb_id: string;
   direction: string;
+  flight_id?: string | null;
   flight_no: string;
   route: string;
   primary_status: string;
+  current_node: string;
+  fulfillment_status: string;
+  runtime_status: string;
   task_status: string;
   document_status: string;
   blocker: string;
+  archived?: boolean;
   consignee: string;
   pieces: string;
   weight: string;
   priority: string;
+}
+
+export interface StationShipmentOptions {
+  direction_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  flight_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  current_node_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  fulfillment_status_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  blocker_state_options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+    meta?: Record<string, unknown>;
+  }>;
 }
 
 export interface StationShipmentDetail {
@@ -535,6 +764,22 @@ export interface StationShipmentDetail {
     target: string;
     note: string;
   }>;
+  gate_policy_summary: Array<{
+    gate_id: string;
+    node: string;
+    required: string;
+    impact: string;
+    status: string;
+    blocker: string;
+    recovery: string;
+    release_role: string;
+  }>;
+  gate_policy_overview: {
+    total: number;
+    blocked: number;
+    tracked: number;
+    gate_ids: string[];
+  };
 }
 
 export interface StationTaskListItem {
@@ -547,12 +792,140 @@ export interface StationTaskListItem {
   assigned_role?: RoleCode;
   assigned_team_id?: string | null;
   assigned_worker_id?: string | null;
+  assigned_team_name?: string | null;
+  assigned_worker_name?: string | null;
   task_status: TaskStatus;
+  task_priority?: ServiceLevel;
   task_sla?: string;
   due_at?: string;
   blocker_code?: string;
   evidence_required: boolean;
   open_exception_count: number;
+  archived?: boolean;
+}
+
+export interface StationTaskDetail {
+  task: {
+    task_id: string;
+    station_id: string;
+    task_type: string;
+    execution_node: string;
+    related_object_type: string;
+    related_object_id: string;
+    related_object_label: string;
+    assigned_role?: RoleCode;
+    assigned_team_id?: string | null;
+    assigned_worker_id?: string | null;
+    assigned_team_name?: string | null;
+    assigned_worker_name?: string | null;
+    task_status: TaskStatus;
+    task_priority?: ServiceLevel;
+    task_sla?: string;
+    due_at?: string;
+    blocker_code?: string;
+    evidence_required: boolean;
+    pick_location_id?: string | null;
+    drop_location_id?: string | null;
+    completed_at?: string | null;
+    verified_at?: string | null;
+    deleted_at?: string | null;
+    archived: boolean;
+  };
+  lifecycle: {
+    can_update: boolean;
+    can_archive: boolean;
+    can_restore: boolean;
+    can_assign: boolean;
+    can_verify: boolean;
+    can_rework: boolean;
+    can_escalate: boolean;
+    can_raise_exception: boolean;
+  };
+}
+
+export interface StationTaskOptions {
+  task_status_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  task_priority_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  assigned_role_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  task_type_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  execution_node_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  related_object_type_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  related_object_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  team_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  worker_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+}
+
+export interface StationTaskUpdateInput {
+  task_type?: string;
+  execution_node?: string;
+  related_object_type?: string;
+  related_object_id?: string;
+  assigned_role?: RoleCode | null;
+  assigned_team_id?: string | null;
+  assigned_worker_id?: string | null;
+  task_sla?: string | null;
+  due_at?: string | null;
+  blocker_code?: string | null;
+  evidence_required?: boolean;
+  pick_location_id?: string | null;
+  drop_location_id?: string | null;
+  archived?: boolean;
+}
+
+export interface StationTaskMutationResult {
+  task_id: string;
+  station_id: string;
+  task_status: TaskStatus;
+  archived: boolean;
+  audit_action:
+    | 'TASK_UPDATED'
+    | 'TASK_ARCHIVED'
+    | 'TASK_RESTORED';
 }
 
 export interface AssignTaskInput {
@@ -619,7 +992,10 @@ export interface StationExceptionListItem {
   exception_status: ExceptionStatus;
   blocker_flag: boolean;
   root_cause?: string;
+  action_taken?: string;
+  linked_task_id?: string;
   opened_at?: string;
+  archived?: boolean;
 }
 
 export interface StationExceptionDetail {
@@ -641,10 +1017,88 @@ export interface StationExceptionDetail {
   required_gate?: string;
   recovery_action?: string;
   opened_at?: string;
+  archived?: boolean;
   related_files: Array<{
     label: string;
     document_id: string;
   }>;
+}
+
+export interface StationExceptionOptions {
+  exception_type_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  severity_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  exception_status_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  owner_role_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  related_object_type_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  related_object_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  team_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+  blocker_state_options: Array<{
+    value: string;
+    label: string;
+    disabled: boolean;
+    meta?: Record<string, unknown>;
+  }>;
+}
+
+export interface StationExceptionUpdateInput {
+  exception_type?: string;
+  severity?: ServiceLevel;
+  owner_role?: RoleCode | null;
+  owner_team_id?: string | null;
+  exception_status?: ExceptionStatus;
+  blocker_flag?: boolean;
+  root_cause?: string | null;
+  action_taken?: string | null;
+  related_object_type?: string;
+  related_object_id?: string;
+  archived?: boolean;
+}
+
+export interface StationExceptionMutationResult {
+  exception_id: string;
+  station_id: string;
+  exception_status: ExceptionStatus;
+  archived: boolean;
+  audit_action:
+    | 'EXCEPTION_UPDATED'
+    | 'EXCEPTION_ARCHIVED'
+    | 'EXCEPTION_RESTORED'
+    | 'EXCEPTION_UNCHANGED';
 }
 
 export interface ResolveExceptionInput {
@@ -696,4 +1150,97 @@ export interface OutboundFlightActionResult {
   runtime_status: FlightRuntimeStatus;
   manifest_status?: string;
   audit_action: 'OUTBOUND_FLIGHT_LOADED' | 'OUTBOUND_MANIFEST_FINALIZED' | 'OUTBOUND_FLIGHT_AIRBORNE';
+}
+
+export interface StationCopyPackage {
+  package_key: string;
+  station_id: string;
+  station_name: string;
+  template_station_id: string;
+  template_station_name: string;
+  benchmark_station_id: string;
+  benchmark_station_name: string;
+  comparison_station_ids: string[];
+  comparison_station_labels: Array<{
+    station_id: string;
+    label: string;
+    comparison_type: 'actual' | 'template';
+    note: string;
+  }>;
+  minimum_onboarding_unit: Array<{
+    unit_key: string;
+    label: string;
+    required: boolean;
+    note: string;
+  }>;
+  mandatory_consistency_items: Array<{
+    item_key: string;
+    label: string;
+    source: string;
+    note: string;
+  }>;
+  station_override_items: Array<{
+    item_key: string;
+    label: string;
+    source: string;
+    note: string;
+  }>;
+  readiness_checks: Array<{
+    check_key: string;
+    label: string;
+    gate_status: 'clear' | 'warning' | 'blocked';
+    note: string;
+  }>;
+  rollback_policy: {
+    mode: 'template-and-configuration';
+    summary: string;
+    steps: string[];
+  };
+}
+
+export interface StationOnboardingPlaybook {
+  station_id: string;
+  station_name: string;
+  template_station_id: string;
+  template_station_name: string;
+  benchmark_station_id: string;
+  benchmark_station_name: string;
+  sop: {
+    scope: string;
+    prerequisites: string[];
+    steps: Array<{
+      step_key: string;
+      label: string;
+      action: string;
+      success_criteria: string;
+    }>;
+  };
+  conflict_rules: Array<{
+    rule_key: string;
+    label: string;
+    category: 'mandatory_consistency' | 'station_override' | 'data_contract' | 'resource_mapping' | 'import_mapping';
+    gate_status: 'warning' | 'blocked';
+    note: string;
+    resolution: string;
+  }>;
+  onboarding_checklist: Array<{
+    item_key: string;
+    label: string;
+    category: 'identity' | 'runtime' | 'data' | 'reporting' | 'risk';
+    required: boolean;
+    gate_status: 'clear' | 'warning' | 'blocked';
+    note: string;
+  }>;
+  replay_acceptance: {
+    reference_sop_document: string;
+    replay_sample_station_id: string;
+    replay_scope: string;
+    accepted_when: string[];
+    rollback_scope: string[];
+    excluded_objects: string[];
+  };
+  completion_policy: {
+    warnings_require_manual_ack: boolean;
+    completion_criteria: string[];
+  };
 }

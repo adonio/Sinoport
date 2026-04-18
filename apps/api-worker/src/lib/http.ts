@@ -24,6 +24,12 @@ export function jsonError(
 }
 
 export function handleServiceError(c: Context, error: unknown, capability: string) {
+  if (error instanceof Error && error.message === 'STATION_SCOPE_DENIED') {
+    return jsonError(c, 403, 'STATION_SCOPE_DENIED', 'Current actor cannot access the requested station', {
+      capability
+    });
+  }
+
   if (error instanceof StationScopeDeniedError) {
     return jsonError(c, 403, 'STATION_SCOPE_DENIED', 'Current actor cannot access the requested station', {
       capability,
@@ -49,6 +55,8 @@ export function handleServiceError(c: Context, error: unknown, capability: strin
       ...error.details
     });
   }
+
+  console.error(`[api-worker] ${capability}`, error);
 
   return jsonError(c, 500, 'INTERNAL_ERROR', 'Unexpected server error', {
     capability

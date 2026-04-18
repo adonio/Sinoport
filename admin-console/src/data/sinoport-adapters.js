@@ -15,6 +15,14 @@ import {
   transferRecords
 } from 'data/sinoport';
 
+// Legacy adapter snapshots remain available for fixture/replay and sample import
+// flows. Accepted CRUD pages must prefer DB-backed API payloads instead of these
+// local adapter exports as business truth.
+export const sinoportAdapterFixtureBoundary = Object.freeze({
+  role: 'fixture/replay/sample-import-only',
+  primaryTruthForbiddenForAcceptedCrud: true
+});
+
 export const platformOperationKpis = [
   ...platformKpis.slice(0, 3),
   {

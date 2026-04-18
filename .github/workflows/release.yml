@@ -11,6 +11,18 @@ on:
           - staging
           - production
         default: staging
+      release_ref:
+        description: Git SHA or tag to release. Leave blank to use the triggering SHA.
+        required: false
+        type: string
+      release_tag:
+        description: Optional release tag to expose in health/version metadata.
+        required: false
+        type: string
+      staging_validation_ack:
+        description: Required for production. Set to `validated` after the same release ref passed staging.
+        required: false
+        type: string
       station_api_url:
         description: Public station API URL used by the Pages build
         required: true
@@ -32,8 +44,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-meta:
+    runs-on: ubuntu-latest
+
+    outputs:
+      release_ref: ${{ steps.meta.outputs.release_ref }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      deployed_at: ${{ steps.meta.outputs.deployed_at }}
+      target_branch: ${{ steps.meta.outputs.target_branch }}
+
+    steps:
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          RELEASE_REF="${{ inputs.release_ref }}"
+          if [ -z "$RELEASE_REF" ]; then
+            RELEASE_REF="${GITHUB_SHA}"
+          fi
+
+          RELEASE_TAG="${{ inputs.release_tag }}"
+          TARGET_BRANCH=$([ "${{ inputs.target }}" = "production" ] && echo "main" || echo "staging")
+
+          echo "release_ref=$RELEASE_REF" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+
+  guard-production:
+    runs-on: ubuntu-latest
+    needs: release-meta
+
+    steps:
+      - name: Require staging validation before production
+        if: ${{ inputs.target == 'production' }}
+        run: |
+          if [ "${{ inputs.staging_validation_ack }}" != "validated" ]; then
+            echo "Production release requires staging_validation_ack=validated"
+            exit 1
+          fi
+
   build-static:
     runs-on: ubuntu-latest
+    needs:
+      - release-meta
+      - guard-production
 
     defaults:
       run:
@@ -42,6 +96,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -111,16 +167,24 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          BRANCH_NAME=$([ "${{ inputs.target }}" = "production" ] && echo "main" || echo "staging")
-          npx wrangler pages deploy site-dist --project-name adonio-sinoport --branch "$BRANCH_NAME" --commit-dirty=true
+          npx wrangler pages deploy site-dist \
+            --project-name adonio-sinoport \
+            --branch "${{ needs.release-meta.outputs.target_branch }}" \
+            --commit-hash "${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-message "release:${{ inputs.target }}:${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-dirty=true
 
       - name: Deploy admin site to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          BRANCH_NAME=$([ "${{ inputs.target }}" = "production" ] && echo "main" || echo "staging")
-          npx wrangler pages deploy admin-console/dist --project-name adonio-sinoport-admin --branch "$BRANCH_NAME" --commit-dirty=true
+          npx wrangler pages deploy admin-console/dist \
+            --project-name adonio-sinoport-admin \
+            --branch "${{ needs.release-meta.outputs.target_branch }}" \
+            --commit-hash "${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-message "release:${{ inputs.target }}:${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-dirty=true
 
       - name: Resolve main site URL
         id: resolve-site-url
@@ -144,6 +208,9 @@ jobs:
 
   deploy-workers:
     runs-on: ubuntu-latest
+    needs:
+      - release-meta
+      - guard-production
     environment: ${{ inputs.target }}
 
     defaults:
@@ -153,6 +220,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -175,17 +244,34 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars
+        run: |
+          VAR_ARGS=(
+            "--var" "APP_VERSION:${{ needs.release-meta.outputs.release_ref }}"
+            "--var" "APP_DEPLOYED_AT:${{ needs.release-meta.outputs.deployed_at }}"
+          )
+          if [ -n "${{ needs.release-meta.outputs.release_tag }}" ]; then
+            VAR_ARGS+=("--var" "APP_RELEASE_TAG:${{ needs.release-meta.outputs.release_tag }}")
+          fi
+          npx wrangler deploy --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars "${VAR_ARGS[@]}"
 
       - name: Deploy agent-worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config apps/agent-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars
+        run: |
+          VAR_ARGS=(
+            "--var" "APP_VERSION:${{ needs.release-meta.outputs.release_ref }}"
+            "--var" "APP_DEPLOYED_AT:${{ needs.release-meta.outputs.deployed_at }}"
+          )
+          if [ -n "${{ needs.release-meta.outputs.release_tag }}" ]; then
+            VAR_ARGS+=("--var" "APP_RELEASE_TAG:${{ needs.release-meta.outputs.release_tag }}")
+          fi
+          npx wrangler deploy --config apps/agent-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars "${VAR_ARGS[@]}"
 
   smoke:
     runs-on: ubuntu-latest
     needs:
+      - release-meta
       - deploy-pages
       - deploy-workers
 
@@ -217,4 +303,6 @@ jobs:
           SMOKE_API_URL: ${{ inputs.api_url }}
           SMOKE_AGENT_URL: ${{ inputs.agent_url }}
           SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url }}
+          SMOKE_EXPECTED_VERSION: ${{ needs.release-meta.outputs.release_ref }}
+          SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.target }}
         run: npm run test:frontend:smoke

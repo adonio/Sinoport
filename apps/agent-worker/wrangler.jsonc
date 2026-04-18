@@ -9,14 +9,15 @@
   "vars": {
     "APP_NAME": "sinoport-agent-worker",
     "AUTH_TOKEN_SECRET": "sinoport-local-dev-secret",
-    "ENVIRONMENT": "local"
+    "ENVIRONMENT": "local",
+    "ENABLE_LOCAL_DEBUG_AUTH": "true"
   },
   "env": {
     "staging": {
       "vars": {
         "APP_NAME": "sinoport-agent-worker-staging",
-        "AUTH_TOKEN_SECRET": "replace-me-staging",
-        "ENVIRONMENT": "staging"
+        "ENVIRONMENT": "staging",
+        "ENABLE_LOCAL_DEBUG_AUTH": "false"
       },
       "routes": [
         {
@@ -37,8 +38,8 @@
     "production": {
       "vars": {
         "APP_NAME": "sinoport-agent-worker-production",
-        "AUTH_TOKEN_SECRET": "replace-me-production",
-        "ENVIRONMENT": "production"
+        "ENVIRONMENT": "production",
+        "ENABLE_LOCAL_DEBUG_AUTH": "false"
       },
       "routes": [
         {

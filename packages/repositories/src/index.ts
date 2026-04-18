@@ -6,6 +6,7 @@ import type {
   CreateDocumentResult,
   CreateUploadTicketInput,
   CreateUploadTicketResult,
+  ExceptionStatus,
   InboundFlightDetail,
   InboundFlightListItem,
   InboundFlightListQuery,
@@ -25,18 +26,35 @@ import type {
   NoaActionResult,
   PodActionInput,
   PodActionResult,
+  StationWaybillMutationResult,
+  StationWaybillUpdateInput,
   RaiseTaskExceptionInput,
   RaiseTaskExceptionResult,
   ResolveExceptionInput,
   ResolveExceptionResult,
   RoleCode,
+  ServiceLevel,
+  StationFlightMutationResult,
+  StationFlightUpdateInput,
+  StationFlightWriteInput,
   StationDocumentListItem,
+  StationDocumentDetail,
+  StationDocumentMutationResult,
+  StationDocumentOptions,
   StationDocumentPreviewResult,
+  StationDocumentUpdateInput,
   StationExceptionDetail,
   StationExceptionListItem,
+  StationExceptionMutationResult,
+  StationExceptionOptions,
+  StationExceptionUpdateInput,
   StationShipmentDetail,
   StationShipmentListItem,
+  StationTaskDetail,
   StationTaskListItem,
+  StationTaskMutationResult,
+  StationTaskOptions,
+  StationTaskUpdateInput,
   TaskStatus,
   TaskWorkflowActionInput,
   TaskWorkflowActionResult
@@ -77,29 +95,42 @@ export interface D1DatabaseLike {
 }
 
 export interface FlightRepository {
+  createInboundFlight(input: StationFlightWriteInput): Promise<StationFlightMutationResult>;
+  createOutboundFlight(input: StationFlightWriteInput): Promise<StationFlightMutationResult>;
   getInboundFlight(flightId: string): Promise<InboundFlightDetail | null>;
   getOutboundFlight(flightId: string): Promise<OutboundFlightDetail | null>;
   listInboundFlights(query: InboundFlightListQuery): Promise<ListResponse<InboundFlightListItem>>;
   listOutboundFlights(query: Record<string, string | undefined>): Promise<ListResponse<OutboundFlightListItem>>;
+  updateInboundFlight(flightId: string, input: StationFlightUpdateInput): Promise<StationFlightMutationResult>;
+  updateOutboundFlight(flightId: string, input: StationFlightUpdateInput): Promise<StationFlightMutationResult>;
+  archiveInboundFlight(flightId: string): Promise<StationFlightMutationResult>;
+  archiveOutboundFlight(flightId: string): Promise<StationFlightMutationResult>;
   markOutboundLoaded(flightId: string, input: OutboundFlightActionInput): Promise<OutboundFlightActionResult>;
   finalizeOutboundManifest(flightId: string, input: OutboundFlightActionInput): Promise<OutboundFlightActionResult>;
   markOutboundAirborne(flightId: string, input: OutboundFlightActionInput): Promise<OutboundFlightActionResult>;
 }
 
 export interface WaybillRepository {
+  archiveInboundWaybill(awbId: string): Promise<StationWaybillMutationResult>;
+  archiveOutboundWaybill(awbId: string): Promise<StationWaybillMutationResult>;
   getInboundWaybill(awbId: string): Promise<InboundWaybillDetail | null>;
   getOutboundWaybill(awbId: string): Promise<OutboundWaybillDetail | null>;
   listInboundWaybills(query: Record<string, string | undefined>): Promise<ListResponse<InboundWaybillListItem>>;
   listOutboundWaybills(query: Record<string, string | undefined>): Promise<ListResponse<OutboundWaybillListItem>>;
   processInboundNoa(awbId: string, input: NoaActionInput): Promise<NoaActionResult>;
   processInboundPod(awbId: string, input: PodActionInput): Promise<PodActionResult>;
+  updateInboundWaybill(awbId: string, input: StationWaybillUpdateInput): Promise<StationWaybillMutationResult>;
+  updateOutboundWaybill(awbId: string, input: StationWaybillUpdateInput): Promise<StationWaybillMutationResult>;
 }
 
 export interface DocumentRepository {
   createDocument(input: CreateDocumentInput): Promise<CreateDocumentResult>;
   createUploadTicket(input: CreateUploadTicketInput): Promise<CreateUploadTicketResult>;
   listStationDocuments(query: Record<string, string | undefined>): Promise<ListResponse<StationDocumentListItem>>;
+  listStationDocumentOptions(query: Record<string, string | undefined>): Promise<StationDocumentOptions>;
+  getStationDocument(documentId: string): Promise<StationDocumentDetail | null>;
   getStationDocumentPreview(documentId: string): Promise<StationDocumentPreviewResult | null>;
+  updateStationDocument(documentId: string, input: StationDocumentUpdateInput): Promise<StationDocumentMutationResult>;
 }
 
 export interface ShipmentRepository {
@@ -111,12 +142,15 @@ export interface TaskRepository {
   assignTask(taskId: string, input: AssignTaskInput): Promise<AssignTaskResult>;
   acceptMobileTask(taskId: string, input: MobileTaskActionInput): Promise<MobileTaskActionResult>;
   completeMobileTask(taskId: string, input: MobileTaskActionInput): Promise<MobileTaskActionResult>;
+  getStationTask(taskId: string): Promise<StationTaskDetail | null>;
+  listStationTaskOptions(query: Record<string, string | undefined>): Promise<StationTaskOptions>;
   verifyTask(taskId: string, input: TaskWorkflowActionInput): Promise<TaskWorkflowActionResult>;
   reworkTask(taskId: string, input: TaskWorkflowActionInput): Promise<TaskWorkflowActionResult>;
   escalateTask(taskId: string, input: TaskWorkflowActionInput): Promise<TaskWorkflowActionResult>;
   listMobileTasks(query: Record<string, string | undefined>): Promise<ListResponse<MobileTaskListItem>>;
   listStationTasks(query: Record<string, string | undefined>): Promise<ListResponse<StationTaskListItem>>;
   startMobileTask(taskId: string, input: MobileTaskActionInput): Promise<MobileTaskActionResult>;
+  updateStationTask(taskId: string, input: StationTaskUpdateInput): Promise<StationTaskMutationResult>;
   uploadMobileTaskEvidence(taskId: string, input: MobileTaskActionInput): Promise<MobileTaskActionResult>;
   raiseTaskException(taskId: string, input: RaiseTaskExceptionInput): Promise<RaiseTaskExceptionResult>;
 }
@@ -124,7 +158,9 @@ export interface TaskRepository {
 export interface ExceptionRepository {
   getStationException(exceptionId: string): Promise<StationExceptionDetail | null>;
   listStationExceptions(query: Record<string, string | undefined>): Promise<ListResponse<StationExceptionListItem>>;
+  listStationExceptionOptions(query: Record<string, string | undefined>): Promise<StationExceptionOptions>;
   resolveStationException(exceptionId: string, input: ResolveExceptionInput): Promise<ResolveExceptionResult>;
+  updateStationException(exceptionId: string, input: StationExceptionUpdateInput): Promise<StationExceptionMutationResult>;
 }
 
 export interface RepositoryRegistry {
@@ -166,6 +202,7 @@ interface FlightSummaryRow {
 interface WaybillListRow {
   awb_id: string;
   awb_no: string;
+  awb_type: string | null;
   shipment_id: string;
   flight_id: string;
   flight_no: string;
@@ -178,6 +215,7 @@ interface WaybillListRow {
   transfer_status: InboundWaybillListItem['transfer_status'];
   blocker_reason: string | null;
   blocker_count: number | string | null;
+  deleted_at: string | null;
 }
 
 interface WaybillSummaryRow {
@@ -191,6 +229,7 @@ interface WaybillSummaryRow {
 interface WaybillDetailRow {
   awb_id: string;
   awb_no: string;
+  awb_type: string | null;
   shipment_id: string;
   flight_id: string;
   flight_no: string;
@@ -205,6 +244,7 @@ interface WaybillDetailRow {
   fulfillment_status: InboundWaybillDetail['shipment']['fulfillment_status'];
   shipment_service_level: InboundWaybillDetail['shipment']['service_level'];
   shipment_current_node: string;
+  deleted_at: string | null;
 }
 
 interface OutboundFlightSummaryRow {
@@ -229,6 +269,7 @@ interface OutboundFlightSummaryRow {
 interface OutboundWaybillRow {
   awb_id: string;
   awb_no: string;
+  awb_type: string | null;
   shipment_id: string;
   flight_id: string;
   flight_no: string;
@@ -241,6 +282,7 @@ interface OutboundWaybillRow {
   master_status: string;
   loading_status: string;
   manifest_status: string;
+  deleted_at: string | null;
 }
 
 interface DocumentSummaryRow {
@@ -288,6 +330,7 @@ interface StationShipmentRow {
   task_status: string | null;
   document_status: string | null;
   blocker_reason: string | null;
+  deleted_at: string | null;
 }
 
 interface TaskSummaryRow {
@@ -307,6 +350,7 @@ interface ExceptionSummaryRow {
 
 interface StationTaskRow {
   task_id: string;
+  station_id: string;
   task_type: string;
   execution_node: string;
   related_object_type: string;
@@ -315,12 +359,20 @@ interface StationTaskRow {
   assigned_role: RoleCode | null;
   assigned_team_id: string | null;
   assigned_worker_id: string | null;
+  assigned_team_name: string | null;
+  assigned_worker_name: string | null;
   task_status: StationTaskListItem['task_status'];
+  task_priority: ServiceLevel | null;
   task_sla: string | null;
   due_at: string | null;
   blocker_code: string | null;
   evidence_required: number | string | null;
   open_exception_count: number | string | null;
+  pick_location_id?: string | null;
+  drop_location_id?: string | null;
+  completed_at?: string | null;
+  verified_at?: string | null;
+  deleted_at?: string | null;
 }
 
 interface StationExceptionRow {
@@ -335,12 +387,13 @@ interface StationExceptionRow {
   exception_status: StationExceptionListItem['exception_status'];
   blocker_flag: number | string | null;
   root_cause: string | null;
+  action_taken: string | null;
+  linked_task_id: string | null;
   opened_at: string | null;
+  deleted_at: string | null;
 }
 
 interface StationExceptionDetailRow extends StationExceptionRow {
-  action_taken: string | null;
-  linked_task_id: string | null;
   linked_task_label: string | null;
 }
 
@@ -373,9 +426,20 @@ interface TaskLookupRow {
   task_id: string;
   station_id: string;
   task_status: TaskStatus;
+  task_type?: string | null;
+  execution_node?: string | null;
+  related_object_type?: string | null;
+  related_object_id?: string | null;
   assigned_role: RoleCode | null;
   assigned_team_id: string | null;
   assigned_worker_id: string | null;
+  task_sla?: string | null;
+  due_at?: string | null;
+  blocker_code?: string | null;
+  evidence_required?: number | string | null;
+  pick_location_id?: string | null;
+  drop_location_id?: string | null;
+  deleted_at?: string | null;
 }
 
 interface WorkerLookupRow {
@@ -394,13 +458,20 @@ interface TeamLookupRow {
 interface DocumentLookupRow {
   document_id: string;
   station_id: string;
+  document_type?: string | null;
+  related_object_type?: string | null;
+  related_object_id?: string | null;
   version_no: string;
+  document_status?: string | null;
+  required_for_release?: number | string | null;
   content_type?: string | null;
   document_name?: string | null;
   storage_key?: string | null;
   size_bytes?: number | string | null;
   checksum_sha256?: string | null;
   retention_class?: string | null;
+  note?: string | null;
+  parent_document_id?: string | null;
   deleted_at?: string | null;
   upload_id?: string | null;
 }
@@ -457,12 +528,32 @@ interface OutboundFlightActionTaskRow {
   related_object_id: string;
 }
 
+interface OutboundFlightActionExceptionRow {
+  exception_id: string;
+  exception_type: string;
+  exception_status: string;
+  severity: string;
+  blocker_flag: number | string | null;
+  related_object_type: string;
+  related_object_id: string;
+  root_cause: string | null;
+  action_taken: string | null;
+}
+
 interface OutboundFlightActionState {
   flight: FlightLookupRow;
   awbs: OutboundFlightActionAwbRow[];
   shipments: OutboundFlightActionShipmentRow[];
   documents: OutboundFlightActionDocumentRow[];
   tasks: OutboundFlightActionTaskRow[];
+  exceptions: OutboundFlightActionExceptionRow[];
+}
+
+interface OutboundWaybillRecoverySummary {
+  gate_status: 'ready' | 'blocked' | 'completed';
+  open_blocker_count: number;
+  blocker_reasons: string[];
+  recovery_actions: string[];
 }
 
 class BaseD1Repository {
@@ -588,6 +679,371 @@ class BaseD1Repository {
 }
 
 class D1FlightRepository extends BaseD1Repository implements FlightRepository {
+  private deriveFlightDate(input: StationFlightWriteInput | StationFlightUpdateInput, direction: 'inbound' | 'outbound') {
+    const explicit = String(input.flight_date ?? '').trim();
+
+    if (explicit) {
+      return explicit;
+    }
+
+    const anchor =
+      String(
+        direction === 'inbound'
+          ? input.eta_at ?? input.etd_at ?? input.sta_at ?? input.std_at ?? ''
+          : input.etd_at ?? input.std_at ?? input.eta_at ?? input.sta_at ?? ''
+      ).trim() || isoNow();
+
+    return anchor.slice(0, 10);
+  }
+
+  private async loadFlightForWrite(flightId: string) {
+    return this.db
+      .prepare(
+        `
+          SELECT
+            flight_id,
+            station_id,
+            flight_no,
+            flight_date,
+            origin_code,
+            destination_code,
+            std_at,
+            etd_at,
+            sta_at,
+            eta_at,
+            runtime_status,
+            service_level,
+            aircraft_type,
+            notes,
+            deleted_at
+          FROM flights
+          WHERE flight_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(flightId)
+      .first<{
+        flight_id: string;
+        station_id: string;
+        flight_no: string;
+        flight_date: string;
+        origin_code: string;
+        destination_code: string;
+        std_at: string | null;
+        etd_at: string | null;
+        sta_at: string | null;
+        eta_at: string | null;
+        runtime_status: string;
+        service_level: string | null;
+        aircraft_type: string | null;
+        notes: string | null;
+        deleted_at: string | null;
+      }>();
+  }
+
+  private async createFlight(
+    direction: 'inbound' | 'outbound',
+    input: StationFlightWriteInput
+  ): Promise<StationFlightMutationResult> {
+    const actor = this.ensureActor();
+    const stationId = String(input.station_id || actor.stationScope[0] || '').trim().toUpperCase();
+
+    if (!stationId) {
+      throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'station_id is required');
+    }
+
+    this.assertActorStation(stationId);
+
+    const flightNo = String(input.flight_no || '').trim().toUpperCase();
+    if (!flightNo) {
+      throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'flight_no is required');
+    }
+
+    const flightDate = this.deriveFlightDate(input, direction);
+    const originCode = String(
+      input.origin_code || (direction === 'outbound' ? stationId : '')
+    )
+      .trim()
+      .toUpperCase();
+    const destinationCode = String(
+      input.destination_code || (direction === 'inbound' ? stationId : '')
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!originCode || !destinationCode) {
+      throw new RepositoryOperationError(
+        400,
+        'VALIDATION_ERROR',
+        direction === 'inbound'
+          ? 'origin_code and destination_code are required'
+          : 'origin_code and destination_code are required'
+      );
+    }
+
+    const runtimeStatus =
+      (input.runtime_status as StationFlightMutationResult['runtime_status'] | undefined) ||
+      (direction === 'inbound' ? 'Pre-Arrival' : 'Scheduled');
+    const serviceLevel = input.service_level || 'P2';
+    const now = isoNow();
+    const flightId = createId('FLIGHT');
+
+    await this.db
+      .prepare(
+        `
+          INSERT INTO flights (
+            flight_id,
+            station_id,
+            flight_no,
+            flight_date,
+            origin_code,
+            destination_code,
+            std_at,
+            etd_at,
+            sta_at,
+            eta_at,
+            runtime_status,
+            service_level,
+            aircraft_type,
+            notes,
+            created_at,
+            updated_at,
+            deleted_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .bind(
+        flightId,
+        stationId,
+        flightNo,
+        flightDate,
+        originCode,
+        destinationCode,
+        input.std_at ?? null,
+        input.etd_at ?? null,
+        input.sta_at ?? null,
+        input.eta_at ?? null,
+        runtimeStatus,
+        serviceLevel,
+        input.aircraft_type ?? null,
+        input.notes ?? null,
+        now,
+        now,
+        null
+      )
+      .run();
+
+    const auditAction = direction === 'inbound' ? 'INBOUND_FLIGHT_CREATED' : 'OUTBOUND_FLIGHT_CREATED';
+    const auditId = await this.writeAudit({
+      action: auditAction,
+      objectType: 'Flight',
+      objectId: flightId,
+      stationId,
+      summary: `Created ${direction} flight ${flightNo}`,
+      payload: {
+        flight_no: flightNo,
+        flight_date: flightDate,
+        origin_code: originCode,
+        destination_code: destinationCode,
+        runtime_status: runtimeStatus,
+        service_level: serviceLevel
+      }
+    });
+
+    await this.writeStateTransition({
+      stationId,
+      objectType: 'Flight',
+      objectId: flightId,
+      stateField: 'runtime_status',
+      fromValue: null,
+      toValue: runtimeStatus,
+      triggeredBy: actor.userId,
+      auditId,
+      reason: input.notes
+    });
+
+    return {
+      flight_id: flightId,
+      flight_no: flightNo,
+      station_id: stationId,
+      runtime_status: runtimeStatus,
+      archived: false,
+      audit_action: auditAction
+    };
+  }
+
+  private async updateFlight(
+    direction: 'inbound' | 'outbound',
+    flightId: string,
+    input: StationFlightUpdateInput
+  ): Promise<StationFlightMutationResult> {
+    const actor = this.ensureActor();
+    const existing = await this.loadFlightForWrite(flightId);
+
+    if (!existing) {
+      throw new RepositoryOperationError(404, 'FLIGHT_NOT_FOUND', 'Flight does not exist', { flight_id: flightId });
+    }
+
+    this.assertActorStation(existing.station_id);
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    const auditPayload: Record<string, unknown> = {};
+    const nextState = {
+      ...existing,
+      deleted_at: existing.deleted_at
+    };
+
+    const assign = (column: keyof typeof nextState, value: unknown, auditKey = column) => {
+      updates.push(`${String(column)} = ?`);
+      params.push(value);
+      (nextState as Record<string, unknown>)[String(column)] = value;
+      auditPayload[String(auditKey)] = value;
+    };
+
+    if (Object.prototype.hasOwnProperty.call(input, 'origin_code')) {
+      const value = String(input.origin_code || '').trim().toUpperCase();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'origin_code cannot be empty');
+      }
+      assign('origin_code', value);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'destination_code')) {
+      const value = String(input.destination_code || '').trim().toUpperCase();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'destination_code cannot be empty');
+      }
+      assign('destination_code', value);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'flight_date')) {
+      const value = String(input.flight_date || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'flight_date cannot be empty');
+      }
+      assign('flight_date', value);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'std_at')) assign('std_at', input.std_at ?? null);
+    if (Object.prototype.hasOwnProperty.call(input, 'etd_at')) assign('etd_at', input.etd_at ?? null);
+    if (Object.prototype.hasOwnProperty.call(input, 'sta_at')) assign('sta_at', input.sta_at ?? null);
+    if (Object.prototype.hasOwnProperty.call(input, 'eta_at')) assign('eta_at', input.eta_at ?? null);
+    if (Object.prototype.hasOwnProperty.call(input, 'aircraft_type')) assign('aircraft_type', input.aircraft_type ?? null);
+    if (Object.prototype.hasOwnProperty.call(input, 'notes')) assign('notes', input.notes ?? null);
+
+    if (Object.prototype.hasOwnProperty.call(input, 'service_level')) {
+      assign('service_level', input.service_level ?? null);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'runtime_status')) {
+      const value = String(input.runtime_status || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'runtime_status cannot be empty');
+      }
+      assign('runtime_status', value);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'archived')) {
+      assign('deleted_at', input.archived ? isoNow() : null);
+    }
+
+    if (!updates.length) {
+      return {
+        flight_id: existing.flight_id,
+        flight_no: existing.flight_no,
+        station_id: existing.station_id,
+        runtime_status: existing.runtime_status as StationFlightMutationResult['runtime_status'],
+        archived: Boolean(existing.deleted_at),
+        audit_action: direction === 'inbound' ? 'INBOUND_FLIGHT_UNCHANGED' : 'OUTBOUND_FLIGHT_UNCHANGED'
+      };
+    }
+
+    const now = isoNow();
+    updates.push('updated_at = ?');
+    params.push(now, flightId);
+
+    await this.db
+      .prepare(`UPDATE flights SET ${updates.join(', ')} WHERE flight_id = ?`)
+      .bind(...params)
+      .run();
+
+    let auditAction = direction === 'inbound' ? 'INBOUND_FLIGHT_UPDATED' : 'OUTBOUND_FLIGHT_UPDATED';
+    let summary = `Updated ${direction} flight ${existing.flight_no}`;
+
+    if (Object.prototype.hasOwnProperty.call(input, 'archived')) {
+      auditAction = input.archived
+        ? direction === 'inbound'
+          ? 'INBOUND_FLIGHT_ARCHIVED'
+          : 'OUTBOUND_FLIGHT_ARCHIVED'
+        : direction === 'inbound'
+          ? 'INBOUND_FLIGHT_RESTORED'
+          : 'OUTBOUND_FLIGHT_RESTORED';
+      summary = input.archived
+        ? `Archived ${direction} flight ${existing.flight_no}`
+        : `Restored ${direction} flight ${existing.flight_no}`;
+    }
+
+    const auditId = await this.writeAudit({
+      action: auditAction,
+      objectType: 'Flight',
+      objectId: existing.flight_id,
+      stationId: existing.station_id,
+      summary,
+      payload: auditPayload
+    });
+
+    if (
+      Object.prototype.hasOwnProperty.call(input, 'runtime_status') &&
+      existing.runtime_status !== nextState.runtime_status
+    ) {
+      await this.writeStateTransition({
+        stationId: existing.station_id,
+        objectType: 'Flight',
+        objectId: existing.flight_id,
+        stateField: 'runtime_status',
+        fromValue: existing.runtime_status,
+        toValue: String(nextState.runtime_status),
+        triggeredBy: actor.userId,
+        auditId,
+        reason: input.notes
+      });
+    }
+
+    return {
+      flight_id: existing.flight_id,
+      flight_no: existing.flight_no,
+      station_id: existing.station_id,
+      runtime_status: String(nextState.runtime_status) as StationFlightMutationResult['runtime_status'],
+      archived: Boolean(nextState.deleted_at),
+      audit_action: auditAction
+    };
+  }
+
+  async createInboundFlight(input: StationFlightWriteInput): Promise<StationFlightMutationResult> {
+    return this.createFlight('inbound', input);
+  }
+
+  async createOutboundFlight(input: StationFlightWriteInput): Promise<StationFlightMutationResult> {
+    return this.createFlight('outbound', input);
+  }
+
+  async updateInboundFlight(flightId: string, input: StationFlightUpdateInput): Promise<StationFlightMutationResult> {
+    return this.updateFlight('inbound', flightId, input);
+  }
+
+  async updateOutboundFlight(flightId: string, input: StationFlightUpdateInput): Promise<StationFlightMutationResult> {
+    return this.updateFlight('outbound', flightId, input);
+  }
+
+  async archiveInboundFlight(flightId: string): Promise<StationFlightMutationResult> {
+    return this.updateFlight('inbound', flightId, { archived: true });
+  }
+
+  async archiveOutboundFlight(flightId: string): Promise<StationFlightMutationResult> {
+    return this.updateFlight('outbound', flightId, { archived: true });
+  }
+
   async listInboundFlights(query: InboundFlightListQuery): Promise<ListResponse<InboundFlightListItem>> {
     const { page, pageSize, offset } = parsePagination(query.page, query.page_size);
     const { params, whereClause } = buildInboundFlightWhereClause(query);
@@ -655,10 +1111,14 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       LIMIT ? OFFSET ?
     `;
 
-    const [countRow, listRows] = await Promise.all([
-      this.db.prepare(countSql).bind(...params).first<{ total: number | string }>(),
-      this.db.prepare(listSql).bind(...params, pageSize, offset).all<FlightSummaryRow>()
-    ]);
+    const countRow = await this.db
+      .prepare(countSql)
+      .bind(...params)
+      .first<{ total: number | string }>();
+    const listRows = await this.db
+      .prepare(listSql)
+      .bind(...params, pageSize, offset)
+      .all<FlightSummaryRow>();
 
     return {
       items: listRows.results.map(mapFlightSummaryRow),
@@ -894,10 +1354,14 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       LIMIT ? OFFSET ?
     `;
 
-    const [countRow, listRows] = await Promise.all([
-      this.db.prepare(countSql).bind(...params).first<{ total: number | string }>(),
-      this.db.prepare(listSql).bind(...params, pageSize, offset).all<OutboundFlightSummaryRow>()
-    ]);
+    const countRow = await this.db
+      .prepare(countSql)
+      .bind(...params)
+      .first<{ total: number | string }>();
+    const listRows = await this.db
+      .prepare(listSql)
+      .bind(...params, pageSize, offset)
+      .all<OutboundFlightSummaryRow>();
 
     return {
       items: listRows.results.map((row) => ({
@@ -950,7 +1414,7 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       return null;
     }
 
-    const [waybills, documents, tasks, exceptions] = await Promise.all([
+    const [waybills, documents, tasks, exceptions, actionState] = await Promise.all([
       this.db
         .prepare(
           `
@@ -1029,7 +1493,8 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
           `
         )
         .bind(flightId)
-        .all<ExceptionSummaryRow>()
+        .all<ExceptionSummaryRow>(),
+      loadOutboundFlightActionState(this.db, flightId)
     ]);
 
     const items = waybills.results.map((row) => {
@@ -1080,7 +1545,8 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
         exception_status: item.exception_status,
         severity: item.severity,
         blocker_flag: booleanFromRow(item.blocker_flag)
-      }))
+      })),
+      action_summary: buildOutboundActionSummary(actionState)
     };
   }
 
@@ -1103,6 +1569,19 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       throw new RepositoryOperationError(409, 'OUTBOUND_FLIGHT_EMPTY', 'Outbound flight must have at least one AWB before loaded', {
         flight_id: flightId
       });
+    }
+
+    const blockingExceptions = state.exceptions.filter(isBlockingOutboundException);
+    if (blockingExceptions.length) {
+      throw new RepositoryOperationError(
+        409,
+        'OUTBOUND_BLOCKING_EXCEPTION_OPEN',
+        'Blocking outbound exceptions must be resolved before loaded',
+        {
+          flight_id: flightId,
+          exception_ids: blockingExceptions.map((item) => item.exception_id)
+        }
+      );
     }
 
     const loadingTasks = state.tasks.filter((task) => task.related_object_type === 'Flight' && task.task_type === '装机复核');
@@ -1279,6 +1758,19 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
       });
     }
 
+    const blockingExceptions = state.exceptions.filter(isBlockingOutboundException);
+    if (blockingExceptions.length) {
+      throw new RepositoryOperationError(
+        409,
+        'OUTBOUND_BLOCKING_EXCEPTION_OPEN',
+        'Blocking outbound exceptions must be resolved before manifest finalize',
+        {
+          flight_id: flightId,
+          exception_ids: blockingExceptions.map((item) => item.exception_id)
+        }
+      );
+    }
+
     const flightDocuments: OutboundFlightActionDocumentRow[] = state.documents.filter(
       (document) => document.related_object_type === 'Flight'
     ) as OutboundFlightActionDocumentRow[];
@@ -1411,6 +1903,19 @@ class D1FlightRepository extends BaseD1Repository implements FlightRepository {
         task_id: loadingTask?.task_id ?? null,
         task_status: loadingTask?.task_status ?? null
       });
+    }
+
+    const blockingExceptions = state.exceptions.filter(isBlockingOutboundException);
+    if (blockingExceptions.length) {
+      throw new RepositoryOperationError(
+        409,
+        'OUTBOUND_BLOCKING_EXCEPTION_OPEN',
+        'Blocking outbound exceptions must be resolved before airborne',
+        {
+          flight_id: flightId,
+          exception_ids: blockingExceptions.map((item) => item.exception_id)
+        }
+      );
     }
 
     const manifestBlocker = state.documents.find(
@@ -1570,6 +2075,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
       SELECT
         a.awb_id,
         a.awb_no,
+        COALESCE(a.awb_type, 'IMPORT') AS awb_type,
         a.shipment_id,
         a.flight_id,
         f.flight_no,
@@ -1601,7 +2107,8 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
             )
           ORDER BY ex.opened_at DESC
           LIMIT 1
-        ) AS blocker_reason
+        ) AS blocker_reason,
+        a.deleted_at
       FROM awbs a
       JOIN shipments s ON s.shipment_id = a.shipment_id
       JOIN flights f ON f.flight_id = a.flight_id
@@ -1619,6 +2126,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
       items: listRows.results.map((row) => ({
         awb_id: row.awb_id,
         awb_no: row.awb_no,
+        awb_type: row.awb_type ?? 'IMPORT',
         shipment_id: row.shipment_id,
         flight_id: row.flight_id,
         flight_no: row.flight_no,
@@ -1629,6 +2137,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         noa_status: row.noa_status,
         pod_status: row.pod_status,
         transfer_status: row.transfer_status,
+        archived: Boolean(row.deleted_at),
         blocked: Number(row.blocker_count ?? 0) > 0,
         blocker_reason: row.blocker_reason ?? undefined
       })),
@@ -1643,6 +2152,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
       SELECT
         a.awb_id,
         a.awb_no,
+        COALESCE(a.awb_type, 'IMPORT') AS awb_type,
         a.shipment_id,
         a.flight_id,
         f.flight_no,
@@ -1656,7 +2166,8 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         a.transfer_status,
         s.fulfillment_status,
         s.service_level AS shipment_service_level,
-        s.current_node AS shipment_current_node
+        s.current_node AS shipment_current_node,
+        a.deleted_at
       FROM awbs a
       JOIN shipments s ON s.shipment_id = a.shipment_id
       LEFT JOIN flights f ON f.flight_id = a.flight_id
@@ -1721,6 +2232,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
       awb: {
         awb_id: awb.awb_id,
         awb_no: awb.awb_no,
+        awb_type: awb.awb_type ?? 'IMPORT',
         shipment_id: awb.shipment_id,
         flight_id: awb.flight_id,
         flight_no: awb.flight_no,
@@ -1731,7 +2243,8 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         current_node: awb.current_node,
         noa_status: awb.noa_status,
         pod_status: awb.pod_status,
-        transfer_status: awb.transfer_status
+        transfer_status: awb.transfer_status,
+        archived: Boolean(awb.deleted_at)
       },
       shipment: {
         shipment_id: awb.shipment_id,
@@ -1776,6 +2289,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
       SELECT
         a.awb_id,
         a.awb_no,
+        COALESCE(a.awb_type, 'EXPORT') AS awb_type,
         a.shipment_id,
         a.flight_id,
         a.station_id,
@@ -1788,7 +2302,8 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         COALESCE(manifest.document_status, 'Missing') AS manifest_doc_status,
         receipt.task_status AS receipt_task_status,
         loading.task_status AS loading_task_status,
-        f.runtime_status
+        f.runtime_status,
+        a.deleted_at
       FROM awbs a
       JOIN flights f ON f.flight_id = a.flight_id
       LEFT JOIN documents ffm ON ffm.related_object_type = 'Flight' AND ffm.related_object_id = a.flight_id AND ffm.document_type = 'FFM'
@@ -1819,12 +2334,14 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         return {
           awb_id: row.awb_id,
           awb_no: row.awb_no,
+          awb_type: row.awb_type ?? 'EXPORT',
           shipment_id: row.shipment_id,
           flight_id: row.flight_id,
           flight_no: row.flight_no,
           destination_code: row.destination_code,
           pieces: Number(row.pieces ?? 0),
           gross_weight: Number(row.gross_weight ?? 0),
+          archived: Boolean(row.deleted_at),
           ...statuses
         };
       }),
@@ -1841,6 +2358,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
           SELECT
             a.awb_id,
             a.awb_no,
+            COALESCE(a.awb_type, 'EXPORT') AS awb_type,
             a.shipment_id,
             a.flight_id,
             a.station_id,
@@ -1853,7 +2371,8 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
             COALESCE(manifest.document_status, 'Missing') AS manifest_doc_status,
             receipt.task_status AS receipt_task_status,
             loading.task_status AS loading_task_status,
-            f.runtime_status
+            f.runtime_status,
+            a.deleted_at
           FROM awbs a
           JOIN flights f ON f.flight_id = a.flight_id
           LEFT JOIN documents ffm ON ffm.related_object_type = 'Flight' AND ffm.related_object_id = a.flight_id AND ffm.document_type = 'FFM'
@@ -1932,6 +2451,7 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
       awb: {
         awb_id: row.awb_id,
         awb_no: row.awb_no,
+        awb_type: row.awb_type ?? 'EXPORT',
         shipment_id: row.shipment_id,
         flight_id: row.flight_id,
         flight_no: row.flight_no,
@@ -1939,8 +2459,22 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         destination_code: row.destination_code,
         pieces: Number(row.pieces ?? 0),
         gross_weight: Number(row.gross_weight ?? 0),
+        archived: Boolean(row.deleted_at),
         ...statuses
       },
+      recovery_summary: buildOutboundWaybillRecoverySummary({
+        exceptions: exceptions.results.map((item) => ({
+          exception_type: item.exception_type,
+          exception_status: item.exception_status,
+          blocker_flag: booleanFromRow(item.blocker_flag)
+        })),
+        documents: documents.results.map((item) => ({
+          document_type: item.document_type,
+          document_status: item.document_status,
+          required_for_release: booleanFromRow(item.required_for_release)
+        })),
+        awb: statuses
+      }),
       documents: documents.results.map((item) => ({
         document_id: item.document_id,
         document_type: item.document_type,
@@ -2174,11 +2708,303 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
     };
   }
 
+  async updateInboundWaybill(awbId: string, input: StationWaybillUpdateInput): Promise<StationWaybillMutationResult> {
+    return this.updateWaybill('inbound', awbId, input);
+  }
+
+  async updateOutboundWaybill(awbId: string, input: StationWaybillUpdateInput): Promise<StationWaybillMutationResult> {
+    return this.updateWaybill('outbound', awbId, input);
+  }
+
+  async archiveInboundWaybill(awbId: string): Promise<StationWaybillMutationResult> {
+    return this.updateWaybill('inbound', awbId, { archived: true });
+  }
+
+  async archiveOutboundWaybill(awbId: string): Promise<StationWaybillMutationResult> {
+    return this.updateWaybill('outbound', awbId, { archived: true });
+  }
+
+  private async loadWaybillForWrite(direction: 'inbound' | 'outbound', awbId: string) {
+    const awb = await this.db
+      .prepare(
+        `
+          SELECT
+            a.awb_id,
+            a.awb_no,
+            COALESCE(a.awb_type, CASE WHEN COALESCE(s.shipment_type, 'import') = 'export' THEN 'EXPORT' ELSE 'IMPORT' END) AS awb_type,
+            a.shipment_id,
+            a.flight_id,
+            a.station_id,
+            a.consignee_name,
+            a.notify_name,
+            a.pieces,
+            a.gross_weight,
+            a.current_node,
+            a.noa_status,
+            a.pod_status,
+            a.transfer_status,
+            a.manifest_status,
+            a.deleted_at,
+            COALESCE(s.shipment_type, 'import') AS shipment_type
+          FROM awbs a
+          JOIN shipments s ON s.shipment_id = a.shipment_id
+          WHERE a.awb_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(awbId)
+      .first<{
+        awb_id: string;
+        awb_no: string;
+        awb_type: string;
+        shipment_id: string;
+        flight_id: string | null;
+        station_id: string;
+        consignee_name: string | null;
+        notify_name: string | null;
+        pieces: number | string;
+        gross_weight: number | string;
+        current_node: string;
+        noa_status: NoaActionResult['noa_status'];
+        pod_status: PodActionResult['pod_status'];
+        transfer_status: InboundWaybillDetail['awb']['transfer_status'];
+        manifest_status: string | null;
+        deleted_at: string | null;
+        shipment_type: string;
+      }>();
+
+    if (!awb) {
+      throw new RepositoryOperationError(404, 'AWB_NOT_FOUND', 'Waybill does not exist', { awb_id: awbId });
+    }
+
+    const isOutbound = awb.shipment_type === 'export';
+    if ((direction === 'outbound' && !isOutbound) || (direction === 'inbound' && isOutbound)) {
+      throw new RepositoryOperationError(404, 'AWB_NOT_FOUND', 'Waybill does not exist in requested direction', {
+        awb_id: awbId,
+        direction
+      });
+    }
+
+    return awb;
+  }
+
+  private async loadFlightBindingOption(flightId: string) {
+    return this.db
+      .prepare(
+        `
+          SELECT flight_id, flight_no, station_id, deleted_at
+          FROM flights
+          WHERE flight_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(flightId)
+      .first<{ flight_id: string; flight_no: string; station_id: string; deleted_at: string | null }>();
+  }
+
+  private async updateWaybill(
+    direction: 'inbound' | 'outbound',
+    awbId: string,
+    input: StationWaybillUpdateInput
+  ): Promise<StationWaybillMutationResult> {
+    const actor = this.ensureActor();
+    const existing = await this.loadWaybillForWrite(direction, awbId);
+    this.assertActorStation(existing.station_id);
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    const auditPayload: Record<string, unknown> = {};
+    const changedStateFields: Array<{ field: string; fromValue: string | null; toValue: string }> = [];
+    const nextArchived = Object.prototype.hasOwnProperty.call(input, 'archived')
+      ? Boolean(input.archived)
+      : Boolean(existing.deleted_at);
+
+    const assign = (column: string, value: unknown, auditKey = column) => {
+      updates.push(`${column} = ?`);
+      params.push(value);
+      auditPayload[auditKey] = value;
+    };
+
+    if (Object.prototype.hasOwnProperty.call(input, 'awb_no')) {
+      const value = String(input.awb_no || '').trim().toUpperCase();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'awb_no is required');
+      }
+      if (value !== existing.awb_no) {
+        assign('awb_no', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'awb_type')) {
+      const value = String(input.awb_type || '').trim().toUpperCase();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'awb_type is required');
+      }
+      if (value !== String(existing.awb_type || '').toUpperCase()) {
+        assign('awb_type', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'flight_id')) {
+      const value = String(input.flight_id || '').trim();
+      if (value) {
+        const flight = await this.loadFlightBindingOption(value);
+        if (!flight || flight.deleted_at) {
+          throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'flight_id is invalid', { flight_id: value });
+        }
+        if (flight.station_id !== existing.station_id) {
+          throw new RepositoryOperationError(403, 'STATION_SCOPE_DENIED', 'flight_id does not belong to requested station', {
+            flight_id: value,
+            station_id: existing.station_id
+          });
+        }
+      }
+      if ((existing.flight_id || '') !== value) {
+        assign('flight_id', value || null);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'consignee_name') && direction === 'inbound') {
+      const value = String(input.consignee_name || '').trim();
+      if (value !== String(existing.consignee_name || '').trim()) {
+        assign('consignee_name', value || null);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'notify_name') && direction === 'outbound') {
+      const value = String(input.notify_name || '').trim();
+      if (value !== String(existing.notify_name || '').trim()) {
+        assign('notify_name', value || null);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'pieces')) {
+      const value = Number(input.pieces);
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'pieces must be a positive number');
+      }
+      if (value !== Number(existing.pieces ?? 0)) {
+        assign('pieces', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'gross_weight')) {
+      const value = Number(input.gross_weight);
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'gross_weight must be a positive number');
+      }
+      if (value !== Number(existing.gross_weight ?? 0)) {
+        assign('gross_weight', value);
+      }
+    }
+
+    const maybeStateChange = (field: string, nextValue: unknown, currentValue: unknown) => {
+      const value = String(nextValue || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', `${field} is required`);
+      }
+      if (value !== String(currentValue || '').trim()) {
+        assign(field, value);
+        changedStateFields.push({
+          field,
+          fromValue: String(currentValue || '').trim() || null,
+          toValue: value
+        });
+      }
+    };
+
+    if (Object.prototype.hasOwnProperty.call(input, 'current_node')) {
+      maybeStateChange('current_node', input.current_node, existing.current_node);
+    }
+    if (direction === 'inbound' && Object.prototype.hasOwnProperty.call(input, 'noa_status')) {
+      maybeStateChange('noa_status', input.noa_status, existing.noa_status);
+    }
+    if (direction === 'inbound' && Object.prototype.hasOwnProperty.call(input, 'pod_status')) {
+      maybeStateChange('pod_status', input.pod_status, existing.pod_status);
+    }
+    if (direction === 'inbound' && Object.prototype.hasOwnProperty.call(input, 'transfer_status')) {
+      maybeStateChange('transfer_status', input.transfer_status, existing.transfer_status);
+    }
+    if (direction === 'outbound' && Object.prototype.hasOwnProperty.call(input, 'manifest_status')) {
+      maybeStateChange('manifest_status', input.manifest_status, existing.manifest_status || 'Draft');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'archived')) {
+      const deletedAt = nextArchived ? isoNow() : null;
+      if ((existing.deleted_at || null) !== deletedAt) {
+        assign('deleted_at', deletedAt, 'archived');
+      }
+    }
+
+    if (!updates.length) {
+      return {
+        awb_id: existing.awb_id,
+        awb_no: existing.awb_no,
+        station_id: existing.station_id,
+        direction,
+        archived: nextArchived,
+        audit_action: direction === 'inbound' ? 'INBOUND_AWB_UNCHANGED' : 'OUTBOUND_AWB_UNCHANGED'
+      };
+    }
+
+    updates.push('updated_at = ?');
+    params.push(isoNow(), awbId);
+
+    await this.db
+      .prepare(`UPDATE awbs SET ${updates.join(', ')} WHERE awb_id = ?`)
+      .bind(...params)
+      .run();
+
+    const archivedChanged = Object.prototype.hasOwnProperty.call(input, 'archived');
+    const auditAction = archivedChanged
+      ? nextArchived
+        ? direction === 'inbound'
+          ? 'INBOUND_AWB_ARCHIVED'
+          : 'OUTBOUND_AWB_ARCHIVED'
+        : direction === 'inbound'
+          ? 'INBOUND_AWB_RESTORED'
+          : 'OUTBOUND_AWB_RESTORED'
+      : direction === 'inbound'
+        ? 'INBOUND_AWB_UPDATED'
+        : 'OUTBOUND_AWB_UPDATED';
+
+    const auditId = await this.writeAudit({
+      action: auditAction,
+      objectType: 'AWB',
+      objectId: existing.awb_id,
+      stationId: existing.station_id,
+      summary: `${direction === 'inbound' ? 'Inbound' : 'Outbound'} waybill ${existing.awb_no} updated`,
+      payload: auditPayload
+    });
+
+    for (const item of changedStateFields) {
+      await this.writeStateTransition({
+        stationId: existing.station_id,
+        objectType: 'AWB',
+        objectId: existing.awb_id,
+        stateField: item.field,
+        fromValue: item.fromValue,
+        toValue: item.toValue,
+        triggeredBy: actor.userId,
+        auditId
+      });
+    }
+
+    return {
+      awb_id: existing.awb_id,
+      awb_no: String(input.awb_no || existing.awb_no).trim().toUpperCase(),
+      station_id: existing.station_id,
+      direction,
+      archived: nextArchived,
+      audit_action: auditAction
+    };
+  }
+
   private async loadWaybillForAction(awbId: string) {
     const awb = await this.db
       .prepare(
         `
-          SELECT awb_id, awb_no, shipment_id, flight_id, station_id, noa_status, pod_status
+          SELECT awb_id, awb_no, shipment_id, flight_id, station_id, noa_status, pod_status, deleted_at
           FROM awbs
           WHERE awb_id = ?
           LIMIT 1
@@ -2193,10 +3019,17 @@ class D1WaybillRepository extends BaseD1Repository implements WaybillRepository 
         station_id: string;
         noa_status: NoaActionResult['noa_status'];
         pod_status: PodActionResult['pod_status'];
+        deleted_at: string | null;
       }>();
 
     if (!awb) {
       throw new RepositoryOperationError(404, 'AWB_NOT_FOUND', 'Inbound waybill does not exist', {
+        awb_id: awbId
+      });
+    }
+
+    if (awb.deleted_at) {
+      throw new RepositoryOperationError(409, 'AWB_ARCHIVED', 'Archived waybill cannot process operational actions', {
         awb_id: awbId
       });
     }
@@ -2258,6 +3091,7 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
         f.origin_code,
         f.destination_code,
         f.runtime_status,
+        a.deleted_at,
         (
           SELECT t.task_status
           FROM tasks t
@@ -2311,14 +3145,21 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
     return {
       items: listRows.results.map((row) => ({
         id: getShipmentSlug(row.shipment_type, row.awb_no),
+        shipment_id: row.shipment_id,
         awb: row.awb_no,
+        awb_id: row.awb_id,
         direction: mapShipmentDirection(row.shipment_type),
+        flight_id: row.flight_id,
         flight_no: row.flight_no ?? '--',
         route: inferShipmentRoute(row),
         primary_status: inferOutboundShipmentPrimaryStatus(row),
+        current_node: row.current_node,
+        fulfillment_status: row.fulfillment_status,
+        runtime_status: row.runtime_status ?? 'Scheduled',
         task_status: inferShipmentTaskStatus(row),
         document_status: inferShipmentDocumentStatus(row),
         blocker: inferShipmentBlocker(row),
+        archived: Boolean(row.deleted_at),
         consignee: row.consignee_name,
         pieces: String(Number(row.total_pieces ?? 0)),
         weight: `${Number(row.total_weight ?? 0)} kg`,
@@ -2358,7 +3199,8 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
         f.flight_no,
         f.origin_code,
         f.destination_code,
-        f.runtime_status
+        f.runtime_status,
+        a.deleted_at
       FROM shipments s
       JOIN awbs a ON a.shipment_id = s.shipment_id
       LEFT JOIN flights f ON f.flight_id = a.flight_id
@@ -2449,6 +3291,12 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
       current_node: shipment.current_node,
       fulfillment_status: shipment.fulfillment_status
     };
+    const gatePolicySummary = buildShipmentGatePolicySummary({
+      shipmentType: shipment.shipment_type,
+      documents: documents.results,
+      tasks: tasks.results,
+      exceptions: exceptions.results
+    });
 
     return {
       id: getShipmentSlug(shipment.shipment_type, shipment.awb_no),
@@ -2509,7 +3357,14 @@ class D1ShipmentRepository extends BaseD1Repository implements ShipmentRepositor
         { source: `Shipment / ${shipment.shipment_id}`, relation: 'requires', target: 'Document', note: '关键文件齐全后才能推进下游动作。' },
         { source: `Shipment / ${shipment.shipment_id}`, relation: 'executes', target: 'Task', note: '任务围绕 Shipment / AWB / Flight 三个对象分发。' },
         { source: `Shipment / ${shipment.shipment_id}`, relation: 'blocked_by', target: 'Exception', note: '存在异常时必须先解除阻断。' }
-      ]
+      ],
+      gate_policy_summary: gatePolicySummary,
+      gate_policy_overview: {
+        total: gatePolicySummary.length,
+        blocked: gatePolicySummary.filter((item) => item.status === 'blocked').length,
+        tracked: gatePolicySummary.filter((item) => item.status !== 'clear').length,
+        gate_ids: gatePolicySummary.map((item) => item.gate_id)
+      }
     };
   }
 }
@@ -2587,6 +3442,188 @@ class D1DocumentRepository extends BaseD1Repository implements DocumentRepositor
       page,
       page_size: pageSize,
       total: Number(countRow?.total ?? 0)
+    };
+  }
+
+  async listStationDocumentOptions(query: Record<string, string | undefined>): Promise<StationDocumentOptions> {
+    const stationId = query.station_id ?? this.ensureActor().stationScope[0];
+    this.assertActorStation(stationId);
+    const relatedObjectType = String(query.related_object_type || 'AWB').trim() || 'AWB';
+
+    const [documentTypes, documentStatuses, retentionClasses, relatedObjectTypes, relatedObjects] = await Promise.all([
+      this.db
+        .prepare(`SELECT option_value, option_label, sort_order FROM station_document_type_options ORDER BY sort_order ASC, option_value ASC`)
+        .all<{ option_value: string; option_label: string; sort_order: number }>(),
+      this.db
+        .prepare(`SELECT option_value, option_label, sort_order FROM station_document_status_options ORDER BY sort_order ASC, option_value ASC`)
+        .all<{ option_value: string; option_label: string; sort_order: number }>(),
+      this.db
+        .prepare(`SELECT option_value, option_label, sort_order FROM station_document_retention_class_options ORDER BY sort_order ASC, option_value ASC`)
+        .all<{ option_value: string; option_label: string; sort_order: number }>(),
+      this.db
+        .prepare(`SELECT option_value, option_label, sort_order FROM station_document_related_object_type_options ORDER BY sort_order ASC, option_value ASC`)
+        .all<{ option_value: string; option_label: string; sort_order: number }>(),
+      this.loadDocumentRelatedObjectOptions(stationId, relatedObjectType)
+    ]);
+
+    const mapOption = (row: { option_value: string; option_label: string }) => ({
+      value: row.option_value,
+      label: row.option_label,
+      disabled: false,
+      meta: {}
+    });
+
+    return {
+      document_type_options: (documentTypes.results || []).map(mapOption),
+      document_status_options: (documentStatuses.results || []).map(mapOption),
+      retention_class_options: (retentionClasses.results || []).map(mapOption),
+      related_object_type_options: (relatedObjectTypes.results || []).map(mapOption),
+      related_object_options: relatedObjects
+    };
+  }
+
+  async getStationDocument(documentId: string): Promise<StationDocumentDetail | null> {
+    const row = await this.db
+      .prepare(
+        `
+          SELECT
+            d.document_id,
+            d.station_id,
+            d.document_type,
+            d.document_name,
+            d.related_object_type,
+            d.related_object_id,
+            CASE
+              WHEN d.related_object_type = 'Flight' THEN COALESCE(f.flight_no || ' / ' || d.station_id, d.related_object_id)
+              WHEN d.related_object_type = 'AWB' THEN COALESCE(a.awb_no || ' / ' || d.station_id, d.related_object_id)
+              WHEN d.related_object_type = 'Shipment' THEN COALESCE(s.shipment_id, d.related_object_id)
+              WHEN d.related_object_type = 'Task' THEN COALESCE(t.task_type || ' / ' || d.related_object_id, d.related_object_id)
+              WHEN d.related_object_type = 'Truck' THEN COALESCE(tr.plate_no || ' / ' || d.related_object_id, d.related_object_id)
+              ELSE d.related_object_id
+            END AS related_object_label,
+            d.version_no,
+            d.document_status,
+            d.required_for_release,
+            d.content_type,
+            d.size_bytes,
+            d.checksum_sha256,
+            d.retention_class,
+            d.deleted_at,
+            d.uploaded_at,
+            d.updated_at,
+            d.note,
+            d.storage_key,
+            d.upload_id,
+            d.parent_document_id
+          FROM documents d
+          LEFT JOIN flights f ON d.related_object_type = 'Flight' AND d.related_object_id = f.flight_id
+          LEFT JOIN awbs a ON d.related_object_type = 'AWB' AND d.related_object_id = a.awb_id
+          LEFT JOIN shipments s ON d.related_object_type = 'Shipment' AND d.related_object_id = s.shipment_id
+          LEFT JOIN tasks t ON d.related_object_type = 'Task' AND d.related_object_id = t.task_id
+          LEFT JOIN trucks tr ON d.related_object_type = 'Truck' AND d.related_object_id = tr.truck_id
+          WHERE d.document_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(documentId)
+      .first<StationDocumentRow & DocumentLookupRow & { related_object_label: string | null; updated_at?: string | null }>();
+
+    if (!row) {
+      return null;
+    }
+
+    this.assertActorStation(row.station_id);
+
+    const versions = await this.db
+      .prepare(
+        `
+          WITH RECURSIVE lineage(document_id, parent_document_id) AS (
+            SELECT document_id, parent_document_id
+            FROM documents
+            WHERE document_id = ?
+            UNION
+            SELECT d.document_id, d.parent_document_id
+            FROM documents d
+            JOIN lineage l ON d.document_id = l.parent_document_id
+            UNION
+            SELECT d.document_id, d.parent_document_id
+            FROM documents d
+            JOIN lineage l ON d.parent_document_id = l.document_id
+          )
+          SELECT DISTINCT
+            d.document_id,
+            d.document_name,
+            d.version_no,
+            d.document_status,
+            d.content_type,
+            d.uploaded_at,
+            d.updated_at,
+            d.note
+          FROM documents d
+          JOIN lineage l ON l.document_id = d.document_id
+          ORDER BY d.uploaded_at DESC, d.document_id DESC
+        `
+      )
+      .bind(documentId)
+      .all<{
+        document_id: string;
+        document_name: string;
+        version_no: string;
+        document_status: string;
+        content_type: string | null;
+        uploaded_at: string | null;
+        updated_at: string | null;
+        note: string | null;
+      }>();
+
+    const versionItems = (versions.results || []).map((item, index, all) => ({
+      document_id: item.document_id,
+      version_no: item.version_no,
+      document_status: item.document_status as StationDocumentDetail['versions'][number]['document_status'],
+      document_name: item.document_name,
+      preview_type: inferDocumentPreviewType(
+        item.document_name,
+        item.content_type,
+      ) as StationDocumentDetail['versions'][number]['preview_type'],
+      uploaded_at: item.uploaded_at ?? undefined,
+      updated_at: item.updated_at ?? undefined,
+      replaced_by: index > 0 ? all[index - 1]?.document_id ?? null : null,
+      rollback_target: all[index + 1]?.document_id ?? null,
+      note: item.note ?? undefined
+    }));
+
+    return {
+      document: {
+        document_id: row.document_id,
+        station_id: row.station_id,
+        document_type: row.document_type,
+        document_name: row.document_name,
+        related_object_type: row.related_object_type,
+        related_object_id: row.related_object_id,
+        related_object_label: row.related_object_label ?? row.related_object_id,
+        version_no: row.version_no,
+        document_status: row.document_status as StationDocumentDetail['document']['document_status'],
+        required_for_release: booleanFromRow(row.required_for_release),
+        content_type: row.content_type ?? undefined,
+        size_bytes: numberFromRow(row.size_bytes),
+        checksum_sha256: row.checksum_sha256 ?? undefined,
+        retention_class: row.retention_class ?? undefined,
+        deleted_at: row.deleted_at ?? null,
+        preview_type: inferDocumentPreviewType(row.document_name || row.document_id, row.content_type),
+        uploaded_at: row.uploaded_at ?? undefined,
+        note: row.note ?? undefined,
+        storage_key: row.storage_key ?? undefined,
+        upload_id: row.upload_id ?? null,
+        archived: Boolean(row.deleted_at)
+      },
+      versions: versionItems,
+      lifecycle: {
+        can_update: true,
+        can_archive: !Boolean(row.deleted_at),
+        can_restore: Boolean(row.deleted_at),
+        can_download: Boolean(row.storage_key),
+        can_preview: Boolean(row.storage_key)
+      }
     };
   }
 
@@ -2911,22 +3948,284 @@ class D1DocumentRepository extends BaseD1Repository implements DocumentRepositor
       audit_action: 'DOCUMENT_CREATED'
     };
   }
+
+  async updateStationDocument(documentId: string, input: StationDocumentUpdateInput): Promise<StationDocumentMutationResult> {
+    const actor = this.ensureActor();
+    const existing = await this.db
+      .prepare(
+        `
+          SELECT
+            document_id,
+            station_id,
+            document_type,
+            document_name,
+            related_object_type,
+            related_object_id,
+            document_status,
+            required_for_release,
+            retention_class,
+            note,
+            deleted_at
+          FROM documents
+          WHERE document_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(documentId)
+      .first<DocumentLookupRow>();
+
+    if (!existing) {
+      throw new RepositoryOperationError(404, 'DOCUMENT_NOT_FOUND', 'Document does not exist', { document_id: documentId });
+    }
+
+    this.assertActorStation(existing.station_id);
+
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    const auditPayload: Record<string, unknown> = {};
+    const changedStateFields: Array<{ field: string; fromValue: string | null; toValue: string }> = [];
+    const nextArchived = Object.prototype.hasOwnProperty.call(input, 'archived')
+      ? Boolean(input.archived)
+      : Boolean(existing.deleted_at);
+
+    const assign = (column: string, value: unknown, auditKey = column) => {
+      updates.push(`${column} = ?`);
+      params.push(value);
+      auditPayload[auditKey] = value;
+    };
+
+    const nextRelatedObjectType = String(input.related_object_type || existing.related_object_type || '').trim();
+    const nextRelatedObjectId = String(input.related_object_id || existing.related_object_id || '').trim();
+    if (
+      Object.prototype.hasOwnProperty.call(input, 'related_object_type') ||
+      Object.prototype.hasOwnProperty.call(input, 'related_object_id')
+    ) {
+      if (!nextRelatedObjectType || !nextRelatedObjectId) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'related_object_type and related_object_id are required');
+      }
+      await assertRelatedObjectExists(this.db, nextRelatedObjectType, nextRelatedObjectId);
+      if (nextRelatedObjectType !== String(existing.related_object_type || '').trim()) {
+        assign('related_object_type', nextRelatedObjectType);
+      }
+      if (nextRelatedObjectId !== String(existing.related_object_id || '').trim()) {
+        assign('related_object_id', nextRelatedObjectId);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'document_type')) {
+      const value = String(input.document_type || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'document_type is required');
+      }
+      if (value !== String(existing.document_type || '').trim()) {
+        assign('document_type', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'document_name')) {
+      const value = String(input.document_name || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'document_name is required');
+      }
+      if (value !== String(existing.document_name || '').trim()) {
+        assign('document_name', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'retention_class')) {
+      const value = String(input.retention_class || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'retention_class is required');
+      }
+      if (value !== String(existing.retention_class || '').trim()) {
+        assign('retention_class', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'required_for_release')) {
+      const value = Boolean(input.required_for_release) ? 1 : 0;
+      if (value !== (booleanFromRow(existing.required_for_release) ? 1 : 0)) {
+        assign('required_for_release', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'note')) {
+      const value = String(input.note || '').trim() || null;
+      if (value !== (existing.note ?? null)) {
+        assign('note', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'document_status')) {
+      const value = String(input.document_status || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'document_status is required');
+      }
+      if (value !== String(existing.document_status || '').trim()) {
+        assign('document_status', value);
+        changedStateFields.push({
+          field: 'document_status',
+          fromValue: String(existing.document_status || '').trim() || null,
+          toValue: value
+        });
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'archived')) {
+      const deletedAt = nextArchived ? isoNow() : null;
+      if ((existing.deleted_at || null) !== deletedAt) {
+        assign('deleted_at', deletedAt, 'archived');
+        changedStateFields.push({
+          field: 'archived',
+          fromValue: existing.deleted_at ? 'archived' : 'active',
+          toValue: nextArchived ? 'archived' : 'active'
+        });
+      }
+    }
+
+    if (!updates.length) {
+      return {
+        document_id: existing.document_id,
+        station_id: existing.station_id,
+        document_status: String(existing.document_status || 'Uploaded') as StationDocumentMutationResult['document_status'],
+        archived: nextArchived,
+        audit_action: 'DOCUMENT_UNCHANGED'
+      };
+    }
+
+    const now = isoNow();
+    updates.push('updated_at = ?');
+    params.push(now, documentId);
+
+    await this.db.prepare(`UPDATE documents SET ${updates.join(', ')} WHERE document_id = ?`).bind(...params).run();
+
+    const archivedChanged = Object.prototype.hasOwnProperty.call(input, 'archived');
+    const auditAction = archivedChanged
+      ? nextArchived
+        ? 'DOCUMENT_ARCHIVED'
+        : 'DOCUMENT_RESTORED'
+      : 'DOCUMENT_UPDATED';
+
+    const auditId = await this.writeAudit({
+      action: auditAction,
+      objectType: 'Document',
+      objectId: existing.document_id,
+      stationId: existing.station_id,
+      summary: archivedChanged
+        ? `${nextArchived ? 'Archived' : 'Restored'} document ${existing.document_id}`
+        : `Updated document ${existing.document_id}`,
+      payload: auditPayload
+    });
+
+    for (const item of changedStateFields) {
+      await this.writeStateTransition({
+        stationId: existing.station_id,
+        objectType: 'Document',
+        objectId: existing.document_id,
+        stateField: item.field,
+        fromValue: item.fromValue,
+        toValue: item.toValue,
+        triggeredBy: actor.userId,
+        auditId,
+        reason: input.note ?? undefined
+      });
+    }
+
+    return {
+      document_id: existing.document_id,
+      station_id: existing.station_id,
+      document_status: String(input.document_status || existing.document_status || 'Uploaded') as StationDocumentMutationResult['document_status'],
+      archived: nextArchived,
+      audit_action: auditAction
+    };
+  }
+
+  private async loadDocumentRelatedObjectOptions(stationId: string, relatedObjectType: string) {
+    const type = String(relatedObjectType || '').trim().toUpperCase();
+    if (type === 'FLIGHT') {
+      const rows = await this.db
+        .prepare(
+          `SELECT flight_id AS value, flight_no || ' / ' || station_id AS label FROM flights WHERE station_id = ? AND deleted_at IS NULL ORDER BY flight_no ASC LIMIT 100`
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string }>();
+      return (rows.results || []).map((row) => ({ ...row, disabled: false, meta: {} }));
+    }
+
+    if (type === 'AWB') {
+      const rows = await this.db
+        .prepare(
+          `SELECT awb_id AS value, awb_no || ' / ' || station_id AS label FROM awbs WHERE station_id = ? AND deleted_at IS NULL ORDER BY awb_no ASC LIMIT 100`
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string }>();
+      return (rows.results || []).map((row) => ({ ...row, disabled: false, meta: {} }));
+    }
+
+    if (type === 'SHIPMENT') {
+      const rows = await this.db
+        .prepare(`SELECT shipment_id AS value, shipment_id AS label FROM shipments WHERE station_id = ? ORDER BY shipment_id ASC LIMIT 100`)
+        .bind(stationId)
+        .all<{ value: string; label: string }>();
+      return (rows.results || []).map((row) => ({ ...row, disabled: false, meta: {} }));
+    }
+
+    if (type === 'TASK') {
+      const rows = await this.db
+        .prepare(
+          `SELECT task_id AS value, task_type || ' / ' || task_id AS label FROM tasks WHERE station_id = ? ORDER BY task_id DESC LIMIT 100`
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string }>();
+      return (rows.results || []).map((row) => ({ ...row, disabled: false, meta: {} }));
+    }
+
+    if (type === 'TRUCK') {
+      const rows = await this.db
+        .prepare(
+          `SELECT truck_id AS value, plate_no || ' / ' || station_id AS label FROM trucks WHERE station_id = ? AND COALESCE(deleted_at, '') = '' ORDER BY plate_no ASC LIMIT 100`
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string }>();
+      return (rows.results || []).map((row) => ({ ...row, disabled: false, meta: {} }));
+    }
+
+    return [];
+  }
 }
 
 class D1TaskRepository extends BaseD1Repository implements TaskRepository {
   async listStationTasks(query: Record<string, string | undefined>): Promise<ListResponse<StationTaskListItem>> {
     const { page, pageSize, offset } = parsePagination(query.page, query.page_size);
     const { params, whereClause } = buildStationTaskWhereClause(query);
+    const includeArchived = query.include_archived === 'true' || query.include_archived === '1';
+    const orderBySql = includeArchived
+      ? `ORDER BY
+          CASE WHEN t.deleted_at IS NULL THEN 1 ELSE 0 END ASC,
+          COALESCE(t.deleted_at, t.updated_at, t.created_at) DESC,
+          t.task_id ASC`
+      : 'ORDER BY t.due_at ASC, t.task_id ASC';
 
     const countSql = `
       SELECT COUNT(*) AS total
       FROM tasks t
+      LEFT JOIN (
+        SELECT
+          linked_task_id,
+          COUNT(*) AS open_exception_count,
+          MAX(CASE WHEN severity = 'P1' THEN 1 ELSE 0 END) AS has_p1_exception
+        FROM exceptions
+        WHERE exception_status NOT IN ('Resolved', 'Closed')
+          AND linked_task_id IS NOT NULL
+        GROUP BY linked_task_id
+      ) ex ON ex.linked_task_id = t.task_id
       WHERE ${whereClause}
     `;
 
     const listSql = `
       SELECT
         t.task_id,
+        t.station_id,
         t.task_type,
         t.execution_node,
         t.related_object_type,
@@ -2935,30 +4234,47 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
           WHEN t.related_object_type = 'Flight' THEN COALESCE(f.flight_no || ' / ' || t.station_id || ' Inbound', t.related_object_id)
           WHEN t.related_object_type = 'AWB' THEN COALESCE(a.awb_no || ' / ' || a.station_id || ' Inbound', t.related_object_id)
           WHEN t.related_object_type = 'Shipment' THEN COALESCE(s.shipment_id, t.related_object_id)
+          WHEN t.related_object_type = 'Document' THEN COALESCE(d.document_name || ' / ' || t.related_object_id, t.related_object_id)
+          WHEN t.related_object_type = 'Task' THEN COALESCE(rt.task_type || ' / ' || t.related_object_id, t.related_object_id)
           ELSE t.related_object_id
         END AS related_object_label,
         t.assigned_role,
         t.assigned_team_id,
         t.assigned_worker_id,
+        tm.team_name AS assigned_team_name,
+        w.worker_name AS assigned_worker_name,
         t.task_status,
+        CASE
+          WHEN COALESCE(ex.has_p1_exception, 0) = 1 THEN 'P1'
+          WHEN COALESCE(ex.open_exception_count, 0) > 0 OR COALESCE(t.blocker_code, '') <> '' THEN 'P2'
+          ELSE 'P3'
+        END AS task_priority,
         t.task_sla,
         t.due_at,
         t.blocker_code,
         t.evidence_required,
-        COALESCE(ex.open_exception_count, 0) AS open_exception_count
+        COALESCE(ex.open_exception_count, 0) AS open_exception_count,
+        t.deleted_at
       FROM tasks t
       LEFT JOIN flights f ON t.related_object_type = 'Flight' AND t.related_object_id = f.flight_id
       LEFT JOIN awbs a ON t.related_object_type = 'AWB' AND t.related_object_id = a.awb_id
       LEFT JOIN shipments s ON t.related_object_type = 'Shipment' AND t.related_object_id = s.shipment_id
+      LEFT JOIN documents d ON t.related_object_type = 'Document' AND t.related_object_id = d.document_id
+      LEFT JOIN tasks rt ON t.related_object_type = 'Task' AND t.related_object_id = rt.task_id
+      LEFT JOIN teams tm ON tm.team_id = t.assigned_team_id
+      LEFT JOIN workers w ON w.worker_id = t.assigned_worker_id
       LEFT JOIN (
-        SELECT linked_task_id, COUNT(*) AS open_exception_count
+        SELECT
+          linked_task_id,
+          COUNT(*) AS open_exception_count,
+          MAX(CASE WHEN severity = 'P1' THEN 1 ELSE 0 END) AS has_p1_exception
         FROM exceptions
         WHERE exception_status NOT IN ('Resolved', 'Closed')
           AND linked_task_id IS NOT NULL
         GROUP BY linked_task_id
       ) ex ON ex.linked_task_id = t.task_id
       WHERE ${whereClause}
-      ORDER BY t.due_at ASC, t.task_id ASC
+      ${orderBySql}
       LIMIT ? OFFSET ?
     `;
 
@@ -2975,13 +4291,421 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
     };
   }
 
+  async listStationTaskOptions(query: Record<string, string | undefined>): Promise<StationTaskOptions> {
+    const actor = this.ensureActor();
+    const stationId = query.station_id ?? actor.stationScope[0];
+    this.assertActorStation(stationId);
+    const relatedObjectType = String(query.related_object_type || 'Flight').trim() || 'Flight';
+
+    const [statusRows, priorityRows, roleRows, relatedObjectTypeRows, taskTypeRows, executionNodeRows, teamRows, workerRows, relatedObjectOptions] =
+      await Promise.all([
+        this.db
+          .prepare(`SELECT option_key, option_label, is_disabled FROM station_task_status_options ORDER BY sort_order ASC, option_key ASC`)
+          .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>(),
+        this.db
+          .prepare(`SELECT option_key, option_label, is_disabled FROM station_task_priority_options ORDER BY sort_order ASC, option_key ASC`)
+          .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>(),
+        this.db
+          .prepare(`SELECT option_key, option_label, is_disabled FROM station_task_role_options ORDER BY sort_order ASC, option_key ASC`)
+          .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>(),
+        this.db
+          .prepare(`SELECT option_key, option_label, is_disabled FROM station_task_related_object_type_options ORDER BY sort_order ASC, option_key ASC`)
+          .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>(),
+        this.db
+          .prepare(
+            `
+              SELECT task_type AS option_key, task_type AS option_label
+              FROM tasks
+              WHERE station_id = ?
+              GROUP BY task_type
+              ORDER BY task_type ASC
+            `
+          )
+          .bind(stationId)
+          .all<{ option_key: string; option_label: string }>(),
+        this.db
+          .prepare(
+            `
+              SELECT execution_node AS option_key, execution_node AS option_label
+              FROM tasks
+              WHERE station_id = ?
+              GROUP BY execution_node
+              ORDER BY execution_node ASC
+            `
+          )
+          .bind(stationId)
+          .all<{ option_key: string; option_label: string }>(),
+        this.db
+          .prepare(
+            `
+              SELECT team_id AS option_key, team_name AS option_label
+              FROM teams
+              WHERE station_id = ?
+                AND team_status = 'active'
+              ORDER BY team_name ASC, team_id ASC
+            `
+          )
+          .bind(stationId)
+          .all<{ option_key: string; option_label: string }>(),
+        this.db
+          .prepare(
+            `
+              SELECT worker_id AS option_key, worker_name AS option_label, role_code
+              FROM workers
+              WHERE station_id = ?
+                AND worker_status = 'active'
+              ORDER BY worker_name ASC, worker_id ASC
+            `
+          )
+          .bind(stationId)
+          .all<{ option_key: string; option_label: string; role_code: string | null }>(),
+        this.loadTaskRelatedObjectOptions(stationId, relatedObjectType)
+      ]);
+
+    const mapStaticOption = (row: { option_key: string; option_label: string; is_disabled?: number | string | null }) => ({
+      value: row.option_key,
+      label: row.option_label,
+      disabled: booleanFromRow(row.is_disabled ?? 0),
+      meta: {}
+    });
+
+    return {
+      task_status_options: (statusRows.results || []).map(mapStaticOption),
+      task_priority_options: (priorityRows.results || []).map(mapStaticOption),
+      assigned_role_options: (roleRows.results || []).map(mapStaticOption),
+      related_object_type_options: (relatedObjectTypeRows.results || []).map(mapStaticOption),
+      task_type_options: (taskTypeRows.results || []).map((row) => ({
+        value: row.option_key,
+        label: row.option_label,
+        disabled: false,
+        meta: {}
+      })),
+      execution_node_options: (executionNodeRows.results || []).map((row) => ({
+        value: row.option_key,
+        label: row.option_label,
+        disabled: false,
+        meta: {}
+      })),
+      related_object_options: relatedObjectOptions,
+      team_options: (teamRows.results || []).map((row) => ({
+        value: row.option_key,
+        label: row.option_label,
+        disabled: false,
+        meta: {}
+      })),
+      worker_options: (workerRows.results || []).map((row) => ({
+        value: row.option_key,
+        label: row.option_label,
+        disabled: false,
+        meta: {
+          role_code: row.role_code ?? null
+        }
+      }))
+    };
+  }
+
+  async getStationTask(taskId: string): Promise<StationTaskDetail | null> {
+    const row = await this.db
+      .prepare(
+        `
+          SELECT
+            t.task_id,
+            t.station_id,
+            t.task_type,
+            t.execution_node,
+            t.related_object_type,
+            t.related_object_id,
+            CASE
+              WHEN t.related_object_type = 'Flight' THEN COALESCE(f.flight_no || ' / ' || t.station_id || ' Inbound', t.related_object_id)
+              WHEN t.related_object_type = 'AWB' THEN COALESCE(a.awb_no || ' / ' || a.station_id || ' Inbound', t.related_object_id)
+              WHEN t.related_object_type = 'Shipment' THEN COALESCE(s.shipment_id, t.related_object_id)
+              WHEN t.related_object_type = 'Document' THEN COALESCE(d.document_name || ' / ' || t.related_object_id, t.related_object_id)
+              WHEN t.related_object_type = 'Task' THEN COALESCE(rt.task_type || ' / ' || t.related_object_id, t.related_object_id)
+              ELSE t.related_object_id
+            END AS related_object_label,
+            t.assigned_role,
+            t.assigned_team_id,
+            t.assigned_worker_id,
+            tm.team_name AS assigned_team_name,
+            w.worker_name AS assigned_worker_name,
+            t.task_status,
+            CASE
+              WHEN COALESCE(ex.has_p1_exception, 0) = 1 THEN 'P1'
+              WHEN COALESCE(ex.open_exception_count, 0) > 0 OR COALESCE(t.blocker_code, '') <> '' THEN 'P2'
+              ELSE 'P3'
+            END AS task_priority,
+            t.task_sla,
+            t.due_at,
+            t.blocker_code,
+            t.evidence_required,
+            t.pick_location_id,
+            t.drop_location_id,
+            t.completed_at,
+            t.verified_at,
+            t.deleted_at
+          FROM tasks t
+          LEFT JOIN flights f ON t.related_object_type = 'Flight' AND t.related_object_id = f.flight_id
+          LEFT JOIN awbs a ON t.related_object_type = 'AWB' AND t.related_object_id = a.awb_id
+          LEFT JOIN shipments s ON t.related_object_type = 'Shipment' AND t.related_object_id = s.shipment_id
+          LEFT JOIN documents d ON t.related_object_type = 'Document' AND t.related_object_id = d.document_id
+          LEFT JOIN tasks rt ON t.related_object_type = 'Task' AND t.related_object_id = rt.task_id
+          LEFT JOIN teams tm ON tm.team_id = t.assigned_team_id
+          LEFT JOIN workers w ON w.worker_id = t.assigned_worker_id
+          LEFT JOIN (
+            SELECT
+              linked_task_id,
+              COUNT(*) AS open_exception_count,
+              MAX(CASE WHEN severity = 'P1' THEN 1 ELSE 0 END) AS has_p1_exception
+            FROM exceptions
+            WHERE exception_status NOT IN ('Resolved', 'Closed')
+              AND linked_task_id IS NOT NULL
+            GROUP BY linked_task_id
+          ) ex ON ex.linked_task_id = t.task_id
+          WHERE t.task_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(taskId)
+      .first<StationTaskRow>();
+
+    if (!row) {
+      return null;
+    }
+
+    this.assertActorStation(row.station_id);
+    const archived = Boolean(row.deleted_at);
+    const canAssign = !archived && row.task_status !== 'Closed';
+    const canVerify = !archived && ['Completed', 'Evidence Uploaded'].includes(row.task_status);
+    const canRework = !archived && !['Closed', 'Rejected'].includes(row.task_status);
+    const canEscalate = !archived && !['Verified', 'Closed'].includes(row.task_status);
+    const canRaiseException = !archived && row.task_status !== 'Closed';
+
+    return {
+      task: {
+        task_id: row.task_id,
+        station_id: row.station_id,
+        task_type: row.task_type,
+        execution_node: row.execution_node,
+        related_object_type: row.related_object_type,
+        related_object_id: row.related_object_id,
+        related_object_label: row.related_object_label ?? row.related_object_id,
+        assigned_role: row.assigned_role ?? undefined,
+        assigned_team_id: row.assigned_team_id,
+        assigned_worker_id: row.assigned_worker_id,
+        assigned_team_name: row.assigned_team_name,
+        assigned_worker_name: row.assigned_worker_name,
+        task_status: row.task_status,
+        task_priority: row.task_priority ?? undefined,
+        task_sla: row.task_sla ?? undefined,
+        due_at: row.due_at ?? undefined,
+        blocker_code: row.blocker_code ?? undefined,
+        evidence_required: booleanFromRow(row.evidence_required),
+        pick_location_id: row.pick_location_id ?? null,
+        drop_location_id: row.drop_location_id ?? null,
+        completed_at: row.completed_at ?? null,
+        verified_at: row.verified_at ?? null,
+        deleted_at: row.deleted_at ?? null,
+        archived
+      },
+      lifecycle: {
+        can_update: true,
+        can_archive: !archived,
+        can_restore: archived,
+        can_assign: canAssign,
+        can_verify: canVerify,
+        can_rework: canRework,
+        can_escalate: canEscalate,
+        can_raise_exception: canRaiseException
+      }
+    };
+  }
+
+  async updateStationTask(taskId: string, input: StationTaskUpdateInput): Promise<StationTaskMutationResult> {
+    const actor = this.ensureActor();
+    const existing = await this.db
+      .prepare(
+        `
+          SELECT
+            task_id,
+            station_id,
+            task_type,
+            execution_node,
+            related_object_type,
+            related_object_id,
+            task_status,
+            assigned_role,
+            assigned_team_id,
+            assigned_worker_id,
+            task_sla,
+            due_at,
+            blocker_code,
+            evidence_required,
+            pick_location_id,
+            drop_location_id,
+            deleted_at
+          FROM tasks
+          WHERE task_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(taskId)
+      .first<TaskLookupRow>();
+
+    if (!existing) {
+      throw new RepositoryOperationError(404, 'TASK_NOT_FOUND', 'Task does not exist', {
+        task_id: taskId
+      });
+    }
+
+    this.assertActorStation(existing.station_id);
+
+    if (input.assigned_team_id) {
+      const team = await this.db
+        .prepare(`SELECT team_id, station_id, team_status FROM teams WHERE team_id = ? LIMIT 1`)
+        .bind(input.assigned_team_id)
+        .first<TeamLookupRow>();
+      if (!team || team.station_id !== existing.station_id || team.team_status !== 'active') {
+        throw new RepositoryOperationError(409, 'ASSIGNEE_NOT_ELIGIBLE', 'Assigned team is not eligible', {
+          assigned_team_id: input.assigned_team_id
+        });
+      }
+    }
+
+    if (input.assigned_worker_id) {
+      const worker = await this.db
+        .prepare(`SELECT worker_id, station_id, role_code, worker_status FROM workers WHERE worker_id = ? LIMIT 1`)
+        .bind(input.assigned_worker_id)
+        .first<WorkerLookupRow>();
+      if (!worker || worker.station_id !== existing.station_id || worker.worker_status !== 'active') {
+        throw new RepositoryOperationError(409, 'ASSIGNEE_NOT_ELIGIBLE', 'Assigned worker is not eligible', {
+          assigned_worker_id: input.assigned_worker_id
+        });
+      }
+    }
+
+    const nextRelatedObjectType = input.related_object_type ?? existing.related_object_type ?? 'Flight';
+    const nextRelatedObjectId = input.related_object_id ?? existing.related_object_id ?? '';
+
+    if (input.related_object_type || input.related_object_id) {
+      await this.assertTaskRelatedObject(existing.station_id, nextRelatedObjectType, nextRelatedObjectId);
+    }
+
+    const assignments: string[] = [];
+    const values: unknown[] = [];
+    const addAssignment = (column: string, value: unknown) => {
+      assignments.push(`${column} = ?`);
+      values.push(value);
+    };
+
+    if (Object.prototype.hasOwnProperty.call(input, 'task_type')) {
+      addAssignment('task_type', input.task_type ?? existing.task_type ?? '');
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'execution_node')) {
+      addAssignment('execution_node', input.execution_node ?? existing.execution_node ?? '');
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'related_object_type')) {
+      addAssignment('related_object_type', nextRelatedObjectType);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'related_object_id')) {
+      addAssignment('related_object_id', nextRelatedObjectId);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'assigned_role')) {
+      addAssignment('assigned_role', input.assigned_role ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'assigned_team_id')) {
+      addAssignment('assigned_team_id', input.assigned_team_id ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'assigned_worker_id')) {
+      addAssignment('assigned_worker_id', input.assigned_worker_id ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'task_sla')) {
+      addAssignment('task_sla', input.task_sla ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'due_at')) {
+      addAssignment('due_at', input.due_at ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'blocker_code')) {
+      addAssignment('blocker_code', input.blocker_code ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'evidence_required')) {
+      addAssignment('evidence_required', input.evidence_required ? 1 : 0);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'pick_location_id')) {
+      addAssignment('pick_location_id', input.pick_location_id ?? null);
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'drop_location_id')) {
+      addAssignment('drop_location_id', input.drop_location_id ?? null);
+    }
+
+    let auditAction: StationTaskMutationResult['audit_action'] = 'TASK_UPDATED';
+    let nextArchived = Boolean(existing.deleted_at);
+    if (Object.prototype.hasOwnProperty.call(input, 'archived')) {
+      nextArchived = Boolean(input.archived);
+      addAssignment('deleted_at', nextArchived ? isoNow() : null);
+      auditAction = nextArchived ? 'TASK_ARCHIVED' : 'TASK_RESTORED';
+    }
+
+    if (!assignments.length) {
+      return {
+        task_id: existing.task_id,
+        station_id: existing.station_id,
+        task_status: existing.task_status,
+        archived: Boolean(existing.deleted_at),
+        audit_action: 'TASK_UPDATED'
+      };
+    }
+
+    const now = isoNow();
+    assignments.push('updated_at = ?');
+    values.push(now, taskId);
+    await this.db.prepare(`UPDATE tasks SET ${assignments.join(', ')} WHERE task_id = ?`).bind(...values).run();
+
+    const auditId = await this.writeAudit({
+      action: auditAction,
+      objectType: 'Task',
+      objectId: taskId,
+      stationId: existing.station_id,
+      summary:
+        auditAction === 'TASK_ARCHIVED'
+          ? `Task ${taskId} archived`
+          : auditAction === 'TASK_RESTORED'
+            ? `Task ${taskId} restored`
+            : `Task ${taskId} updated`,
+      payload: {
+        input
+      }
+    });
+
+    if (Object.prototype.hasOwnProperty.call(input, 'archived') && Boolean(existing.deleted_at) !== nextArchived) {
+      await this.writeStateTransition({
+        stationId: existing.station_id,
+        objectType: 'Task',
+        objectId: taskId,
+        stateField: 'archived',
+        fromValue: existing.deleted_at ? 'true' : 'false',
+        toValue: nextArchived ? 'true' : 'false',
+        triggeredBy: actor.userId,
+        auditId,
+        reason: auditAction
+      });
+    }
+
+    return {
+      task_id: existing.task_id,
+      station_id: existing.station_id,
+      task_status: existing.task_status,
+      archived: nextArchived,
+      audit_action: auditAction
+    };
+  }
+
   async listMobileTasks(query: Record<string, string | undefined>): Promise<ListResponse<MobileTaskListItem>> {
     const actor = this.ensureActor();
     const { page, pageSize, offset } = parsePagination(query.page, query.page_size);
     const stationId = query.station_id ?? actor.stationScope[0] ?? 'MME';
 
     const baseParams: unknown[] = [stationId];
-    const clauses = ['t.station_id = ?'];
+    const clauses = ['t.station_id = ?', 't.deleted_at IS NULL'];
 
     if (!actor.roleIds.includes('station_supervisor')) {
       clauses.push(`(
@@ -3030,7 +4754,7 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
       LEFT JOIN workers w ON w.worker_id = t.assigned_worker_id
       LEFT JOIN flights f ON t.related_object_type = 'Flight' AND t.related_object_id = f.flight_id
       LEFT JOIN awbs a ON t.related_object_type = 'AWB' AND t.related_object_id = a.awb_id
-      LEFT JOIN awbs af ON t.related_object_type = 'Flight' AND af.flight_id = t.related_object_id
+      LEFT JOIN flights af ON t.related_object_type = 'AWB' AND a.flight_id = af.flight_id
       WHERE ${whereClause}
     `;
 
@@ -3080,6 +4804,7 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
       LEFT JOIN workers w ON w.worker_id = t.assigned_worker_id
       LEFT JOIN flights f ON t.related_object_type = 'Flight' AND t.related_object_id = f.flight_id
       LEFT JOIN awbs a ON t.related_object_type = 'AWB' AND t.related_object_id = a.awb_id
+      LEFT JOIN flights af ON t.related_object_type = 'AWB' AND a.flight_id = af.flight_id
       WHERE ${whereClause}
       ORDER BY t.due_at ASC, t.task_id ASC
       LIMIT ? OFFSET ?
@@ -3186,6 +4911,7 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
       .prepare(
         `
           SELECT task_id, station_id, task_status, assigned_role, assigned_team_id, assigned_worker_id
+               , deleted_at
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
@@ -3201,6 +4927,12 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
     }
 
     this.assertActorStation(task.station_id);
+
+    if (task.deleted_at) {
+      throw new RepositoryOperationError(409, 'TASK_ARCHIVED', 'Archived task cannot be assigned', {
+        task_id: taskId
+      });
+    }
 
     if (task.task_status === 'Closed') {
       throw new RepositoryOperationError(409, 'TASK_ALREADY_CLOSED', 'Task is already closed', {
@@ -3325,6 +5057,7 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
       .prepare(
         `
           SELECT task_id, station_id, task_status, assigned_role, assigned_team_id, assigned_worker_id
+               , deleted_at
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
@@ -3340,6 +5073,12 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
     }
 
     this.assertActorStation(task.station_id);
+
+    if (task.deleted_at) {
+      throw new RepositoryOperationError(409, 'TASK_ARCHIVED', 'Archived task cannot raise exception', {
+        task_id: taskId
+      });
+    }
 
     if (task.task_status === 'Closed') {
       throw new RepositoryOperationError(409, 'TASK_STATUS_INVALID', 'Closed task cannot raise exception', {
@@ -3466,6 +5205,211 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
     };
   }
 
+  private async loadTaskRelatedObjectOptions(
+    stationId: string,
+    relatedObjectType: string
+  ): Promise<StationTaskOptions['related_object_options']> {
+    this.assertActorStation(stationId);
+
+    if (relatedObjectType === 'Flight') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT flight_id AS option_value, flight_no || ' / ' || station_id AS option_label, runtime_status
+            FROM flights
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY flight_date DESC, flight_no ASC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ option_value: string; option_label: string; runtime_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.option_value,
+        label: row.option_label,
+        disabled: false,
+        meta: { runtime_status: row.runtime_status ?? null }
+      }));
+    }
+
+    if (relatedObjectType === 'AWB') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT awb_id AS option_value, awb_no || ' / ' || station_id AS option_label, current_node
+            FROM awbs
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY awb_no ASC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ option_value: string; option_label: string; current_node: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.option_value,
+        label: row.option_label,
+        disabled: false,
+        meta: { current_node: row.current_node ?? null }
+      }));
+    }
+
+    if (relatedObjectType === 'Shipment') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT shipment_id AS option_value, shipment_id AS option_label, fulfillment_status
+            FROM shipments
+            WHERE station_id = ?
+            ORDER BY shipment_id ASC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ option_value: string; option_label: string; fulfillment_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.option_value,
+        label: row.option_label,
+        disabled: false,
+        meta: { fulfillment_status: row.fulfillment_status ?? null }
+      }));
+    }
+
+    if (relatedObjectType === 'Document') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT document_id AS option_value, document_name || ' / ' || document_type AS option_label, document_status
+            FROM documents
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY uploaded_at DESC, document_id DESC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ option_value: string; option_label: string; document_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.option_value,
+        label: row.option_label,
+        disabled: false,
+        meta: { document_status: row.document_status ?? null }
+      }));
+    }
+
+    if (relatedObjectType === 'Task') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT task_id AS option_value, task_type || ' / ' || task_id AS option_label, task_status
+            FROM tasks
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY updated_at DESC, task_id DESC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ option_value: string; option_label: string; task_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.option_value,
+        label: row.option_label,
+        disabled: false,
+        meta: { task_status: row.task_status ?? null }
+      }));
+    }
+
+    return [];
+  }
+
+  private async assertTaskRelatedObject(stationId: string, relatedObjectType: string, relatedObjectId: string) {
+    if (!relatedObjectId) {
+      throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'related_object_id is required', {
+        related_object_type: relatedObjectType
+      });
+    }
+
+    if (relatedObjectType === 'Flight') {
+      const row = await this.db
+        .prepare(`SELECT flight_id FROM flights WHERE flight_id = ? AND station_id = ? LIMIT 1`)
+        .bind(relatedObjectId, stationId)
+        .first<{ flight_id: string }>();
+      if (!row) {
+        throw new RepositoryOperationError(409, 'RELATED_OBJECT_NOT_FOUND', 'Related flight does not exist', {
+          related_object_type: relatedObjectType,
+          related_object_id: relatedObjectId
+        });
+      }
+      return;
+    }
+
+    if (relatedObjectType === 'AWB') {
+      const row = await this.db
+        .prepare(`SELECT awb_id FROM awbs WHERE awb_id = ? AND station_id = ? LIMIT 1`)
+        .bind(relatedObjectId, stationId)
+        .first<{ awb_id: string }>();
+      if (!row) {
+        throw new RepositoryOperationError(409, 'RELATED_OBJECT_NOT_FOUND', 'Related AWB does not exist', {
+          related_object_type: relatedObjectType,
+          related_object_id: relatedObjectId
+        });
+      }
+      return;
+    }
+
+    if (relatedObjectType === 'Shipment') {
+      const row = await this.db
+        .prepare(`SELECT shipment_id FROM shipments WHERE shipment_id = ? AND station_id = ? LIMIT 1`)
+        .bind(relatedObjectId, stationId)
+        .first<{ shipment_id: string }>();
+      if (!row) {
+        throw new RepositoryOperationError(409, 'RELATED_OBJECT_NOT_FOUND', 'Related shipment does not exist', {
+          related_object_type: relatedObjectType,
+          related_object_id: relatedObjectId
+        });
+      }
+      return;
+    }
+
+    if (relatedObjectType === 'Document') {
+      const row = await this.db
+        .prepare(`SELECT document_id FROM documents WHERE document_id = ? AND station_id = ? LIMIT 1`)
+        .bind(relatedObjectId, stationId)
+        .first<{ document_id: string }>();
+      if (!row) {
+        throw new RepositoryOperationError(409, 'RELATED_OBJECT_NOT_FOUND', 'Related document does not exist', {
+          related_object_type: relatedObjectType,
+          related_object_id: relatedObjectId
+        });
+      }
+      return;
+    }
+
+    if (relatedObjectType === 'Task') {
+      const row = await this.db
+        .prepare(`SELECT task_id FROM tasks WHERE task_id = ? AND station_id = ? LIMIT 1`)
+        .bind(relatedObjectId, stationId)
+        .first<{ task_id: string }>();
+      if (!row) {
+        throw new RepositoryOperationError(409, 'RELATED_OBJECT_NOT_FOUND', 'Related task does not exist', {
+          related_object_type: relatedObjectType,
+          related_object_id: relatedObjectId
+        });
+      }
+      return;
+    }
+
+    throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'Unsupported related_object_type', {
+      related_object_type: relatedObjectType
+    });
+  }
+
   private async processMobileTaskAction(
     taskId: string,
     nextStatus: TaskStatus,
@@ -3478,6 +5422,7 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
       .prepare(
         `
           SELECT task_id, station_id, task_status, assigned_role, assigned_team_id, assigned_worker_id
+               , deleted_at
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
@@ -3493,6 +5438,12 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
     }
 
     this.assertActorStation(task.station_id);
+
+    if (task.deleted_at) {
+      throw new RepositoryOperationError(409, 'TASK_ARCHIVED', 'Archived task cannot execute workflow action', {
+        task_id: taskId
+      });
+    }
 
     if (!allowedCurrentStatuses.includes(task.task_status)) {
       throw new RepositoryOperationError(409, 'TASK_STATUS_INVALID', `Task cannot transition to ${nextStatus}`, {
@@ -3558,6 +5509,7 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
       .prepare(
         `
           SELECT task_id, station_id, task_status
+               , deleted_at
           FROM tasks
           WHERE task_id = ?
           LIMIT 1
@@ -3573,6 +5525,12 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
     }
 
     this.assertActorStation(task.station_id);
+
+    if (task.deleted_at) {
+      throw new RepositoryOperationError(409, 'TASK_ARCHIVED', 'Archived task cannot execute workflow action', {
+        task_id: taskId
+      });
+    }
 
     if (!allowedCurrentStatuses.includes(task.task_status)) {
       throw new RepositoryOperationError(409, 'TASK_STATUS_INVALID', `Task cannot transition to ${nextStatus}`, {
@@ -3629,6 +5587,190 @@ class D1TaskRepository extends BaseD1Repository implements TaskRepository {
 }
 
 class D1ExceptionRepository extends BaseD1Repository implements ExceptionRepository {
+  private async loadExceptionRelatedObjectOptions(stationId: string, relatedObjectType: string) {
+    const type = String(relatedObjectType || '').trim();
+
+    if (type === 'Flight') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT flight_id AS value, flight_no || ' / ' || station_id AS label, runtime_status
+            FROM flights
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY flight_date DESC, flight_no ASC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string; runtime_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.value,
+        label: row.label,
+        disabled: false,
+        meta: { runtime_status: row.runtime_status ?? null }
+      }));
+    }
+
+    if (type === 'AWB') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT awb_id AS value, awb_no || ' / ' || station_id AS label, current_node
+            FROM awbs
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY awb_no ASC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string; current_node: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.value,
+        label: row.label,
+        disabled: false,
+        meta: { current_node: row.current_node ?? null }
+      }));
+    }
+
+    if (type === 'Shipment') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT shipment_id AS value, shipment_id AS label, fulfillment_status
+            FROM shipments
+            WHERE station_id = ?
+            ORDER BY shipment_id ASC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string; fulfillment_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.value,
+        label: row.label,
+        disabled: false,
+        meta: { fulfillment_status: row.fulfillment_status ?? null }
+      }));
+    }
+
+    if (type === 'Task') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT task_id AS value, task_type || ' / ' || task_id AS label, task_status
+            FROM tasks
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY updated_at DESC, task_id DESC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string; task_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.value,
+        label: row.label,
+        disabled: false,
+        meta: { task_status: row.task_status ?? null }
+      }));
+    }
+
+    if (type === 'Document') {
+      const rows = await this.db
+        .prepare(
+          `
+            SELECT document_id AS value, document_name || ' / ' || document_type AS label, document_status
+            FROM documents
+            WHERE station_id = ?
+              AND deleted_at IS NULL
+            ORDER BY updated_at DESC, document_id DESC
+            LIMIT 100
+          `
+        )
+        .bind(stationId)
+        .all<{ value: string; label: string; document_status: string | null }>();
+
+      return (rows.results || []).map((row) => ({
+        value: row.value,
+        label: row.label,
+        disabled: false,
+        meta: { document_status: row.document_status ?? null }
+      }));
+    }
+
+    return [];
+  }
+
+  async listStationExceptionOptions(query: Record<string, string | undefined>): Promise<StationExceptionOptions> {
+    const actor = this.ensureActor();
+    const stationId = String(query.station_id ?? actor.stationScope[0] ?? 'MME').trim() || 'MME';
+    this.assertActorStation(stationId);
+    const relatedObjectType = String(query.related_object_type || 'AWB').trim();
+
+    const exceptionTypes = await this.db
+      .prepare(`SELECT option_key, option_label, is_disabled FROM station_exception_type_options ORDER BY sort_order ASC, option_label ASC`)
+      .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>();
+    const severities = await this.db
+      .prepare(`SELECT option_key, option_label, is_disabled FROM station_exception_severity_options ORDER BY sort_order ASC, option_label ASC`)
+      .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>();
+    const statuses = await this.db
+      .prepare(`SELECT option_key, option_label, is_disabled FROM station_exception_status_options ORDER BY sort_order ASC, option_label ASC`)
+      .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>();
+    const ownerRoles = await this.db
+      .prepare(`SELECT option_key, option_label, is_disabled FROM station_exception_owner_role_options ORDER BY sort_order ASC, option_label ASC`)
+      .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>();
+    const relatedObjectTypes = await this.db
+      .prepare(`SELECT option_key, option_label, is_disabled FROM station_exception_related_object_type_options ORDER BY sort_order ASC, option_label ASC`)
+      .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>();
+    const relatedObjectOptions = await this.loadExceptionRelatedObjectOptions(stationId, relatedObjectType);
+    const teams = await this.db
+      .prepare(
+        `
+          SELECT team_id AS value, team_name AS label, team_status
+          FROM teams
+          WHERE station_id = ?
+            AND team_status = 'active'
+            AND deleted_at IS NULL
+          ORDER BY team_name ASC
+          LIMIT 100
+        `
+      )
+      .bind(stationId)
+      .all<{ value: string; label: string; team_status: string | null }>();
+    const blockerStates = await this.db
+      .prepare(`SELECT option_key, option_label, is_disabled FROM station_exception_blocker_state_options ORDER BY sort_order ASC, option_label ASC`)
+      .all<{ option_key: string; option_label: string; is_disabled: number | string | null }>();
+
+    const mapOption = (row: { option_key: string; option_label: string; is_disabled: number | string | null }) => ({
+      value: row.option_key,
+      label: row.option_label,
+      disabled: booleanFromRow(row.is_disabled),
+      meta: {}
+    });
+
+    return {
+      exception_type_options: (exceptionTypes.results || []).map(mapOption),
+      severity_options: (severities.results || []).map(mapOption),
+      exception_status_options: (statuses.results || []).map(mapOption),
+      owner_role_options: (ownerRoles.results || []).map(mapOption),
+      related_object_type_options: (relatedObjectTypes.results || []).map(mapOption),
+      related_object_options: relatedObjectOptions,
+      team_options: (teams.results || []).map((row) => ({
+        value: row.value,
+        label: row.label,
+        disabled: false,
+        meta: { team_status: row.team_status ?? null }
+      })),
+      blocker_state_options: (blockerStates.results || []).map(mapOption)
+    };
+  }
+
   async getStationException(exceptionId: string): Promise<StationExceptionDetail | null> {
     const row = await this.db
       .prepare(
@@ -3653,8 +5795,10 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
             ex.action_taken,
             ex.linked_task_id,
             COALESCE(t.task_type || ' / ' || t.task_id, ex.linked_task_id) AS linked_task_label,
-            ex.opened_at
+            ex.opened_at,
+            eas.deleted_at
           FROM exceptions ex
+          LEFT JOIN station_exception_archive_state eas ON eas.exception_id = ex.exception_id
           LEFT JOIN flights f ON ex.related_object_type = 'Flight' AND ex.related_object_id = f.flight_id
           LEFT JOIN awbs a ON ex.related_object_type = 'AWB' AND ex.related_object_id = a.awb_id
           LEFT JOIN tasks t ON ex.linked_task_id = t.task_id
@@ -3703,6 +5847,7 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
       required_gate: inferRequiredGate(row),
       recovery_action: inferRecoveryAction(row),
       opened_at: row.opened_at ?? undefined,
+      archived: Boolean(row.deleted_at),
       related_files: relatedFiles.results.map((file) => ({
         label: file.document_name,
         document_id: file.document_id
@@ -3717,6 +5862,7 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
     const countSql = `
       SELECT COUNT(*) AS total
       FROM exceptions ex
+      LEFT JOIN station_exception_archive_state eas ON eas.exception_id = ex.exception_id
       WHERE ${whereClause}
     `;
 
@@ -3738,8 +5884,12 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
         ex.exception_status,
         ex.blocker_flag,
         ex.root_cause,
-        ex.opened_at
+        ex.action_taken,
+        ex.linked_task_id,
+        ex.opened_at,
+        eas.deleted_at
       FROM exceptions ex
+      LEFT JOIN station_exception_archive_state eas ON eas.exception_id = ex.exception_id
       LEFT JOIN flights f ON ex.related_object_type = 'Flight' AND ex.related_object_id = f.flight_id
       LEFT JOIN awbs a ON ex.related_object_type = 'AWB' AND ex.related_object_id = a.awb_id
       LEFT JOIN tasks t ON ex.related_object_type = 'Task' AND ex.related_object_id = t.task_id
@@ -3766,11 +5916,295 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
         exception_status: row.exception_status,
         blocker_flag: booleanFromRow(row.blocker_flag),
         root_cause: row.root_cause ?? undefined,
-        opened_at: row.opened_at ?? undefined
+        action_taken: row.action_taken ?? undefined,
+        linked_task_id: row.linked_task_id ?? undefined,
+        opened_at: row.opened_at ?? undefined,
+        archived: Boolean(row.deleted_at)
       })),
       page,
       page_size: pageSize,
       total: Number(countRow?.total ?? 0)
+    };
+  }
+
+  async updateStationException(exceptionId: string, input: StationExceptionUpdateInput): Promise<StationExceptionMutationResult> {
+    const actor = this.ensureActor();
+    const existing = await this.db
+      .prepare(
+        `
+          SELECT
+            ex.exception_id,
+            ex.station_id,
+            ex.exception_type,
+            ex.related_object_type,
+            ex.related_object_id,
+            ex.severity,
+            ex.owner_role,
+            ex.owner_team_id,
+            ex.exception_status,
+            ex.blocker_flag,
+            ex.root_cause,
+            ex.action_taken,
+            eas.deleted_at AS deleted_at
+          FROM exceptions ex
+          LEFT JOIN station_exception_archive_state eas ON eas.exception_id = ex.exception_id
+          WHERE ex.exception_id = ?
+          LIMIT 1
+        `
+      )
+      .bind(exceptionId)
+      .first<{
+        exception_id: string;
+        station_id: string;
+        exception_type: string;
+        related_object_type: string;
+        related_object_id: string;
+        severity: ServiceLevel;
+        owner_role: RoleCode | null;
+        owner_team_id: string | null;
+        exception_status: ExceptionStatus;
+        blocker_flag: number | string | null;
+        root_cause: string | null;
+        action_taken: string | null;
+        deleted_at: string | null;
+      }>();
+
+    if (!existing) {
+      throw new RepositoryOperationError(404, 'EXCEPTION_NOT_FOUND', 'Exception does not exist', {
+        exception_id: exceptionId
+      });
+    }
+
+    this.assertActorStation(existing.station_id);
+
+    const nextArchived = Object.prototype.hasOwnProperty.call(input, 'archived')
+      ? Boolean(input.archived)
+      : Boolean(existing.deleted_at);
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    const auditPayload: Record<string, unknown> = {};
+    const changedStateFields: Array<{ field: string; fromValue: string | null; toValue: string }> = [];
+
+    const assign = (column: string, value: unknown, auditKey = column) => {
+      updates.push(`${column} = ?`);
+      params.push(value);
+      auditPayload[auditKey] = value;
+    };
+
+    if (Object.prototype.hasOwnProperty.call(input, 'exception_type')) {
+      const value = String(input.exception_type || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'exception_type is required');
+      }
+      if (value !== String(existing.exception_type || '').trim()) {
+        assign('exception_type', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'severity')) {
+      const value = String(input.severity || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'severity is required');
+      }
+      if (value !== String(existing.severity || '').trim()) {
+        assign('severity', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'owner_role')) {
+      const value = String(input.owner_role || '').trim() || null;
+      if ((existing.owner_role ?? null) !== value) {
+        assign('owner_role', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'owner_team_id')) {
+      const value = String(input.owner_team_id || '').trim() || null;
+      if (value) {
+        const team = await this.db
+          .prepare(
+            `
+              SELECT team_id, station_id, team_status
+              FROM teams
+              WHERE team_id = ?
+              LIMIT 1
+            `
+          )
+          .bind(value)
+          .first<TeamLookupRow>();
+
+        if (!team || team.station_id !== existing.station_id || team.team_status !== 'active') {
+          throw new RepositoryOperationError(409, 'ASSIGNEE_NOT_ELIGIBLE', 'Owner team is not eligible', {
+            owner_team_id: value
+          });
+        }
+      }
+
+      if ((existing.owner_team_id ?? null) !== value) {
+        assign('owner_team_id', value);
+      }
+    }
+
+    const nextRelatedObjectType = Object.prototype.hasOwnProperty.call(input, 'related_object_type')
+      ? String(input.related_object_type || '').trim()
+      : String(existing.related_object_type || '').trim();
+    const nextRelatedObjectId = Object.prototype.hasOwnProperty.call(input, 'related_object_id')
+      ? String(input.related_object_id || '').trim()
+      : String(existing.related_object_id || '').trim();
+
+    if (
+      Object.prototype.hasOwnProperty.call(input, 'related_object_type') ||
+      Object.prototype.hasOwnProperty.call(input, 'related_object_id')
+    ) {
+      if (!nextRelatedObjectType || !nextRelatedObjectId) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'related_object_type and related_object_id are required');
+      }
+
+      await assertRelatedObjectExists(this.db, nextRelatedObjectType, nextRelatedObjectId);
+
+      if (nextRelatedObjectType !== String(existing.related_object_type || '').trim()) {
+        assign('related_object_type', nextRelatedObjectType);
+      }
+      if (nextRelatedObjectId !== String(existing.related_object_id || '').trim()) {
+        assign('related_object_id', nextRelatedObjectId);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'blocker_flag')) {
+      const value = Boolean(input.blocker_flag) ? 1 : 0;
+      if (value !== (booleanFromRow(existing.blocker_flag) ? 1 : 0)) {
+        assign('blocker_flag', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'root_cause')) {
+      const value = String(input.root_cause || '').trim() || null;
+      if ((existing.root_cause ?? null) !== value) {
+        assign('root_cause', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'action_taken')) {
+      const value = String(input.action_taken || '').trim() || null;
+      if ((existing.action_taken ?? null) !== value) {
+        assign('action_taken', value);
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(input, 'exception_status')) {
+      const value = String(input.exception_status || '').trim();
+      if (!value) {
+        throw new RepositoryOperationError(400, 'VALIDATION_ERROR', 'exception_status is required');
+      }
+      if (value === 'Resolved' || value === 'Closed') {
+        throw new RepositoryOperationError(
+          409,
+          'EXCEPTION_STATUS_ACTION_REQUIRED',
+          'Resolved and Closed must use resolve workflow',
+          { exception_id: exceptionId, requested_status: value }
+        );
+      }
+      if (value !== String(existing.exception_status || '').trim()) {
+        assign('exception_status', value);
+        changedStateFields.push({
+          field: 'exception_status',
+          fromValue: String(existing.exception_status || '').trim() || null,
+          toValue: value
+        });
+      }
+    }
+
+    const archiveToggled = Object.prototype.hasOwnProperty.call(input, 'archived') && Boolean(existing.deleted_at) !== nextArchived;
+    if (archiveToggled) {
+      auditPayload.archived = nextArchived;
+      changedStateFields.push({
+        field: 'archived',
+        fromValue: existing.deleted_at ? 'true' : 'false',
+        toValue: nextArchived ? 'true' : 'false'
+      });
+    }
+
+    if (!updates.length && !archiveToggled) {
+      return {
+        exception_id: existing.exception_id,
+        station_id: existing.station_id,
+        exception_status: existing.exception_status,
+        archived: nextArchived,
+        audit_action: 'EXCEPTION_UNCHANGED'
+      };
+    }
+
+    const now = isoNow();
+    updates.push('updated_at = ?');
+    params.push(now, exceptionId);
+
+    if (updates.length > 1) {
+      await this.db.prepare(`UPDATE exceptions SET ${updates.join(', ')} WHERE exception_id = ?`).bind(...params).run();
+    }
+
+    if (archiveToggled) {
+      if (nextArchived) {
+        await this.db
+          .prepare(
+            `
+              INSERT OR REPLACE INTO station_exception_archive_state (
+                exception_id,
+                deleted_at,
+                updated_at
+              ) VALUES (?, ?, ?)
+            `
+          )
+          .bind(existing.exception_id, now, now)
+          .run();
+      } else {
+        await this.db
+          .prepare(`DELETE FROM station_exception_archive_state WHERE exception_id = ?`)
+          .bind(existing.exception_id)
+          .run();
+      }
+    }
+
+    const auditAction: StationExceptionMutationResult['audit_action'] = archiveToggled
+      ? nextArchived
+        ? 'EXCEPTION_ARCHIVED'
+        : 'EXCEPTION_RESTORED'
+      : 'EXCEPTION_UPDATED';
+
+    const nextStatus = (Object.prototype.hasOwnProperty.call(input, 'exception_status')
+      ? String(input.exception_status || '').trim()
+      : existing.exception_status) as ExceptionStatus;
+
+    const auditId = await this.writeAudit({
+      action: auditAction,
+      objectType: 'Exception',
+      objectId: existing.exception_id,
+      stationId: existing.station_id,
+      summary: archiveToggled
+        ? `${nextArchived ? 'Archived' : 'Restored'} exception ${existing.exception_id}`
+        : `Updated exception ${existing.exception_id}`,
+      payload: auditPayload
+    });
+
+    for (const item of changedStateFields) {
+      await this.writeStateTransition({
+        stationId: existing.station_id,
+        objectType: 'Exception',
+        objectId: existing.exception_id,
+        stateField: item.field,
+        fromValue: item.fromValue,
+        toValue: item.toValue,
+        triggeredBy: actor.userId,
+        auditId,
+        reason: input.action_taken ?? input.root_cause ?? undefined
+      });
+    }
+
+    return {
+      exception_id: existing.exception_id,
+      station_id: existing.station_id,
+      exception_status: nextStatus,
+      archived: nextArchived,
+      audit_action: auditAction
     };
   }
 
@@ -3779,14 +6213,15 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
     const row = await this.db
       .prepare(
         `
-          SELECT exception_id, station_id, exception_status, linked_task_id
-          FROM exceptions
-          WHERE exception_id = ?
+          SELECT ex.exception_id, ex.station_id, ex.exception_status, ex.linked_task_id, eas.deleted_at
+          FROM exceptions ex
+          LEFT JOIN station_exception_archive_state eas ON eas.exception_id = ex.exception_id
+          WHERE ex.exception_id = ?
           LIMIT 1
         `
       )
       .bind(exceptionId)
-      .first<{ exception_id: string; station_id: string; exception_status: string; linked_task_id: string | null }>();
+      .first<{ exception_id: string; station_id: string; exception_status: string; linked_task_id: string | null; deleted_at: string | null }>();
 
     if (!row) {
       throw new RepositoryOperationError(404, 'EXCEPTION_NOT_FOUND', 'Exception does not exist', {
@@ -3795,6 +6230,12 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
     }
 
     this.assertActorStation(row.station_id);
+
+    if (row.deleted_at) {
+      throw new RepositoryOperationError(409, 'EXCEPTION_ARCHIVED', 'Archived exception cannot be resolved', {
+        exception_id: exceptionId
+      });
+    }
 
     if (['Resolved', 'Closed'].includes(row.exception_status)) {
       throw new RepositoryOperationError(409, 'EXCEPTION_STATUS_INVALID', 'Exception is already resolved', {
@@ -3866,6 +6307,14 @@ class D1ExceptionRepository extends BaseD1Repository implements ExceptionReposit
 }
 
 class PlaceholderFlightRepository implements FlightRepository {
+  async createInboundFlight(_input: StationFlightWriteInput): Promise<StationFlightMutationResult> {
+    throw new RepositoryNotReadyError('flights.createInboundFlight');
+  }
+
+  async createOutboundFlight(_input: StationFlightWriteInput): Promise<StationFlightMutationResult> {
+    throw new RepositoryNotReadyError('flights.createOutboundFlight');
+  }
+
   async listInboundFlights(_query: InboundFlightListQuery): Promise<ListResponse<InboundFlightListItem>> {
     throw new RepositoryNotReadyError('flights.listInboundFlights');
   }
@@ -3880,6 +6329,22 @@ class PlaceholderFlightRepository implements FlightRepository {
 
   async getOutboundFlight(_flightId: string): Promise<OutboundFlightDetail | null> {
     throw new RepositoryNotReadyError('flights.getOutboundFlight');
+  }
+
+  async updateInboundFlight(_flightId: string, _input: StationFlightUpdateInput): Promise<StationFlightMutationResult> {
+    throw new RepositoryNotReadyError('flights.updateInboundFlight');
+  }
+
+  async updateOutboundFlight(_flightId: string, _input: StationFlightUpdateInput): Promise<StationFlightMutationResult> {
+    throw new RepositoryNotReadyError('flights.updateOutboundFlight');
+  }
+
+  async archiveInboundFlight(_flightId: string): Promise<StationFlightMutationResult> {
+    throw new RepositoryNotReadyError('flights.archiveInboundFlight');
+  }
+
+  async archiveOutboundFlight(_flightId: string): Promise<StationFlightMutationResult> {
+    throw new RepositoryNotReadyError('flights.archiveOutboundFlight');
   }
 
   async markOutboundLoaded(_flightId: string, _input: OutboundFlightActionInput): Promise<OutboundFlightActionResult> {
@@ -3921,6 +6386,28 @@ class PlaceholderWaybillRepository implements WaybillRepository {
   async processInboundPod(_awbId: string, _input: PodActionInput): Promise<PodActionResult> {
     throw new RepositoryNotReadyError('waybills.processInboundPod');
   }
+
+  async updateInboundWaybill(
+    _awbId: string,
+    _input: StationWaybillUpdateInput
+  ): Promise<StationWaybillMutationResult> {
+    throw new RepositoryNotReadyError('waybills.updateInboundWaybill');
+  }
+
+  async updateOutboundWaybill(
+    _awbId: string,
+    _input: StationWaybillUpdateInput
+  ): Promise<StationWaybillMutationResult> {
+    throw new RepositoryNotReadyError('waybills.updateOutboundWaybill');
+  }
+
+  async archiveInboundWaybill(_awbId: string): Promise<StationWaybillMutationResult> {
+    throw new RepositoryNotReadyError('waybills.archiveInboundWaybill');
+  }
+
+  async archiveOutboundWaybill(_awbId: string): Promise<StationWaybillMutationResult> {
+    throw new RepositoryNotReadyError('waybills.archiveOutboundWaybill');
+  }
 }
 
 class PlaceholderDocumentRepository implements DocumentRepository {
@@ -3928,6 +6415,16 @@ class PlaceholderDocumentRepository implements DocumentRepository {
     _query: Record<string, string | undefined>
   ): Promise<ListResponse<StationDocumentListItem>> {
     throw new RepositoryNotReadyError('documents.listStationDocuments');
+  }
+
+  async listStationDocumentOptions(
+    _query: Record<string, string | undefined>
+  ): Promise<StationDocumentOptions> {
+    throw new RepositoryNotReadyError('documents.listStationDocumentOptions');
+  }
+
+  async getStationDocument(_documentId: string): Promise<StationDocumentDetail | null> {
+    throw new RepositoryNotReadyError('documents.getStationDocument');
   }
 
   async createDocument(_input: CreateDocumentInput): Promise<CreateDocumentResult> {
@@ -3940,6 +6437,13 @@ class PlaceholderDocumentRepository implements DocumentRepository {
 
   async getStationDocumentPreview(_documentId: string): Promise<StationDocumentPreviewResult | null> {
     throw new RepositoryNotReadyError('documents.getStationDocumentPreview');
+  }
+
+  async updateStationDocument(
+    _documentId: string,
+    _input: StationDocumentUpdateInput
+  ): Promise<StationDocumentMutationResult> {
+    throw new RepositoryNotReadyError('documents.updateStationDocument');
   }
 }
 
@@ -3964,6 +6468,16 @@ class PlaceholderTaskRepository implements TaskRepository {
     throw new RepositoryNotReadyError('tasks.completeMobileTask');
   }
 
+  async getStationTask(_taskId: string): Promise<StationTaskDetail | null> {
+    throw new RepositoryNotReadyError('tasks.getStationTask');
+  }
+
+  async listStationTaskOptions(
+    _query: Record<string, string | undefined>
+  ): Promise<StationTaskOptions> {
+    throw new RepositoryNotReadyError('tasks.listStationTaskOptions');
+  }
+
   async listStationTasks(
     _query: Record<string, string | undefined>
   ): Promise<ListResponse<StationTaskListItem>> {
@@ -3984,6 +6498,13 @@ class PlaceholderTaskRepository implements TaskRepository {
 
   async escalateTask(_taskId: string, _input: TaskWorkflowActionInput): Promise<TaskWorkflowActionResult> {
     throw new RepositoryNotReadyError('tasks.escalateTask');
+  }
+
+  async updateStationTask(
+    _taskId: string,
+    _input: StationTaskUpdateInput
+  ): Promise<StationTaskMutationResult> {
+    throw new RepositoryNotReadyError('tasks.updateStationTask');
   }
 
   async startMobileTask(_taskId: string, _input: MobileTaskActionInput): Promise<MobileTaskActionResult> {
@@ -4019,14 +6540,37 @@ class PlaceholderExceptionRepository implements ExceptionRepository {
     throw new RepositoryNotReadyError('exceptions.listStationExceptions');
   }
 
+  async listStationExceptionOptions(
+    _query: Record<string, string | undefined>
+  ): Promise<StationExceptionOptions> {
+    throw new RepositoryNotReadyError('exceptions.listStationExceptionOptions');
+  }
+
   async resolveStationException(_exceptionId: string, _input: ResolveExceptionInput): Promise<ResolveExceptionResult> {
     throw new RepositoryNotReadyError('exceptions.resolveStationException');
+  }
+
+  async updateStationException(
+    _exceptionId: string,
+    _input: StationExceptionUpdateInput
+  ): Promise<StationExceptionMutationResult> {
+    throw new RepositoryNotReadyError('exceptions.updateStationException');
   }
 }
 
 function buildInboundFlightWhereClause(query: InboundFlightListQuery) {
   const clauses = ['f.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+
+  if (!includeArchived) {
+    clauses.push('f.deleted_at IS NULL');
+  }
+
+  if (query.flight_no) {
+    clauses.push('f.flight_no = ?');
+    params.push(query.flight_no);
+  }
 
   if (query.runtime_status) {
     clauses.push('f.runtime_status = ?');
@@ -4063,10 +6607,35 @@ function buildInboundFlightWhereClause(query: InboundFlightListQuery) {
 function buildInboundWaybillWhereClause(query: Record<string, string | undefined>) {
   const clauses = ['a.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+
+  if (!includeArchived) {
+    clauses.push('a.deleted_at IS NULL');
+  }
 
   if (query.flight_id) {
     clauses.push('a.flight_id = ?');
     params.push(query.flight_id);
+  }
+
+  if (query.flight_no) {
+    clauses.push('f.flight_no = ?');
+    params.push(query.flight_no);
+  }
+
+  if (query.awb_no) {
+    clauses.push('a.awb_no = ?');
+    params.push(query.awb_no);
+  }
+
+  if (query.awb_type) {
+    clauses.push('COALESCE(a.awb_type, ?) = ?');
+    params.push('IMPORT', query.awb_type);
+  }
+
+  if (query.current_node) {
+    clauses.push('a.current_node = ?');
+    params.push(query.current_node);
   }
 
   if (query.noa_status) {
@@ -4100,9 +6669,24 @@ function buildStationTaskWhereClause(query: Record<string, string | undefined>) 
   const clauses = ['t.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
 
+  if (query.include_archived !== 'true' && query.include_archived !== '1') {
+    clauses.push('t.deleted_at IS NULL');
+  }
+
   if (query.task_status) {
     clauses.push('t.task_status = ?');
     params.push(query.task_status);
+  }
+
+  if (query.task_priority) {
+    clauses.push(`
+      CASE
+        WHEN COALESCE(ex.has_p1_exception, 0) = 1 THEN 'P1'
+        WHEN COALESCE(ex.open_exception_count, 0) > 0 OR COALESCE(t.blocker_code, '') <> '' THEN 'P2'
+        ELSE 'P3'
+      END = ?
+    `);
+    params.push(query.task_priority);
   }
 
   if (query.task_type) {
@@ -4118,6 +6702,11 @@ function buildStationTaskWhereClause(query: Record<string, string | undefined>) 
   if (query.assigned_team_id) {
     clauses.push('t.assigned_team_id = ?');
     params.push(query.assigned_team_id);
+  }
+
+  if (query.assigned_role) {
+    clauses.push('t.assigned_role = ?');
+    params.push(query.assigned_role);
   }
 
   if (query.assigned_worker_id) {
@@ -4137,8 +6726,10 @@ function buildStationTaskWhereClause(query: Record<string, string | undefined>) 
 
   if (query.keyword) {
     const keyword = `%${query.keyword}%`;
-    clauses.push('(t.task_type LIKE ? OR COALESCE(t.blocker_code, \'\') LIKE ? OR t.related_object_id LIKE ?)');
-    params.push(keyword, keyword, keyword);
+    clauses.push(
+      '(t.task_id LIKE ? OR t.task_type LIKE ? OR COALESCE(t.blocker_code, \'\') LIKE ? OR t.related_object_id LIKE ?)',
+    );
+    params.push(keyword, keyword, keyword, keyword);
   }
 
   return {
@@ -4150,6 +6741,11 @@ function buildStationTaskWhereClause(query: Record<string, string | undefined>) 
 function buildStationExceptionWhereClause(query: Record<string, string | undefined>) {
   const clauses = ['ex.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+
+  if (!includeArchived) {
+    clauses.push('eas.deleted_at IS NULL');
+  }
 
   if (query.exception_status) {
     clauses.push('ex.exception_status = ?');
@@ -4176,10 +6772,28 @@ function buildStationExceptionWhereClause(query: Record<string, string | undefin
     params.push(query.related_object_id);
   }
 
+  if (query.owner_role) {
+    clauses.push('ex.owner_role = ?');
+    params.push(query.owner_role);
+  }
+
+  if (query.owner_team_id) {
+    clauses.push('ex.owner_team_id = ?');
+    params.push(query.owner_team_id);
+  }
+
+  if (query.blocker_state === 'blocked') {
+    clauses.push('ex.blocker_flag = 1');
+  } else if (query.blocker_state === 'clear') {
+    clauses.push('COALESCE(ex.blocker_flag, 0) = 0');
+  }
+
   if (query.keyword) {
     const keyword = `%${query.keyword}%`;
-    clauses.push('(ex.exception_id LIKE ? OR COALESCE(ex.root_cause, \'\') LIKE ? OR ex.related_object_id LIKE ?)');
-    params.push(keyword, keyword, keyword);
+    clauses.push(
+      '(ex.exception_id LIKE ? OR COALESCE(ex.root_cause, \'\') LIKE ? OR COALESCE(ex.action_taken, \'\') LIKE ? OR ex.related_object_id LIKE ?)'
+    );
+    params.push(keyword, keyword, keyword, keyword);
   }
 
   return {
@@ -4189,8 +6803,18 @@ function buildStationExceptionWhereClause(query: Record<string, string | undefin
 }
 
 function buildStationDocumentWhereClause(query: Record<string, string | undefined>) {
-  const clauses = ['d.station_id = ?', 'd.deleted_at IS NULL'];
+  const clauses = ['d.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+  const includeHistory = query.include_history === 'true';
+
+  if (!includeArchived) {
+    clauses.push('d.deleted_at IS NULL');
+  }
+
+  if (!includeHistory) {
+    clauses.push(`COALESCE(d.document_status, '') != 'Replaced'`);
+  }
 
   if (query.document_type) {
     clauses.push('d.document_type = ?');
@@ -4227,11 +6851,59 @@ function buildStationDocumentWhereClause(query: Record<string, string | undefine
 function buildStationShipmentWhereClause(query: Record<string, string | undefined>) {
   const clauses = ['s.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+
+  if (!includeArchived) {
+    clauses.push('a.deleted_at IS NULL');
+  }
 
   if (query.direction === '出港' || query.direction === 'outbound') {
     clauses.push(`COALESCE(s.shipment_type, 'import') = 'export'`);
   } else if (query.direction === '进港' || query.direction === 'inbound') {
     clauses.push(`COALESCE(s.shipment_type, 'import') != 'export'`);
+  }
+
+  if (query.flight_id) {
+    clauses.push('a.flight_id = ?');
+    params.push(query.flight_id);
+  }
+
+  if (query.current_node) {
+    clauses.push('s.current_node = ?');
+    params.push(query.current_node);
+  }
+
+  if (query.fulfillment_status) {
+    clauses.push('s.fulfillment_status = ?');
+    params.push(query.fulfillment_status);
+  }
+
+  if (query.blocker_state === 'blocked') {
+    clauses.push(`
+      EXISTS (
+        SELECT 1
+        FROM exceptions ex
+        WHERE ex.exception_status NOT IN ('Resolved', 'Closed')
+          AND (
+            (ex.related_object_type = 'Shipment' AND ex.related_object_id = s.shipment_id)
+            OR (ex.related_object_type = 'AWB' AND ex.related_object_id = a.awb_id)
+            OR (ex.related_object_type = 'Flight' AND ex.related_object_id = a.flight_id)
+          )
+      )
+    `);
+  } else if (query.blocker_state === 'clear') {
+    clauses.push(`
+      NOT EXISTS (
+        SELECT 1
+        FROM exceptions ex
+        WHERE ex.exception_status NOT IN ('Resolved', 'Closed')
+          AND (
+            (ex.related_object_type = 'Shipment' AND ex.related_object_id = s.shipment_id)
+            OR (ex.related_object_type = 'AWB' AND ex.related_object_id = a.awb_id)
+            OR (ex.related_object_type = 'Flight' AND ex.related_object_id = a.flight_id)
+          )
+      )
+    `);
   }
 
   if (query.keyword) {
@@ -4251,6 +6923,11 @@ function buildStationShipmentWhereClause(query: Record<string, string | undefine
 function buildOutboundFlightWhereClause(query: Record<string, string | undefined>) {
   const clauses = [`f.station_id = ?`];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+
+  if (!includeArchived) {
+    clauses.push('f.deleted_at IS NULL');
+  }
 
   if (query.flight_no) {
     clauses.push('f.flight_no = ?');
@@ -4272,6 +6949,16 @@ function buildOutboundFlightWhereClause(query: Record<string, string | undefined
 function buildOutboundWaybillWhereClause(query: Record<string, string | undefined>) {
   const clauses = ['a.station_id = ?'];
   const params: unknown[] = [query.station_id ?? 'MME'];
+  const includeArchived = query.include_archived === 'true';
+
+  if (!includeArchived) {
+    clauses.push('a.deleted_at IS NULL');
+  }
+
+  if (query.flight_id) {
+    clauses.push('a.flight_id = ?');
+    params.push(query.flight_id);
+  }
 
   if (query.flight_no) {
     clauses.push('f.flight_no = ?');
@@ -4281,6 +6968,21 @@ function buildOutboundWaybillWhereClause(query: Record<string, string | undefine
   if (query.awb_no) {
     clauses.push('a.awb_no = ?');
     params.push(query.awb_no);
+  }
+
+  if (query.awb_type) {
+    clauses.push('COALESCE(a.awb_type, ?) = ?');
+    params.push('EXPORT', query.awb_type);
+  }
+
+  if (query.current_node) {
+    clauses.push('a.current_node = ?');
+    params.push(query.current_node);
+  }
+
+  if (query.manifest_status) {
+    clauses.push("COALESCE(a.manifest_status, 'Draft') = ?");
+    params.push(query.manifest_status);
   }
 
   if (query.keyword) {
@@ -4343,12 +7045,16 @@ function mapStationTaskRow(row: StationTaskRow): StationTaskListItem {
     assigned_role: row.assigned_role ?? undefined,
     assigned_team_id: row.assigned_team_id,
     assigned_worker_id: row.assigned_worker_id,
+    assigned_team_name: row.assigned_team_name ?? null,
+    assigned_worker_name: row.assigned_worker_name ?? null,
     task_status: row.task_status,
+    task_priority: row.task_priority ?? undefined,
     task_sla: row.task_sla ?? undefined,
     due_at: row.due_at ?? undefined,
     blocker_code: row.blocker_code ?? undefined,
     evidence_required: booleanFromRow(row.evidence_required),
-    open_exception_count: Number(row.open_exception_count ?? 0)
+    open_exception_count: Number(row.open_exception_count ?? 0),
+    archived: Boolean(row.deleted_at)
   };
 }
 
@@ -4517,6 +7223,83 @@ function inferShipmentTaskGateIds(taskType: string, blockerCode: string | null) 
   return [];
 }
 
+function buildShipmentGatePolicySummary(input: {
+  shipmentType: string | null;
+  documents: ShipmentDocumentRow[];
+  tasks: ShipmentTaskRow[];
+  exceptions: Array<{ exception_id: string; exception_type: string; exception_status: string; root_cause: string | null }>;
+}) {
+  type ShipmentGatePolicyRow = {
+    gate_id: string;
+    node: string;
+    required: string;
+    impact: string;
+    status: string;
+    blocker: string;
+    recovery: string;
+    release_role: string;
+  };
+  const gateMap = new Map<string, ShipmentGatePolicyRow>();
+
+  const ensureGate = (gateId: string, patch: Partial<ShipmentGatePolicyRow>) => {
+    const existing = gateMap.get(gateId) || {
+      gate_id: gateId,
+      node: 'Shipment Gate',
+      required: '需要命中对象完成关联检查',
+      impact: '影响履约推进',
+      status: 'tracked',
+      blocker: '待核查',
+      recovery: '补齐对象链状态并解除阻断',
+      release_role: input.shipmentType === 'export' ? 'Document Desk / Station Supervisor' : 'Check Worker / Station Supervisor'
+    };
+    gateMap.set(gateId, { ...existing, ...patch });
+  };
+
+  for (const row of input.documents) {
+    for (const gateId of inferShipmentDocumentGateIds(row.document_type)) {
+      const released = row.document_status === 'Released' || row.document_status === 'Approved';
+      ensureGate(gateId, {
+        node: row.document_type,
+        required: `${row.document_type} 文件门槛`,
+        impact: inferShipmentDocumentNote(row.document_type, row.document_status),
+        status: released ? 'clear' : 'blocked',
+        blocker: released ? '已满足文件门槛' : `${row.document_type} 当前为 ${row.document_status}`,
+        recovery: released ? '无需补充动作' : inferShipmentDocumentNote(row.document_type, row.document_status)
+      });
+    }
+  }
+
+  for (const row of input.tasks) {
+    for (const gateId of inferShipmentTaskGateIds(row.task_type, row.blocker_code)) {
+      const completed = ['Completed', 'Verified', 'Closed'].includes(row.task_status);
+      ensureGate(gateId, {
+        node: row.task_type,
+        required: `${row.task_type} 作业门槛`,
+        impact: row.blocker_code ? `命中 ${row.blocker_code} 需要先解除阻断。` : `任务状态 ${row.task_status} 会影响履约推进。`,
+        status: completed ? 'clear' : 'tracked',
+        blocker: completed ? '任务已闭环' : row.blocker_code || `任务状态 ${row.task_status}`,
+        recovery: completed ? '无需补充动作' : `完成 ${row.task_type} 并补齐${row.evidence_required ? '证据' : '状态回写'}`
+      });
+    }
+  }
+
+  for (const row of input.exceptions) {
+    const gateId = inferGateId({ exception_type: row.exception_type, related_object_type: 'Shipment' });
+    if (!gateId) continue;
+    const open = !['Resolved', 'Closed'].includes(row.exception_status);
+    ensureGate(gateId, {
+      node: row.exception_type,
+      required: '异常解除后才允许继续',
+      impact: row.root_cause || `${row.exception_type} 影响当前对象`,
+      status: open ? 'blocked' : 'clear',
+      blocker: open ? row.root_cause || row.exception_type : '异常已解除',
+      recovery: open ? `先处理异常 ${row.exception_id} 并回写恢复动作` : '无需补充动作'
+    });
+  }
+
+  return Array.from(gateMap.values()).sort((left, right) => left.gate_id.localeCompare(right.gate_id));
+}
+
 function parseShipmentSlug(shipmentId: string) {
   if (shipmentId.startsWith('in-')) {
     return { awbNo: shipmentId.slice(3), shipmentType: 'inbound' as const };
@@ -4530,7 +7313,7 @@ function parseShipmentSlug(shipmentId: string) {
 }
 
 async function loadOutboundFlightActionState(db: D1DatabaseLike, flightId: string): Promise<OutboundFlightActionState> {
-  const [flight, awbs, shipments, documents, tasks] = await Promise.all([
+  const [flight, awbs, shipments, documents, tasks, exceptions] = await Promise.all([
     db
       .prepare(
         `
@@ -4607,7 +7390,36 @@ async function loadOutboundFlightActionState(db: D1DatabaseLike, flightId: strin
         `
       )
       .bind(flightId, flightId)
-      .all<OutboundFlightActionTaskRow>()
+      .all<OutboundFlightActionTaskRow>(),
+    db
+      .prepare(
+        `
+          SELECT
+            exception_id,
+            exception_type,
+            exception_status,
+            severity,
+            blocker_flag,
+            related_object_type,
+            related_object_id,
+            root_cause,
+            action_taken
+          FROM exceptions
+          WHERE exception_status NOT IN ('Resolved', 'Closed')
+            AND (
+              (related_object_type = 'Flight' AND related_object_id = ?)
+              OR (related_object_type = 'Shipment' AND related_object_id IN (
+                SELECT DISTINCT shipment_id FROM awbs WHERE flight_id = ?
+              ))
+              OR (related_object_type = 'AWB' AND related_object_id IN (
+                SELECT awb_id FROM awbs WHERE flight_id = ?
+              ))
+            )
+          ORDER BY blocker_flag DESC, opened_at DESC, exception_id DESC
+        `
+      )
+      .bind(flightId, flightId, flightId)
+      .all<OutboundFlightActionExceptionRow>()
   ]);
 
   if (!flight) {
@@ -4619,7 +7431,8 @@ async function loadOutboundFlightActionState(db: D1DatabaseLike, flightId: strin
     awbs: awbs.results,
     shipments: shipments.results,
     documents: documents.results,
-    tasks: tasks.results
+    tasks: tasks.results,
+    exceptions: exceptions.results
   };
 }
 
@@ -4633,6 +7446,191 @@ function numberFromRow(value: number | string | null | undefined) {
 
 function isoNow() {
   return new Date().toISOString();
+}
+
+function isOpenOutboundException(item: OutboundFlightActionExceptionRow) {
+  return !['Resolved', 'Closed'].includes(String(item.exception_status || ''));
+}
+
+function isBlockingOutboundException(item: OutboundFlightActionExceptionRow) {
+  return isOpenOutboundException(item) && booleanFromRow(item.blocker_flag);
+}
+
+function listOutboundActionBlockerReasons(state: OutboundFlightActionState) {
+  return state.exceptions
+    .filter(isBlockingOutboundException)
+    .map((item) => item.root_cause || item.action_taken || `${item.exception_type} / ${item.exception_id}`);
+}
+
+function buildOutboundActionSummary(state: OutboundFlightActionState) {
+  const blockingExceptions = state.exceptions.filter(isBlockingOutboundException);
+  const blockingExceptionReasons = listOutboundActionBlockerReasons(state);
+  const loadingTask = state.tasks.find((task) => task.related_object_type === 'Flight' && task.task_type === '装机复核');
+  const receiptTasks = state.tasks.filter((task) => task.related_object_type === 'AWB' && task.task_type === '出港收货');
+  const flightDocuments = state.documents.filter((document) => document.related_object_type === 'Flight');
+  const manifestDocuments = state.documents.filter((document) => document.document_type === 'Manifest');
+  const requiredLoadingDocTypes = ['FFM', 'UWS'];
+  const missingLoadingDocTypes = requiredLoadingDocTypes.filter(
+    (documentType) =>
+      !flightDocuments.some(
+        (document) =>
+          document.document_type === documentType &&
+          ['Uploaded', 'Validated', 'Approved', 'Released'].includes(document.document_status)
+      )
+  );
+  const missingReceiptTask = receiptTasks.find((task) => task.task_status !== 'Completed');
+  const manifestReleased = manifestDocuments.some((document) => ['Released', 'Approved'].includes(document.document_status));
+
+  const loadedBlockers: string[] = [];
+  const loadedRecovery: string[] = [];
+
+  if (!state.awbs.length) {
+    loadedBlockers.push('当前航班下没有任何 AWB。');
+    loadedRecovery.push('先导入或创建出港 AWB。');
+  }
+  if (!loadingTask) {
+    loadedBlockers.push('缺少装机复核任务。');
+    loadedRecovery.push('补齐装机复核任务后再推进 Loaded。');
+  }
+  if (missingReceiptTask) {
+    loadedBlockers.push(`存在未完成的出港收货任务 ${missingReceiptTask.task_id}。`);
+    loadedRecovery.push('先完成所有出港收货任务。');
+  }
+  if (missingLoadingDocTypes.length) {
+    loadedBlockers.push(`缺少 Loaded 必需文件：${missingLoadingDocTypes.join(' / ')}。`);
+    loadedRecovery.push('补齐 FFM / UWS 并达到可放行状态。');
+  }
+  if (blockingExceptionReasons.length) {
+    loadedBlockers.push(...blockingExceptionReasons.map((item) => `开放中的阻断异常：${item}`));
+    loadedRecovery.push('先处理阻断异常，再重新执行 Loaded。');
+  }
+  if (loadingTask?.task_status === 'Completed') {
+    loadedRecovery.push('Loaded 已完成，可继续执行 Manifest Finalize。');
+  }
+
+  const manifestBlockers: string[] = [];
+  const manifestRecovery: string[] = [];
+  if (loadingTask?.task_status !== 'Completed') {
+    manifestBlockers.push('Loaded 尚未完成。');
+    manifestRecovery.push('先完成 Loaded。');
+  }
+  if (missingLoadingDocTypes.length) {
+    manifestBlockers.push(`缺少 Manifest Finalize 必需文件：${missingLoadingDocTypes.join(' / ')}。`);
+    manifestRecovery.push('补齐 FFM / UWS 后再执行主单冻结。');
+  }
+  if (!manifestDocuments.length) {
+    manifestBlockers.push('缺少 Manifest 文档。');
+    manifestRecovery.push('先创建或上传 Manifest 文档。');
+  }
+  if (blockingExceptionReasons.length) {
+    manifestBlockers.push(...blockingExceptionReasons.map((item) => `开放中的阻断异常：${item}`));
+    manifestRecovery.push('先关闭阻断异常，再执行 Manifest Finalize。');
+  }
+  if (manifestReleased) {
+    manifestRecovery.push('Manifest 已冻结，可继续执行 Airborne。');
+  }
+
+  const airborneBlockers: string[] = [];
+  const airborneRecovery: string[] = [];
+  if (loadingTask?.task_status !== 'Completed') {
+    airborneBlockers.push('Loaded 尚未完成。');
+    airborneRecovery.push('先完成 Loaded。');
+  }
+  if (!manifestReleased) {
+    airborneBlockers.push('Manifest 尚未冻结。');
+    airborneRecovery.push('先完成 Manifest Finalize。');
+  }
+  if (blockingExceptionReasons.length) {
+    airborneBlockers.push(...blockingExceptionReasons.map((item) => `开放中的阻断异常：${item}`));
+    airborneRecovery.push('先解除阻断异常，再确认 Airborne。');
+  }
+  if (state.flight.runtime_status === 'Airborne' || state.flight.actual_takeoff_at) {
+    airborneRecovery.push('当前航班已飞走，无需重复执行。');
+  }
+
+  return [
+    {
+      action_code: 'loaded' as const,
+      title: 'Loaded',
+      status:
+        loadingTask?.task_status === 'Completed'
+          ? ('completed' as const)
+          : loadedBlockers.length
+            ? ('blocked' as const)
+            : ('ready' as const),
+      blocker_reasons: loadedBlockers,
+      recovery_actions: loadedRecovery.length ? loadedRecovery : ['满足 Loaded 前置条件后执行。']
+    },
+    {
+      action_code: 'manifest_finalize' as const,
+      title: 'Manifest Finalize',
+      status:
+        manifestReleased
+          ? ('completed' as const)
+          : manifestBlockers.length
+            ? ('blocked' as const)
+            : ('ready' as const),
+      blocker_reasons: manifestBlockers,
+      recovery_actions: manifestRecovery.length ? manifestRecovery : ['满足 Manifest Finalize 前置条件后执行。']
+    },
+    {
+      action_code: 'airborne' as const,
+      title: 'Airborne',
+      status:
+        state.flight.runtime_status === 'Airborne' || state.flight.actual_takeoff_at
+          ? ('completed' as const)
+          : airborneBlockers.length
+            ? ('blocked' as const)
+            : ('ready' as const),
+      blocker_reasons: airborneBlockers,
+      recovery_actions: airborneRecovery.length ? airborneRecovery : ['满足 Airborne 前置条件后执行。']
+    }
+  ];
+}
+
+function buildOutboundWaybillRecoverySummary(input: {
+  exceptions: Array<{ exception_type: string; exception_status: string; blocker_flag: boolean }>;
+  documents: Array<{ document_type: string; document_status: string; required_for_release: boolean }>;
+  awb: { loading_status: string; manifest_status: string };
+}): OutboundWaybillRecoverySummary {
+  const openBlockers = input.exceptions.filter(
+    (item) => item.blocker_flag && !['Resolved', 'Closed'].includes(String(item.exception_status || ''))
+  );
+  const missingCriticalDocuments = input.documents.filter(
+    (item) => item.required_for_release && !['Released', 'Approved', 'Validated'].includes(String(item.document_status || ''))
+  );
+  const blockerReasons = [...openBlockers.map((item) => `${item.exception_type} 仍处于 ${item.exception_status}`)];
+  const recoveryActions = [
+    ...new Set([
+      ...openBlockers.map(() => '先在异常中心完成恢复并解除阻断'),
+      ...missingCriticalDocuments.map(() => '关键文件仍待放行，请结合文件门槛摘要继续推进后续动作')
+    ])
+  ];
+
+  if (blockerReasons.length > 0) {
+    return {
+      gate_status: 'blocked',
+      open_blocker_count: blockerReasons.length,
+      blocker_reasons: blockerReasons,
+      recovery_actions: recoveryActions
+    };
+  }
+
+  if (input.awb.loading_status === 'Completed' && input.awb.manifest_status === 'Released') {
+    return {
+      gate_status: 'completed',
+      open_blocker_count: 0,
+      blocker_reasons: [],
+      recovery_actions: []
+    };
+  }
+
+  return {
+    gate_status: 'ready',
+    open_blocker_count: 0,
+    blocker_reasons: [],
+    recovery_actions: ['继续按 Loaded -> Manifest Finalize -> Airborne 顺序推进']
+  };
 }
 
 function isoAfterMinutes(minutes: number) {
@@ -4697,6 +7695,7 @@ async function assertRelatedObjectExists(db: D1DatabaseLike, objectType: string,
     AWB: { table: 'awbs', field: 'awb_id' },
     Shipment: { table: 'shipments', field: 'shipment_id' },
     Task: { table: 'tasks', field: 'task_id' },
+    Document: { table: 'documents', field: 'document_id' },
     Truck: { table: 'trucks', field: 'truck_id' }
   };
 

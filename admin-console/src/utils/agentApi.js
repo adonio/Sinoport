@@ -1,6 +1,19 @@
 import axios from 'axios';
 import { canBootstrapLocalSession, resolveStationApiBaseUrl } from 'utils/stationApi';
 
+const AGENT_API_BASE_URL_KEY = 'sinoportAgentApiBaseUrl';
+
+function isLocalOrigin(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+
+  try {
+    const url = new URL(value);
+    return url.hostname === '127.0.0.1' || url.hostname === 'localhost';
+  } catch {
+    return false;
+  }
+}
+
 function resolveAgentApiBaseUrl() {
   if (import.meta.env.VITE_APP_AGENT_API_URL) {
     return import.meta.env.VITE_APP_AGENT_API_URL;
@@ -8,6 +21,11 @@ function resolveAgentApiBaseUrl() {
 
   if (typeof window !== 'undefined') {
     const { hostname } = window.location;
+    const runtimeBaseUrl = window.localStorage.getItem(AGENT_API_BASE_URL_KEY);
+
+    if (runtimeBaseUrl) {
+      return runtimeBaseUrl;
+    }
 
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://127.0.0.1:8794';
@@ -18,7 +36,7 @@ function resolveAgentApiBaseUrl() {
 }
 
 function isLocalAgentApi(baseURL) {
-  return typeof baseURL === 'string' && (baseURL.includes('127.0.0.1:8794') || baseURL.includes('localhost:8794'));
+  return isLocalOrigin(baseURL);
 }
 
 async function bootstrapStationToken() {

@@ -6,6 +6,7 @@ import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import TablePagination from '@mui/material/TablePagination';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
@@ -34,43 +35,53 @@ import { localizeMobileText, readMobileLanguage } from 'utils/mobile/i18n';
 import { getMobileFlowStorageKey, readMobileSession } from 'utils/mobile/session';
 import { buildMobileQueueEntry, recordMobileAction, useMobileOpsStorage } from 'utils/mobile/task-ops';
 
+const PAGE_SIZE = 20;
+
+function mt(value) {
+  return localizeMobileText(readMobileLanguage() || readMobileSession()?.language, value);
+}
+
+function buildTaskActionMessage(language, taskId, actionLabel, failed = false) {
+  return localizeMobileText(language, failed ? `任务动作 ${actionLabel} 失败` : `任务 ${taskId} 已执行 ${actionLabel}`);
+}
+
 function defaultActionState(detail) {
   return {
     assignedPositions: Object.fromEntries((detail.uldAssignments || []).map((item) => [item.uld, item.position || ''])),
     status: detail.status,
     evidenceUploaded: false,
     signed: false,
-    note: '尚未执行现场动作。'
+    note: mt('尚未执行现场动作。')
   };
 }
 
 function buildActionPatch(label, title) {
   if (label.includes('发车')) {
-    return { status: '已发车', note: `${title} 已发车。` };
+    return { status: '已发车', note: `${title} ${mt('已发车。')}` };
   }
   if (label.includes('放行')) {
-    return { status: '已放行', note: `${title} 已放行。` };
+    return { status: '已放行', note: `${title} ${mt('已放行。')}` };
   }
   if (label.includes('接机')) {
-    return { status: '已接机', note: `${title} 已接机。` };
+    return { status: '已接机', note: `${title} ${mt('已接机。')}` };
   }
   if (label.includes('完成') || label.includes('关闭') || label.includes('归档')) {
-    return { status: '已完成', note: `${title} 已完成。` };
+    return { status: '已完成', note: `${title} ${mt('已完成。')}` };
   }
   if (label.includes('签')) {
-    return { signed: true, note: `${label} 已记录。` };
+    return { signed: true, note: `${label} ${mt('已记录。')}` };
   }
   if (label.includes('上传')) {
-    return { evidenceUploaded: true, note: `${label} 已记录。` };
+    return { evidenceUploaded: true, note: `${label} ${mt('已记录。')}` };
   }
   if (label.includes('挂起')) {
-    return { status: '暂时挂起', note: `${title} 已挂起。` };
+    return { status: '暂时挂起', note: `${title} ${mt('已挂起。')}` };
   }
   if (label.includes('异常')) {
-    return { status: '警戒', note: `${title} 已标记异常。` };
+    return { status: '警戒', note: `${title} ${mt('已标记异常。')}` };
   }
 
-  return { status: '运行中', note: `${label} 已记录。` };
+  return { status: '运行中', note: `${label} ${mt('已记录。')}` };
 }
 
 function matchNodeTask(task, flowKey, itemId) {
@@ -93,15 +104,23 @@ function matchNodeTask(task, flowKey, itemId) {
 
 export function MobileNodeListPage({ flowKey, pathOf }) {
   const navigate = useNavigate();
-  const { session: mobileSession, roleView, items, mobileNodeLoading } = useGetMobileNodeFlow(flowKey);
+  const [page, setPage] = useState(0);
+  const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const { session: mobileSession, roleView, items, listTitle, mobileNodeLoading, mobileNodePage, statusOptions } = useGetMobileNodeFlow(flowKey, {
+    page: page + 1,
+    page_size: PAGE_SIZE,
+    keyword: keyword.trim(),
+    status: statusFilter
+  });
   const session = mobileSession?.roleKey ? mobileSession : readMobileSession();
-  const language = session?.language || readMobileLanguage();
+  const language = readMobileLanguage() || session?.language;
 
   if (mobileNodeLoading && !items.length) {
     return (
       <MainCard>
         <Typography variant="body2" color="text.secondary">
-          正在加载节点数据...
+          {localizeMobileText(language, '正在加载节点数据...')}
         </Typography>
       </MainCard>
     );
@@ -113,7 +132,7 @@ export function MobileNodeListPage({ flowKey, pathOf }) {
         <Stack sx={{ gap: 1 }}>
           <Typography variant="h5">{localizeMobileText(language, roleView.label)}</Typography>
           <Typography variant="body2" color="text.secondary">
-            当前节点暂时没有样例任务，角色信息仅用于演示标识，不做权限限制。
+            {localizeMobileText(language, '当前节点暂时没有样例任务，角色信息仅用于演示标识，不做权限限制。')}
           </Typography>
         </Stack>
       </MainCard>
@@ -123,9 +142,46 @@ export function MobileNodeListPage({ flowKey, pathOf }) {
   return (
     <Stack sx={{ gap: 2 }}>
       <MainCard>
-        <Typography variant="body2" color="text.secondary">
-          当前角色：{localizeMobileText(language, roleView.label)}。角色信息仅用于演示标识，不限制任务查看或操作。
-        </Typography>
+        <Stack sx={{ gap: 1.5 }}>
+          <Stack sx={{ gap: 0.5 }}>
+            <Typography variant="h5">{localizeMobileText(language, listTitle || roleView.label)}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {localizeMobileText(language, '当前角色：')}{localizeMobileText(language, roleView.label)}。{localizeMobileText(language, '角色信息仅用于演示标识，不限制任务查看或操作。')}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {localizeMobileText(language, '当前列表共')} {mobileNodePage.total || items.length} {localizeMobileText(language, '条')}，{localizeMobileText(language, '默认每页')} {PAGE_SIZE} {localizeMobileText(language, '条')}。
+            </Typography>
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ gap: 1.25 }}>
+            <TextField
+              fullWidth
+              label={localizeMobileText(language, '关键字')}
+              placeholder={localizeMobileText(language, '按任务号、标题或摘要筛选')}
+              value={keyword}
+              onChange={(event) => {
+                setKeyword(event.target.value);
+                setPage(0);
+              }}
+            />
+            <TextField
+              select
+              fullWidth
+              label={localizeMobileText(language, '状态')}
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setPage(0);
+              }}
+            >
+              <MenuItem value="">{localizeMobileText(language, '全部状态')}</MenuItem>
+              {statusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {localizeMobileText(language, option.label)}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </Stack>
       </MainCard>
       {items.map((item) => (
         <MainCard
@@ -135,18 +191,28 @@ export function MobileNodeListPage({ flowKey, pathOf }) {
         >
           <Stack sx={{ gap: 1.25 }}>
             <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
-              <Typography variant="h5">{item.title}</Typography>
+              <Typography variant="h5">{localizeMobileText(language, item.title)}</Typography>
               <Typography variant="subtitle2" color="primary.main">
-                {item.priority}
+              {localizeMobileText(language, item.priority)}
               </Typography>
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              {item.subtitle}
+              {localizeMobileText(language, item.subtitle)}
             </Typography>
-            <Button variant="outlined">查看任务</Button>
+            <Button variant="outlined">{localizeMobileText(language, '查看任务')}</Button>
           </Stack>
         </MainCard>
       ))}
+      <MainCard>
+        <TablePagination
+          component="div"
+          rowsPerPageOptions={[PAGE_SIZE]}
+          rowsPerPage={PAGE_SIZE}
+          count={mobileNodePage.total || items.length}
+          page={Math.max(0, Number(mobileNodePage.page || 1) - 1)}
+          onPageChange={(_event, nextPage) => setPage(nextPage)}
+        />
+      </MainCard>
     </Stack>
   );
 }
@@ -156,7 +222,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const nodeData = useGetMobileNodeDetail(flowKey, itemId);
   const session = nodeData.session?.roleKey ? nodeData.session : readMobileSession();
   const roleView = nodeData.roleView;
-  const language = session?.language || readMobileLanguage();
+  const language = readMobileLanguage() || session?.language;
   const [activeSection, setActiveSection] = useState(flowKey === 'flightRuntime' ? 'summary' : 'ops');
   const storage = useMobileState(getMobileFlowStorageKey(session, `${flowKey}-${itemId}`), {});
   const opsStorage = useMobileOpsStorage(`node-${flowKey}-${itemId}`);
@@ -164,21 +230,20 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const loading = nodeData.mobileNodeDetailLoading && !nodeData.detail;
   const detail = nodeData.detail;
   const taskCard = nodeData.taskCard || detail;
+  const state = useMemo(() => {
+    if (!detail) return null;
+    return storage.state[itemId] || defaultActionState(detail);
+  }, [detail, itemId, storage.state]);
 
   if (loading) {
     return (
       <MainCard>
         <Typography variant="body2" color="text.secondary">
-          正在加载任务详情...
+          {localizeMobileText(language, '正在加载任务详情...')}
         </Typography>
       </MainCard>
     );
   }
-
-  const state = useMemo(() => {
-    if (!detail) return null;
-    return storage.state[itemId] || defaultActionState(detail);
-  }, [detail, itemId, storage.state]);
 
   if (!detail || !state) {
     return null;
@@ -205,7 +270,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
     setCurrentState((prev) => ({
       ...prev,
       ...patch,
-      note: offline ? `${label} 已离线记录，待补传。` : patch.note
+      note: offline ? `${localizeMobileText(language, label)} ${localizeMobileText(language, '已离线记录，待补传。')}` : patch.note
     }));
 
     opsStorage.setState((prev) =>
@@ -228,10 +293,10 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
   const blockers = taskCard.blockers || [];
   const sectionItems = [
-    { key: 'ops', label: '操作', icon: ToolOutlined },
-    { key: 'task', label: '任务', icon: ProfileOutlined },
-    { key: 'summary', label: '摘要', icon: AppstoreOutlined },
-    { key: 'records', label: '记录', icon: FileTextOutlined }
+    { key: 'ops', label: localizeMobileText(language, '操作'), icon: ToolOutlined },
+    { key: 'task', label: localizeMobileText(language, '任务'), icon: ProfileOutlined },
+    { key: 'summary', label: localizeMobileText(language, '摘要'), icon: AppstoreOutlined },
+    { key: 'records', label: localizeMobileText(language, '记录'), icon: FileTextOutlined }
   ];
 
   const handleLiveTaskAction = async (task, action) => {
@@ -248,14 +313,14 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
       openSnackbar({
         open: true,
-        message: `任务 ${task.task_id} 已执行 ${action}`,
+        message: buildTaskActionMessage(language, task.task_id, localizeMobileText(language, action)),
         variant: 'alert',
         alert: { color: 'success' }
       });
     } catch (error) {
       openSnackbar({
         open: true,
-        message: error?.error?.message || `任务 ${action} 失败`,
+        message: error?.error?.message || buildTaskActionMessage(language, task.task_id, localizeMobileText(language, action), true),
         variant: 'alert',
         alert: { color: 'error' }
       });
@@ -277,15 +342,15 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
               </Typography>
             </Stack>
             <Typography variant="subtitle2" color="primary.main">
-              {detail.priority}
+              {localizeMobileText(language, detail.priority)}
             </Typography>
           </Stack>
         </MainCard>
 
         {flowKey === 'flightRuntime' && detail.flightInfoRows?.length ? (
           <ObjectSummaryCard
-            title="航班必须信息"
-            subtitle="进入运行确认前，先核对航班主信息、当前阶段和关键文件状态。"
+            title={localizeMobileText(language, '航班必须信息')}
+            subtitle={localizeMobileText(language, '进入运行确认前，先核对航班主信息、当前阶段和关键文件状态。')}
             status={state.status}
             rows={detail.flightInfoRows.map((item) => ({
               label: localizeMobileText(language, item.label),
@@ -298,22 +363,26 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
           <TaskOpsPanel
             scopeKey={`node-${flowKey}-${itemId}`}
             currentLabel={detail.title}
-            contextChips={[`节点 ${detail.node}`, `角色 ${roleView.label}`, `SLA ${detail.sla}`]}
+            contextChips={[
+              `${localizeMobileText(language, '节点')} ${localizeMobileText(language, detail.node)}`,
+              `${localizeMobileText(language, '角色')} ${localizeMobileText(language, roleView.label)}`,
+              localizeMobileText(language, `SLA ${detail.sla}`)
+            ]}
             liveTasks={liveTasks}
             onTaskAction={handleLiveTaskAction}
             quickLinks={[
-              { label: '返回列表', variant: 'outlined', onClick: () => navigate(backPath) },
-              { label: '节点选择', variant: 'outlined', onClick: () => navigate('/mobile/select') }
+              { label: localizeMobileText(language, '返回列表'), variant: 'outlined', onClick: () => navigate(backPath) },
+              { label: localizeMobileText(language, '节点选择'), variant: 'outlined', onClick: () => navigate('/mobile/select') }
             ]}
-            onSuspend={() => setCurrentState((prev) => ({ ...prev, status: '暂时挂起', note: `${detail.title} 已挂起。` }))}
-            onRecover={() => setCurrentState((prev) => ({ ...prev, status: detail.status, note: `${detail.title} 已恢复。` }))}
+            onSuspend={() => setCurrentState((prev) => ({ ...prev, status: '暂时挂起', note: `${detail.title} ${mt('已挂起。')}` }))}
+            onRecover={() => setCurrentState((prev) => ({ ...prev, status: detail.status, note: `${detail.title} ${mt('已恢复。')}` }))}
           />
         ) : null}
 
         {activeSection === 'task' ? (
           <>
             {flowKey === 'exportRamp' && detail.uldAssignments?.length ? (
-              <MainCard title="当前飞机 ULD 与机位">
+              <MainCard title={localizeMobileText(language, '当前飞机 ULD 与机位')}>
                 <Stack sx={{ gap: 1.25 }}>
                   {detail.uldAssignments.map((item) => (
                     <Box key={item.uld} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
@@ -321,13 +390,13 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
                         <Stack sx={{ gap: 0.35, minWidth: 0 }}>
                           <Typography variant="subtitle2">{item.uld}</Typography>
                           <Typography variant="body2" color="text.secondary">
-                            目的地 {item.destination} · {item.pieces} · {item.weight}
+                            {localizeMobileText(language, '目的地')} {localizeMobileText(language, item.destination)} · {item.pieces} · {item.weight}
                           </Typography>
                         </Stack>
                         <TextField
                           select
                           size="small"
-                          label="位置"
+                          label={localizeMobileText(language, '位置')}
                           value={state.assignedPositions?.[item.uld] || ''}
                           onChange={(event) =>
                             setCurrentState((prev) => ({
@@ -336,12 +405,12 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
                                 ...(prev.assignedPositions || {}),
                                 [item.uld]: event.target.value
                               },
-                              note: `${item.uld} 已标记机位 ${event.target.value || '未指定'}。`
+                              note: `${item.uld} ${localizeMobileText(language, '已标记机位')} ${event.target.value || localizeMobileText(language, '未指定')}。`
                             }))
                           }
                           sx={{ minWidth: 112 }}
                         >
-                          <MenuItem value="">未指定</MenuItem>
+                          <MenuItem value="">{localizeMobileText(language, '未指定')}</MenuItem>
                           {(detail.positionOptions || []).map((position) => (
                             <MenuItem key={position} value={position}>
                               {position}
@@ -356,7 +425,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
             ) : null}
 
             {flowKey === 'destinationRamp' && detail.unloadTasks?.length ? (
-              <MainCard title="飞机舱位卸载任务">
+              <MainCard title={localizeMobileText(language, '飞机舱位卸载任务')}>
                 <Stack sx={{ gap: 1.25 }}>
                   {detail.unloadTasks.map((item, index) => (
                     <Box key={`${itemId}-unload-${index}`} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.25 }}>
@@ -366,12 +435,12 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
                             {item.position} / {item.uld}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            货物：{item.cargo}
+                            {localizeMobileText(language, '货物：')}{localizeMobileText(language, item.cargo)}
                           </Typography>
                         </Stack>
                         <Stack sx={{ alignItems: 'flex-end', gap: 0.75 }}>
                           <Typography variant="caption" color="primary.main">
-                            待卸载
+                            {localizeMobileText(language, '待卸载')}
                           </Typography>
                           <Button
                             size="small"
@@ -379,16 +448,16 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
                             onClick={() =>
                               setCurrentState((prev) => ({
                                 ...prev,
-                                note: `${item.uld} / ${item.position} 已完成卸载。`
+                                note: `${item.uld} / ${item.position} ${localizeMobileText(language, '已完成卸载。')}`
                               }))
                             }
                           >
-                            卸载完成
+                            {localizeMobileText(language, '卸载完成')}
                           </Button>
                         </Stack>
                       </Stack>
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                        卸载要求：{item.requirement}
+                        {localizeMobileText(language, '卸载要求：')}{localizeMobileText(language, item.requirement)}
                       </Typography>
                     </Box>
                   ))}
@@ -415,8 +484,8 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
           <>
             {detail.flightInfoRows?.length ? (
               <ObjectSummaryCard
-                title="航班必须信息"
-                subtitle="用于运行确认、异常升级和后续节点联动的关键字段。"
+                title={localizeMobileText(language, '航班必须信息')}
+                subtitle={localizeMobileText(language, '用于运行确认、异常升级和后续节点联动的关键字段。')}
                 status={state.status}
                 rows={detail.flightInfoRows.map((item) => ({
                   label: localizeMobileText(language, item.label),
@@ -427,10 +496,10 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
             {detail.flightDocuments?.length ? (
               <TaskQueueCard
-                title="关键文件状态"
+                title={localizeMobileText(language, '关键文件状态')}
                 items={detail.flightDocuments.map((item) => ({
                   id: `${itemId}-${item.title}`,
-                  title: item.title,
+                  title: localizeMobileText(language, item.title),
                   description: localizeMobileText(language, item.description),
                   status: localizeMobileText(language, item.status),
                   meta: localizeMobileText(language, item.meta)
@@ -439,11 +508,11 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
             ) : null}
 
             <ObjectSummaryCard
-              title="对象摘要"
+              title={localizeMobileText(language, '对象摘要')}
               subtitle={localizeMobileText(language, detail.description)}
               status={state.status}
               rows={[
-                { label: '当前角色', value: localizeMobileText(language, roleView.label) },
+                { label: localizeMobileText(language, '当前角色'), value: localizeMobileText(language, roleView.label) },
                 ...taskCard.summaryRows.map((item) => ({
                   label: localizeMobileText(language, item.label),
                   value: localizeMobileText(language, item.value)
@@ -453,13 +522,13 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
             {taskCard.forecastWaybills?.length ? (
               <TaskQueueCard
-                title="车载提单预报"
+                title={localizeMobileText(language, '车载提单预报')}
                 items={taskCard.forecastWaybills.map((item) => ({
                   id: `${itemId}-${item.awb}`,
                   title: item.awb,
-                  description: item.consignee,
+                  description: localizeMobileText(language, item.consignee),
                   status: `${item.pieces} pcs`,
-                  meta: `重量 ${item.weight}`
+                  meta: `${localizeMobileText(language, '重量')} ${item.weight}`
                 }))}
               />
             ) : null}
@@ -468,26 +537,26 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
 
         {activeSection === 'records' ? (
           <>
-            <MainCard title="现场记录">
+            <MainCard title={localizeMobileText(language, '现场记录')}>
               <Stack sx={{ gap: 1 }}>
                 <Typography variant="body2" color="text.secondary">
                   {state.note}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  证据上传：{state.evidenceUploaded ? '已完成' : '待上传'}
+                  {localizeMobileText(language, '证据上传：')}{state.evidenceUploaded ? localizeMobileText(language, '已完成') : localizeMobileText(language, '待上传')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  签字状态：{state.signed ? '已签字' : '待签字'}
+                  {localizeMobileText(language, '签字状态：')}{state.signed ? localizeMobileText(language, '已签字') : localizeMobileText(language, '待签字')}
                 </Typography>
               </Stack>
             </MainCard>
 
             <TaskQueueCard
-              title="关键检查项"
+              title={localizeMobileText(language, '关键检查项')}
               items={taskCard.records.map((item, index) => ({
                 id: `${itemId}-${index}`,
                 title: localizeMobileText(language, item),
-                status: index === 0 ? state.status : '待处理'
+                status: index === 0 ? state.status : localizeMobileText(language, '待处理')
               }))}
             />
           </>

@@ -1,13 +1,17 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import {
+  allowLocalOnlyAuth,
   buildActorFromClaims,
   buildActorFromHeaders,
+  hasDebugActorHeaders,
   hasAnyRole,
+  resolveAuthTokenSecret,
   verifyAuthToken,
   type AuthActor
 } from '@sinoport/auth';
 import { createStationServices } from '@sinoport/domain';
+import type { RoleCode } from '@sinoport/contracts';
 import {
   createRepositoryRegistry,
   RepositoryOperationError,
@@ -18,14 +22,24 @@ import { listWorkflowsForStationContext } from '@sinoport/workflows';
 
 type AgentBindings = {
   APP_NAME?: string;
+  APP_DEPLOYED_AT?: string;
+  APP_RELEASE_TAG?: string;
+  APP_VERSION?: string;
   AUTH_TOKEN_SECRET?: string;
   DB?: D1DatabaseLike;
   ENVIRONMENT?: string;
+  ENABLE_LOCAL_DEBUG_AUTH?: string;
 };
 
 type AgentVariables = {
   actor: AuthActor;
 };
+
+const M10_TOOL_DENYLIST = new Set(['request_task_assignment']);
+
+function listCopilotValidationTools(roleIds: RoleCode[] = []) {
+  return listAgentToolsForRoles(roleIds).filter((tool) => !M10_TOOL_DENYLIST.has(tool.name));
+}
 
 const app = new Hono<{
   Bindings: AgentBindings;
@@ -48,9 +62,9 @@ app.use('/api/v1/*', async (c, next) => {
   }
 
   const authorization = c.req.header('Authorization');
-  const isLocal = (c.env.ENVIRONMENT || 'local') === 'local';
+  const localDebugAuthEnabled = allowLocalOnlyAuth(c.env.ENVIRONMENT, c.env.ENABLE_LOCAL_DEBUG_AUTH);
   if (!authorization) {
-    if (isLocal) {
+    if (localDebugAuthEnabled && hasDebugActorHeaders(c.req.raw.headers)) {
       const actor = buildActorFromHeaders(c.req.raw.headers);
       c.set('actor', actor);
       await next();
@@ -60,7 +74,13 @@ app.use('/api/v1/*', async (c, next) => {
   }
 
   const token = authorization.replace(/^Bearer\s+/i, '').trim();
-  const secret = c.env.AUTH_TOKEN_SECRET || 'sinoport-local-dev-secret';
+  let secret: string;
+
+  try {
+    secret = resolveAuthTokenSecret(c.env.AUTH_TOKEN_SECRET, c.env.ENVIRONMENT);
+  } catch (error) {
+    return c.json({ error: { code: 'AUTH_CONFIG_ERROR', message: error instanceof Error ? error.message : 'Missing auth secret', details: {} } }, 500);
+  }
 
   if (token && token !== 'demo-token') {
     const claims = await verifyAuthToken(token, secret);
@@ -71,7 +91,7 @@ app.use('/api/v1/*', async (c, next) => {
     }
   }
 
-  if (isLocal && token === 'demo-token') {
+  if (localDebugAuthEnabled && token === 'demo-token') {
     c.set('actor', buildActorFromHeaders(c.req.raw.headers));
     await next();
     return;
@@ -120,7 +140,7 @@ function parseAgentJson(value: string | null | undefined) {
 }
 
 function ensureRole(actor: AuthActor, toolName: string) {
-  const tool = listAgentToolsForRoles(actor.roleIds).find((item) => item.name === toolName);
+  const tool = listCopilotValidationTools(actor.roleIds).find((item) => item.name === toolName);
 
   if (!tool) {
     throw new Error('FORBIDDEN_TOOL');
@@ -497,7 +517,7 @@ function buildPlanSteps(actor: AuthActor, objectType?: string, objectKey?: strin
   return [
     objectType && objectKey ? `Load focused context for ${objectType} / ${objectKey}` : 'Load station-level context',
     'Check release-blocking documents and open exceptions',
-    actor.roleIds.includes('station_supervisor') ? 'Prepare task assignment or escalation recommendation' : 'Prepare read-only operational recommendation'
+    actor.roleIds.includes('station_supervisor') ? 'Prepare read-only escalation recommendation' : 'Prepare read-only operational recommendation'
   ];
 }
 
@@ -860,14 +880,19 @@ app.get('/api/v1/healthz', (c) =>
     data: {
       service: c.env.APP_NAME ?? 'sinoport-agent-worker',
       environment: c.env.ENVIRONMENT ?? 'local',
-      status: 'ok'
+      status: 'ok',
+      version: {
+        sha: c.env.APP_VERSION ?? null,
+        tag: c.env.APP_RELEASE_TAG ?? null,
+        deployed_at: c.env.APP_DEPLOYED_AT ?? null
+      }
     }
   })
 );
 
 app.get('/api/v1/agent/tools', (c) =>
   c.json({
-    items: listAgentToolsForRoles(c.var.actor.roleIds)
+    items: listCopilotValidationTools(c.var.actor.roleIds)
   })
 );
 
@@ -1013,7 +1038,7 @@ app.get('/api/v1/agent/sessions/:sessionId/context', async (c) => {
   const actor = c.var.actor;
   const objectType = c.req.query('object_type') || undefined;
   const objectKey = c.req.query('object_key') || undefined;
-  const tools = listAgentToolsForRoles(actor.roleIds);
+  const tools = listCopilotValidationTools(actor.roleIds);
   const workflows = listWorkflowsForStationContext();
   const focusContext = objectType === 'Document' ? await resolveStationDocumentContext(c.env.DB, actor.stationScope[0] || 'MME', objectKey) : null;
 
@@ -1044,7 +1069,7 @@ app.get('/api/v1/agent/sessions/:sessionId/plan', (c) => {
   const actor = c.var.actor;
   const objectType = c.req.query('object_type') || undefined;
   const objectKey = c.req.query('object_key') || undefined;
-  const tools = listAgentToolsForRoles(actor.roleIds);
+  const tools = listCopilotValidationTools(actor.roleIds);
   const steps = buildPlanSteps(actor, objectType, objectKey);
 
   return c.json({

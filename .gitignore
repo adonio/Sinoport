@@ -13,6 +13,7 @@ admin-console/node_modules/
 admin-console/dist/
 admin-console/.wrangler/
 site-dist/
+.generated/
 
 *.log
 .dev.vars
