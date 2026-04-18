@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { useIntl } from 'react-intl';
 
 // material-ui
 import { useColorScheme } from '@mui/material/styles';
@@ -6,6 +7,8 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Divider from '@mui/material/Divider';
+
+import { formatLocalizedMessage } from 'utils/app-i18n';
 
 export default function MainCard({
   border = true,
@@ -28,6 +31,9 @@ export default function MainCard({
   ...others
 }) {
   const { colorScheme } = useColorScheme();
+  const intl = useIntl();
+  const localizedTitle = typeof title === 'string' ? formatLocalizedMessage(intl, title) : title;
+  const localizedSubheader = typeof subheader === 'string' ? formatLocalizedMessage(intl, subheader) : subheader;
 
   return (
     <Card
@@ -64,9 +70,9 @@ export default function MainCard({
         <CardHeader
           sx={{ p: 2.5 }}
           slotProps={{ title: { variant: darkTitle ? 'h4' : 'subtitle1' }, action: { sx: { m: '0px auto', alignSelf: 'center' } } }}
-          title={title}
+          title={localizedTitle}
           action={secondary}
-          subheader={subheader}
+          subheader={localizedSubheader}
         />
       )}
 

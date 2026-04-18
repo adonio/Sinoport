@@ -36,10 +36,10 @@ const platform = {
       icon: icons.ApartmentOutlined,
       children: [
         { id: 'platform-stations-overview', title: '总览', type: 'item', url: '/platform/stations' },
-        { id: 'platform-stations-capabilities', title: '能力矩阵', type: 'item', url: '/platform/stations/capabilities' },
-        { id: 'platform-stations-teams', title: '班组映射', type: 'item', url: '/platform/stations/teams' },
-        { id: 'platform-stations-zones', title: '区位映射', type: 'item', url: '/platform/stations/zones' },
-        { id: 'platform-stations-devices', title: '设备映射', type: 'item', url: '/platform/stations/devices' }
+        { id: 'platform-stations-capabilities', title: '货站能力矩阵', type: 'item', url: '/platform/stations/capabilities' },
+        { id: 'platform-stations-teams', title: '站点班组映射', type: 'item', url: '/platform/stations/teams' },
+        { id: 'platform-stations-zones', title: '站点区位映射', type: 'item', url: '/platform/stations/zones' },
+        { id: 'platform-stations-devices', title: '站点设备映射', type: 'item', url: '/platform/stations/devices' }
       ]
     },
     {
@@ -51,7 +51,7 @@ const platform = {
       children: [
         { id: 'platform-network-overview', title: '总览', type: 'item', url: '/platform/network' },
         { id: 'platform-network-lanes', title: '链路模板', type: 'item', url: '/platform/network/lanes' },
-        { id: 'platform-network-scenarios', title: '标准场景', type: 'item', url: '/platform/network/scenarios' }
+        { id: 'platform-network-scenarios', title: '标准场景模板', type: 'item', url: '/platform/network/scenarios' }
       ]
     },
     {
@@ -69,9 +69,9 @@ const platform = {
       icon: icons.DatabaseOutlined,
       children: [
         { id: 'platform-master-data-overview', title: '总览', type: 'item', url: '/platform/master-data' },
-        { id: 'platform-master-data-sync', title: '同步看板', type: 'item', url: '/platform/master-data/sync' },
-        { id: 'platform-master-data-jobs', title: '导入任务', type: 'item', url: '/platform/master-data/jobs' },
-        { id: 'platform-master-data-relationships', title: '对象关系', type: 'item', url: '/platform/master-data/relationships' }
+        { id: 'platform-master-data-sync', title: '接口同步看板', type: 'item', url: '/platform/master-data/sync' },
+        { id: 'platform-master-data-jobs', title: '导入任务日志', type: 'item', url: '/platform/master-data/jobs' },
+        { id: 'platform-master-data-relationships', title: '对象关系总览', type: 'item', url: '/platform/master-data/relationships' }
       ]
     },
     {
@@ -83,7 +83,7 @@ const platform = {
       children: [
         { id: 'platform-audit-overview', title: '总览', type: 'item', url: '/platform/audit' },
         { id: 'platform-audit-events', title: '审计事件', type: 'item', url: '/platform/audit/events' },
-        { id: 'platform-audit-trust', title: '可信占位', type: 'item', url: '/platform/audit/trust' }
+        { id: 'platform-audit-trust', title: '可信留痕占位', type: 'item', url: '/platform/audit/trust' }
       ]
     },
     {
@@ -94,7 +94,7 @@ const platform = {
       icon: icons.BarChartOutlined,
       children: [
         { id: 'platform-reports-overview', title: '总览', type: 'item', url: '/platform/reports' },
-        { id: 'platform-reports-stations', title: '站点对比', type: 'item', url: '/platform/reports/stations' }
+        { id: 'platform-reports-stations', title: '站点对比报表', type: 'item', url: '/platform/reports/stations' }
       ]
     }
   ]

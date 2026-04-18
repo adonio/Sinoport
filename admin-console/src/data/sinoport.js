@@ -1,3 +1,11 @@
+// Legacy local fixtures used for replay/sample-import seeding during the
+// database migration. Do not treat these exports as formal business truth for
+// accepted CRUD pages or production-facing data flows.
+export const sinoportFixtureBoundary = Object.freeze({
+  role: 'fixture/replay/sample-import-only',
+  primaryTruthForbiddenForAcceptedCrud: true
+});
+
 export const platformKpis = [
   { title: '已接入货站', value: '7', helper: '覆盖 URC、KGF、NVI、RZE、MST、BoH、MME', chip: 'Network', color: 'primary' },
   { title: 'L1 强控制站点', value: '2', helper: 'URC 与 MME 作为一期样板深度接入', chip: 'L1', color: 'secondary' },

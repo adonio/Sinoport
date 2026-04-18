@@ -52,6 +52,7 @@ const StationReportsPage = Loadable(lazy(() => import('pages/station/reports')))
 const StationReportsShiftPage = Loadable(lazy(() => import('pages/station/reports-shift')));
 const StationDocumentsNoaPage = Loadable(lazy(() => import('pages/station/documents-noa')));
 const StationDocumentsPodPage = Loadable(lazy(() => import('pages/station/documents-pod')));
+const StationCopilotPage = Loadable(lazy(() => import('pages/station/copilot')));
 
 const MainRoutes = {
   path: '/',
@@ -242,6 +243,10 @@ const MainRoutes = {
             {
               path: 'files',
               element: <StationDocumentsPage />
+            },
+            {
+              path: 'copilot',
+              element: <StationCopilotPage />
             },
             {
               path: 'tasks',

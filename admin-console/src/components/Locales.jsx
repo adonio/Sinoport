@@ -6,14 +6,11 @@ import { IntlProvider } from 'react-intl';
 
 // project imports
 import useConfig from 'hooks/useConfig';
+import { normalizeAppLanguage } from 'utils/app-i18n';
 
 // load locales files
 const loadLocaleData = (locale) => {
   switch (locale) {
-    case 'fr':
-      return import('utils/locales/fr.json');
-    case 'ro':
-      return import('utils/locales/ro.json');
     case 'zh':
       return import('utils/locales/zh.json');
     case 'en':
@@ -24,11 +21,23 @@ const loadLocaleData = (locale) => {
 
 // ==============================|| LOCALIZATION ||============================== //
 
+function handleIntlError(error) {
+  // Ignore missing translation noise so one missing key doesn't break navigation rendering.
+  if (error && (error.code === 'MISSING_TRANSLATION' || String(error.message || '').includes('Missing message'))) {
+    return;
+  }
+
+  if (console && typeof console.error === 'function') {
+    console.error(error);
+  }
+}
+
 export default function Locales({ children }) {
   const { state } = useConfig();
+  const locale = normalizeAppLanguage(state.i18n);
 
   const [messages, setMessages] = useState();
-  const localeDataPromise = useMemo(() => loadLocaleData(state.i18n), [state.i18n]);
+  const localeDataPromise = useMemo(() => loadLocaleData(locale), [locale]);
 
   useEffect(() => {
     localeDataPromise.then((d) => {
@@ -39,7 +48,7 @@ export default function Locales({ children }) {
   return (
     <>
       {messages && (
-        <IntlProvider locale={state.i18n} defaultLocale="en" messages={messages}>
+        <IntlProvider locale={locale} defaultLocale="zh" messages={messages} onError={handleIntlError}>
           {children}
         </IntlProvider>
       )}

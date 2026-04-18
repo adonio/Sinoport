@@ -30,7 +30,7 @@ export default function Alert(theme) {
             {
               props: { variant: 'standard' },
               style: ({ ownerState }) => {
-                const paletteColor = theme.palette[ownerState.color];
+                const paletteColor = theme.palette[ownerState.color] || theme.palette.primary;
                 return {
                   position: 'relative',
                   backgroundColor: paletteColor.lighter,
@@ -56,7 +56,7 @@ export default function Alert(theme) {
             {
               props: { variant: 'filled' },
               style: ({ ownerState }) => {
-                const paletteColor = theme.palette[ownerState.color];
+                const paletteColor = theme.palette[ownerState.color] || theme.palette.primary;
                 return {
                   color: theme.vars.palette.grey[0],
                   backgroundColor: paletteColor.main,

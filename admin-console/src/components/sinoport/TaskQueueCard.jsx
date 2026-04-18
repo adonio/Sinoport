@@ -1,5 +1,6 @@
 import PropTypes from 'prop-types';
 import { Link as RouterLink } from 'react-router-dom';
+import { useIntl } from 'react-intl';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -8,28 +9,32 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'components/MainCard';
 import StatusChip from 'components/sinoport/StatusChip';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
 export default function TaskQueueCard({ title, items, emptyText = '暂无数据。' }) {
+  const intl = useIntl();
+  const locale = intl.locale;
+
   return (
-    <MainCard title={title}>
+    <MainCard title={formatLocalizedMessage(intl, title)}>
       <Stack sx={{ gap: 1.25 }}>
         {items.length ? (
           items.map((item) => (
             <Box key={item.id || item.title} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', p: 1.5 }}>
               <Stack direction="row" sx={{ justifyContent: 'space-between', gap: 1.5, alignItems: 'center' }}>
                 <Stack sx={{ gap: 0.35, minWidth: 0 }}>
-                  <Typography variant="subtitle2">{item.title}</Typography>
+                  <Typography variant="subtitle2">{localizeUiText(locale, formatLocalizedMessage(intl, item.title))}</Typography>
                   {item.description ? (
                     <Typography variant="body2" color="text.secondary">
-                      {item.description}
+                      {localizeUiText(locale, formatLocalizedMessage(intl, item.description))}
                     </Typography>
                   ) : null}
                 </Stack>
-                {item.status ? <StatusChip label={item.status} /> : null}
+                {item.status ? <StatusChip label={localizeUiText(locale, item.status)} /> : null}
               </Stack>
               {item.meta ? (
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  {item.meta}
+                  {localizeUiText(locale, formatLocalizedMessage(intl, item.meta))}
                 </Typography>
               ) : null}
               {item.actions?.length ? (
@@ -42,7 +47,7 @@ export default function TaskQueueCard({ title, items, emptyText = '暂无数据�
                       size="small"
                       variant={action.variant || 'outlined'}
                     >
-                      {action.label}
+                      {localizeUiText(locale, formatLocalizedMessage(intl, action.label))}
                     </Button>
                   ))}
                 </Stack>
@@ -50,7 +55,7 @@ export default function TaskQueueCard({ title, items, emptyText = '暂无数据�
             </Box>
           ))
         ) : (
-          <Typography color="text.secondary">{emptyText}</Typography>
+          <Typography color="text.secondary">{formatLocalizedMessage(intl, emptyText)}</Typography>
         )}
       </Stack>
     </MainCard>

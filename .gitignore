@@ -1,9 +1,19 @@
 .DS_Store
 **/.DS_Store
 
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+apps/*/.wrangler/
+.wrangler/
+apps/*/dist/
+packages/*/dist/
+
 admin-console/node_modules/
 admin-console/dist/
 admin-console/.wrangler/
 site-dist/
+.generated/
 
 *.log
+.dev.vars

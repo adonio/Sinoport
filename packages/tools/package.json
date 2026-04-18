@@ -1,0 +1,14 @@
+{
+  "name": "@sinoport/tools",
+  "private": true,
+  "version": "0.1.0",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@sinoport/contracts": "file:../contracts"
+  }
+}

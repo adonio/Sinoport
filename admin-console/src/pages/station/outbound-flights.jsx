@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useIntl } from 'react-intl';
 
 import Button from '@mui/material/Button';
 import Grid from '@mui/material/Grid';
@@ -8,6 +9,7 @@ import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
+import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -17,9 +19,14 @@ import MainCard from 'components/MainCard';
 import MetricCard from 'components/sinoport/MetricCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { ffmForecastRows, manifestSummary, outboundFlights } from 'data/sinoport';
-import { useLocalStorage } from 'hooks/useLocalStorage';
-import { getMobileStationKey, readMobileSession } from 'utils/mobile/session';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
+import {
+  saveOutboundContainer,
+  useGetMobileOutboundDetail,
+  useGetOutboundFlights,
+  useGetStationFlightOptions,
+  useGetStationOutboundOverview
+} from 'api/station';
 
 const officeOutboundPlans = [
   {
@@ -35,21 +42,59 @@ const officeOutboundPlans = [
 ];
 
 export default function StationOutboundFlightsPage() {
-  const stationKey = getMobileStationKey(readMobileSession() || { stationCode: 'MME' });
-  const { state: pmcBoards, setState: setPmcBoards } = useLocalStorage(`sinoport-mobile-outbound-containers-${stationKey}`, []);
+  const intl = useIntl();
+  const m = (value) => formatLocalizedMessage(intl, value);
+  const locale = intl.locale;
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(0);
+  const { ffmForecastRows, manifestSummary } = useGetStationOutboundOverview();
+  const { outboundFlights, outboundFlightPage } = useGetOutboundFlights({
+    page: page + 1,
+    page_size: PAGE_SIZE
+  });
+  const { flightOptions } = useGetStationFlightOptions('outbound');
+  const defaultFlightNo = useMemo(
+    () => flightOptions[0]?.meta?.flight_no || outboundFlights[0]?.flightNo || 'SE913',
+    [flightOptions, outboundFlights]
+  );
   const [uldForm, setUldForm] = useState({
     flightNo: 'SE913',
     boardCode: 'ULD91009',
     awbs: '436-10357583, 436-10357896',
     aircraftPosition: '15L'
   });
+  const { mobileOutboundFlightDetail } = useGetMobileOutboundDetail(uldForm.flightNo);
+  const rows = outboundFlights;
 
   const metrics = [
-    { title: '待飞走航班', value: `${outboundFlights.length}`, helper: '当前在本站处理的出港航班', chip: 'Flights', color: 'primary' },
-    { title: 'Manifest 版本', value: manifestSummary.version, helper: manifestSummary.exchange, chip: 'Manifest', color: 'secondary' },
-    { title: '出港货物数量', value: manifestSummary.outboundCount, helper: '来自航班级装载汇总', chip: 'Cargo', color: 'success' }
+    {
+      title: m('待飞走航班'),
+      value: `${outboundFlightPage?.total || rows.length}`,
+      helper: m('当前在本站处理的出港航班'),
+      chip: m('航班'),
+      color: 'primary'
+    },
+    {
+      title: m('Manifest 版本'),
+      value: manifestSummary.version,
+      helper: manifestSummary.exchange,
+      chip: m('Manifest'),
+      color: 'secondary'
+    },
+    { title: m('出港货物数量'), value: manifestSummary.outboundCount, helper: m('来自航班级装载汇总'), chip: m('货量'), color: 'success' }
   ];
-  const flightContainers = useMemo(() => pmcBoards.filter((item) => item.flightNo === 'SE913'), [pmcBoards]);
+  const flightContainers = useMemo(
+    () => (mobileOutboundFlightDetail?.containers || []).filter((item) => item.flightNo === uldForm.flightNo),
+    [mobileOutboundFlightDetail?.containers, uldForm.flightNo]
+  );
+
+  useEffect(() => {
+    const fallbackFlightNo = defaultFlightNo || 'SE913';
+    setUldForm((current) => {
+      if (current.flightNo) return current;
+      return { ...current, flightNo: fallbackFlightNo };
+    });
+  }, [defaultFlightNo]);
 
   const createOfficeUldPlan = () => {
     const awbs = uldForm.awbs
@@ -68,40 +113,37 @@ export default function StationOutboundFlightsPage() {
 
     if (!uldForm.boardCode.trim()) return;
 
-    setPmcBoards((prev) => [
-      {
-        boardCode: uldForm.boardCode.trim().toUpperCase(),
-        flightNo: uldForm.flightNo,
-        entries,
-        totalBoxes,
-        totalWeightKg: Number(totalWeightKg.toFixed(1)),
-        reviewedWeightKg: Number((totalWeightKg * 1.003).toFixed(1)),
-        aircraftPosition: uldForm.aircraftPosition.trim(),
-        status: '待装机',
-        createdAt: new Date().toISOString()
-      },
-      ...prev.filter((item) => item.boardCode !== uldForm.boardCode.trim().toUpperCase())
-    ]);
+    void saveOutboundContainer(uldForm.flightNo, {
+      boardCode: uldForm.boardCode.trim().toUpperCase(),
+      flightNo: uldForm.flightNo,
+      entries,
+      totalBoxes,
+      totalWeightKg: Number(totalWeightKg.toFixed(1)),
+      reviewedWeightKg: Number((totalWeightKg * 1.003).toFixed(1)),
+      aircraftPosition: uldForm.aircraftPosition.trim(),
+      status: '待装机',
+      note: `机位 ${uldForm.aircraftPosition.trim()}`
+    });
   };
 
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
-          eyebrow="Outbound / Flights"
-          title="出港管理 / 航班管理"
-          description="按航班管理预报、收货、装载、飞走与 Manifest 归档，并为文件放行、任务分派和对象回连提供统一入口。"
-          chips={['Forecast', 'Receipt', 'Loading', 'Manifest', 'Task Entry', 'Gate Control']}
+          eyebrow={m('出港 / 航班')}
+          title={m('出港管理 / 航班管理')}
+          description={m('按航班管理预报、收货、装载、飞走与 Manifest 归档，并为文件放行、任务分派和对象回连提供统一入口。')}
+          chips={[m('预报'), m('收货'), m('装载'), m('Manifest'), m('任务入口'), m('门槛控制')]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button size="small" variant="outlined" component={RouterLink} to="/station/outbound/waybills">
-                提单管理
+                {m('提单管理')}
               </Button>
               <Button size="small" variant="outlined" component={RouterLink} to="/station/documents">
-                单证中心
+                {m('单证中心')}
               </Button>
               <Button size="small" variant="outlined" component={RouterLink} to="/station/tasks">
-                作业任务
+                {m('作业任务')}
               </Button>
             </Stack>
           }
@@ -115,46 +157,46 @@ export default function StationOutboundFlightsPage() {
       ))}
 
       <Grid size={12}>
-        <MainCard title="出港航班操作台">
+        <MainCard title={m('出港航班操作台')}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>航班</TableCell>
-                <TableCell>ETD</TableCell>
-                <TableCell>状态</TableCell>
-                <TableCell>当前阶段</TableCell>
-                <TableCell>Manifest</TableCell>
-                <TableCell>货量</TableCell>
-                <TableCell align="right">操作</TableCell>
+                <TableCell>{m('航班')}</TableCell>
+                <TableCell>{m('ETD')}</TableCell>
+                <TableCell>{m('状态')}</TableCell>
+                <TableCell>{m('当前阶段')}</TableCell>
+                <TableCell>{m('Manifest')}</TableCell>
+                <TableCell>{m('货量')}</TableCell>
+                <TableCell align="right">{m('操作')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {outboundFlights.map((item) => (
+              {rows.map((item) => (
                 <TableRow key={item.flightNo} hover>
                   <TableCell>{item.flightNo}</TableCell>
                   <TableCell>{item.etd}</TableCell>
                   <TableCell>
-                    <StatusChip label={item.status} />
+                    <StatusChip label={localizeUiText(locale, item.status)} />
                   </TableCell>
-                  <TableCell>{item.stage}</TableCell>
-                  <TableCell>{item.manifest}</TableCell>
-                  <TableCell>{item.cargo}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.stage)}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.manifest)}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.cargo)}</TableCell>
                   <TableCell align="right">
                     <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
                       <Button size="small" variant="outlined" component={RouterLink} to={`/station/outbound/flights/${item.flightNo}`}>
-                        查看
+                        {m('查看')}
                       </Button>
                       <Button size="small" variant="outlined" component={RouterLink} to="/station/documents">
-                        单证
+                        {m('单证')}
                       </Button>
                       <Button size="small" variant="outlined" component={RouterLink} to="/station/tasks">
-                        任务
+                        {m('任务')}
                       </Button>
                       <Button size="small" variant="outlined" component={RouterLink} to="/station/shipments">
-                        链路
+                        {m('链路')}
                       </Button>
                       <Button size="small" variant="contained">
-                        飞走
+                        {m('飞走')}
                       </Button>
                     </Stack>
                   </TableCell>
@@ -162,25 +204,33 @@ export default function StationOutboundFlightsPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination
+            component="div"
+            count={outboundFlightPage?.total || rows.length}
+            page={Math.max(0, (outboundFlightPage?.page || 1) - 1)}
+            onPageChange={(_, nextPage) => setPage(nextPage)}
+            rowsPerPage={PAGE_SIZE}
+            rowsPerPageOptions={[PAGE_SIZE]}
+          />
         </MainCard>
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="办公室预排 ULD / 机位 / 文件">
+        <MainCard title={m('办公室预排 ULD / 机位 / 文件')}>
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>航班</TableCell>
-                <TableCell>后台先完成</TableCell>
-                <TableCell>PDA 现场执行</TableCell>
+                <TableCell>{m('航班')}</TableCell>
+                <TableCell>{m('后台先完成')}</TableCell>
+                <TableCell>{m('PDA 现场执行')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {officeOutboundPlans.map((item) => (
                 <TableRow key={item.flightNo} hover>
                   <TableCell>{item.flightNo}</TableCell>
-                  <TableCell>{item.officePlan}</TableCell>
-                  <TableCell>{item.pdaExec}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.officePlan)}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.pdaExec)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -189,56 +239,56 @@ export default function StationOutboundFlightsPage() {
       </Grid>
 
       <Grid size={{ xs: 12, xl: 5 }}>
-        <MainCard title="后台 ULD / 机位预排">
+        <MainCard title={m('后台 ULD / 机位预排')}>
           <Stack sx={{ gap: 1.5 }}>
             <TextField
               select
-              label="航班"
+              label={m('航班')}
               value={uldForm.flightNo}
               onChange={(event) => setUldForm((prev) => ({ ...prev, flightNo: event.target.value }))}
             >
-              {outboundFlights.map((item) => (
-                <MenuItem key={item.flightNo} value={item.flightNo}>
-                  {item.flightNo}
+              {flightOptions.map((item) => (
+                <MenuItem key={item.value} value={item.meta?.flight_no || item.value} disabled={item.disabled}>
+                  {localizeUiText(intl.locale, item.label)}
                 </MenuItem>
               ))}
             </TextField>
             <TextField
-              label="ULD / PMC"
+              label={m('ULD / PMC')}
               value={uldForm.boardCode}
               onChange={(event) => setUldForm((prev) => ({ ...prev, boardCode: event.target.value }))}
             />
             <TextField
-              label="计划 AWB"
+              label={m('计划 AWB')}
               value={uldForm.awbs}
               onChange={(event) => setUldForm((prev) => ({ ...prev, awbs: event.target.value }))}
             />
             <TextField
-              label="飞机机位"
+              label={m('飞机机位')}
               value={uldForm.aircraftPosition}
               onChange={(event) => setUldForm((prev) => ({ ...prev, aircraftPosition: event.target.value }))}
             />
             <Button variant="contained" onClick={createOfficeUldPlan}>
-              保存 ULD 预排
+              {m('保存 ULD 预排')}
             </Button>
             <Typography variant="caption" color="text.secondary">
-              保存后会同步到移动端“集装器 / 装机 / 出港机坪” demo 数据。
+              {m('保存后会同步到移动端“集装器 / 装机 / 出港机坪” demo 数据。')}
             </Typography>
           </Stack>
         </MainCard>
       </Grid>
 
       <Grid size={{ xs: 12, xl: 7 }}>
-        <MainCard title="办公室预排 ULD 清单">
+        <MainCard title={m('办公室预排 ULD 清单')}>
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>ULD</TableCell>
-                <TableCell>航班</TableCell>
-                <TableCell>计划 AWB</TableCell>
-                <TableCell>机位</TableCell>
-                <TableCell>状态</TableCell>
-                <TableCell align="right">操作</TableCell>
+                <TableCell>{m('航班')}</TableCell>
+                <TableCell>{m('计划 AWB')}</TableCell>
+                <TableCell>{m('机位')}</TableCell>
+                <TableCell>{m('状态')}</TableCell>
+                <TableCell align="right">{m('操作')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -247,8 +297,8 @@ export default function StationOutboundFlightsPage() {
                   <TableCell>{item.boardCode}</TableCell>
                   <TableCell>{item.flightNo}</TableCell>
                   <TableCell>{(item.entries || []).map((entry) => entry.awb).join(' / ')}</TableCell>
-                  <TableCell>{item.aircraftPosition || '待编排'}</TableCell>
-                  <TableCell>{item.status}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.aircraftPosition || m('待编排'))}</TableCell>
+                  <TableCell>{localizeUiText(locale, item.status)}</TableCell>
                   <TableCell align="right">
                     <Button
                       size="small"
@@ -262,7 +312,7 @@ export default function StationOutboundFlightsPage() {
                         })
                       }
                     >
-                      编辑
+                      {m('编辑')}
                     </Button>
                   </TableCell>
                 </TableRow>

@@ -12,12 +12,14 @@ import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import { useIntl } from 'react-intl';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 // project imports
 import Transitions from 'components/@extended/Transitions';
 import { workspaceData } from './data/workspace-data';
 import { getImageUrl, ImagePath } from 'utils/getImageUrl';
+import { localizeUiText } from 'utils/app-i18n';
 
 // assets
 import DownOutlined from '@ant-design/icons/DownOutlined';
@@ -32,12 +34,14 @@ const colors = {
 // ==============================|| WORKSPACE - LABEL ||============================== //
 
 function Label({ title, sx }) {
-  return <Chip label={title} size="small" color={colors[title]} sx={{ height: 20, ...sx }} />;
+  return <Chip label={title} size="small" color={colors[title] || 'default'} sx={{ height: 20, ...sx }} />;
 }
 
 // ==============================|| HEADER CONTENT - WORKSPACE ||============================== //
 
 export default function Workspace() {
+  const intl = useIntl();
+  const locale = intl.locale;
   const downSM = useMediaQuery((theme) => theme.breakpoints.down('sm'));
   const downMD = useMediaQuery((theme) => theme.breakpoints.down('md'));
   const navigate = useNavigate();
@@ -101,10 +105,10 @@ export default function Workspace() {
         {!downSM && (
           <>
             <Box component="span" sx={{ typography: 'h6', whiteSpace: 'nowrap' }}>
-              {workspace.title}
+              {localizeUiText(locale, workspace.title)}
             </Box>
 
-            {workspace.label && <Label title={workspace.label} />}
+            {workspace.label && <Label title={localizeUiText(locale, workspace.label)} />}
           </>
         )}
         <Box sx={{ color: 'text.secondary', ml: 'auto' }}>
@@ -140,10 +144,10 @@ export default function Workspace() {
                       />
 
                       <Typography noWrap component="span" variant="caption">
-                        {item.title}
+                        {localizeUiText(locale, item.title)}
                       </Typography>
 
-                      {item.label && <Label title={item.label} sx={{ ml: 'auto' }} />}
+                      {item.label && <Label title={localizeUiText(locale, item.label)} sx={{ ml: 'auto' }} />}
                     </MenuItem>
                   ))}
                 </MenuList>

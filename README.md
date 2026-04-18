@@ -11,6 +11,77 @@
 - 原始 PDF：`docs/source/Sinoport_商业模型说明书_v1.0.pdf`
 - 摘要整理：`docs/business-model-summary.md`
 - 页面规划：`docs/product-architecture.md`
+- 技术架构：`docs/Sinoport_OS_技术架构_v1.0.md`
+- 后端一期执行计划：`docs/Sinoport_OS_后端一期执行计划_v1.0.md`
+- 后续开发任务表：`docs/Sinoport_OS_后续开发任务表_v1.0.md`
+- 数据库收口与 12 个月开发规划：`docs/Sinoport_OS_数据库收口与12个月开发规划_v1.0.md`
+- M1-M12 主 Agent 执行计划：`docs/Sinoport_OS_M1-M12_主Agent执行计划_v1.0.md`
+- M1-M12 月度执行台账：`docs/Sinoport_OS_M1-M12_月度执行台账_v1.0.md`
+- M1-M12 月度决策记录：`docs/Sinoport_OS_M1-M12_月度决策记录_v1.0.md`
+- M1-M12 月度阻塞清单：`docs/Sinoport_OS_M1-M12_月度阻塞清单_v1.0.md`
+- 发布与运维基线：`docs/Sinoport_OS_发布与运维基线_v1.0.md`
+- 数据质量治理：`docs/Sinoport_OS_数据质量治理_v1.0.md`
+- 数据库收口执行台账：`docs/Sinoport_OS_数据库收口执行台账_v1.0.md`
+- 年度复盘与下一年度规划：`docs/Sinoport_OS_年度复盘与下一年度规划_v1.0.md`
+
+## 后端骨架
+
+- API Worker：`apps/api-worker`
+- Agent Worker：`apps/agent-worker`
+- 共享包：`packages/contracts`、`packages/domain`、`packages/repositories`、`packages/auth`、`packages/tools`、`packages/workflows`
+- Cloudflare 配置说明：`infra/cloudflare/README.md`
+
+## 远端交付
+
+- CI：`.github/workflows/ci.yml`
+- 发布：`.github/workflows/release.yml`
+- 远端环境已完成：
+  - 主站生产：`https://sinoport.co`
+  - 主站 staging：`https://staging.sinoport.co`
+  - 后台生产：`https://admin.sinoport.co`
+  - 后台 staging：`https://staging-admin.sinoport.co`
+  - API 生产：`https://api.sinoport.co`
+  - API staging：`https://staging-api.sinoport.co`
+  - Agent 生产：`https://agent.sinoport.co`
+  - Agent staging：`https://staging-agent.sinoport.co`
+- 发布后校验已覆盖：`health`、`agent/tools`、`audit/events`、浏览器 smoke
+
+当前代码侧已完成：
+
+- 站内 Web 鉴权、本地账号体系、`me / refresh / logout`
+- 文档预签名上传、预览、下载、保留清理
+- 进港与最小出港动作链
+- PDA 深层对象写链
+- Agent 会话服务与 `station/copilot`
+- CI / smoke / release workflow
+- Cloudflare Pages / Workers / D1 / R2 的 `staging / production` 发布
+
+当前剩余主要是治理事项：
+
+- 将 `AUTH_TOKEN_SECRET` 切换为真正的 Cloudflare secret
+- 收紧 demo 账号与本地 bootstrap 逻辑
+- 清理历史遗留的 `admin-assets / 静态路由产物`
+
+建议命令：
+
+```bash
+npm install
+npm run dev:api
+npm run dev:agent
+npm run test:smoke:api
+```
+
+## 产物治理
+
+- 当前默认发布脚本已经切到“临时目录生成”：
+  - 后台静态页默认生成到 `.generated/admin-static`
+  - `site-dist` 从 `.generated/admin-static` 装配
+- 这些新产物不再默认写回仓库根目录。
+- 当前仍需要单独处理的是历史遗留的：
+  - `admin-assets/`
+  - 根级静态路由目录下的 `index.html`
+- 详细说明见：
+  - [Sinoport_OS_构建产物治理_v1.0.md](/Users/lijun/Downloads/Sinoport/docs/Sinoport_OS_构建产物治理_v1.0.md)
 
 ## 页面原型
 

@@ -14,8 +14,10 @@ import CloseOutlined from '@ant-design/icons/CloseOutlined';
 import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import StatusChip from 'components/sinoport/StatusChip';
-import { platformStationCapabilityRows, stationCapabilityColumns } from 'data/sinoport-adapters';
+import { useGetPlatformStationCapabilities } from 'api/platform';
 import { Link as RouterLink } from 'react-router-dom';
+import { useIntl } from 'react-intl';
+import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
 function renderCapabilitySymbol(status) {
   if (status === 'yes') {
@@ -28,21 +30,30 @@ function renderCapabilitySymbol(status) {
 }
 
 export default function PlatformStationsCapabilitiesPage() {
+  const {
+    platformStationCapabilityRows,
+    stationCapabilityColumns,
+    stationCapabilitiesLoading,
+    stationCapabilitiesMeta
+  } = useGetPlatformStationCapabilities();
+  const intl = useIntl();
+  const l = (value) => localizeUiText(intl.locale, value);
+
   return (
     <Grid container rowSpacing={3} columnSpacing={3}>
       <Grid size={12}>
         <PageHeader
           eyebrow="Station Capability Matrix"
-          title="货站能力矩阵"
-          description="以站点能力、SLA、控制深度和当前风险为主视角展示平台侧的货站能力矩阵。"
-          chips={['Capabilities', 'SLA', 'Control Level', 'Readiness']}
+          title={formatLocalizedMessage(intl, '货站能力矩阵')}
+          description={formatLocalizedMessage(intl, '以正式 station governance 模板和站点主记录为读源，展示当前治理能力矩阵、准备度和风险项。')}
+          chips={['Governance', 'Capabilities', 'Control Level', 'Readiness']}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
               <Button component={RouterLink} to="/platform/stations" variant="outlined">
-                返回站点总览
+                {formatLocalizedMessage(intl, '返回站点总览')}
               </Button>
               <Button component={RouterLink} to="/platform/stations/teams" variant="outlined">
-                班组映射
+                {formatLocalizedMessage(intl, '班组映射')}
               </Button>
             </Stack>
           }
@@ -50,62 +61,82 @@ export default function PlatformStationsCapabilitiesPage() {
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="站点能力矩阵">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>站点</TableCell>
-                <TableCell>区域</TableCell>
-              <TableCell>控制层级</TableCell>
-                <TableCell>阶段</TableCell>
-                <TableCell>SLA</TableCell>
-                {stationCapabilityColumns.map((column) => (
-                  <TableCell key={column.key} align="center">
-                    {column.label}
-                  </TableCell>
-                ))}
-                <TableCell>当前风险</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {platformStationCapabilityRows.map((item) => (
-                <TableRow key={item.code} hover>
-                  <TableCell>
-                    <Button component={RouterLink} to={`/platform/stations/${item.code}`} size="small" variant="text">
-                      {item.code}
-                    </Button>
-                  </TableCell>
-                  <TableCell>{item.region}</TableCell>
-                  <TableCell><StatusChip label={item.control} /></TableCell>
-                  <TableCell><StatusChip label={item.phase} /></TableCell>
-                  <TableCell>{item.promise}</TableCell>
+        <MainCard title={formatLocalizedMessage(intl, '站点能力矩阵')}>
+          {!stationCapabilityColumns.length || !platformStationCapabilityRows.length ? (
+            <Stack sx={{ gap: 1.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                {stationCapabilitiesLoading
+                  ? formatLocalizedMessage(intl, '正在读取正式能力矩阵...')
+                  : formatLocalizedMessage(intl, '当前没有可展示的能力模板或站点主记录。')}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatLocalizedMessage(intl, '数据源')}：{stationCapabilitiesMeta?.source || 'station_governance'}
+              </Typography>
+            </Stack>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>{formatLocalizedMessage(intl, '站点')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '区域')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '控制层级')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '阶段')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '治理分')}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '准备度')}</TableCell>
                   {stationCapabilityColumns.map((column) => (
-                    <TableCell key={`${item.code}-${column.key}`} align="center">
-                      {renderCapabilitySymbol(item.capabilityMatrix[column.key])}
+                    <TableCell key={column.key} align="center">
+                      {l(column.label)}
                     </TableCell>
                   ))}
-                  <TableCell>{item.risk}</TableCell>
+                  <TableCell>{formatLocalizedMessage(intl, '当前风险')}</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {platformStationCapabilityRows.map((item) => (
+                  <TableRow key={item.code} hover>
+                    <TableCell>
+                      <Button component={RouterLink} to={`/platform/stations/${item.code}`} size="small" variant="text">
+                        {item.code}
+                      </Button>
+                    </TableCell>
+                    <TableCell>{l(item.region)}</TableCell>
+                    <TableCell><StatusChip label={localizeUiText(intl.locale, item.control)} /></TableCell>
+                    <TableCell><StatusChip label={localizeUiText(intl.locale, item.phase)} /></TableCell>
+                    <TableCell>{l(item.governanceScoreLabel || '-')}</TableCell>
+                    <TableCell><StatusChip label={localizeUiText(intl.locale, item.readiness || '-')} /></TableCell>
+                    {stationCapabilityColumns.map((column) => (
+                      <TableCell key={`${item.code}-${column.key}`} align="center">
+                        <Stack sx={{ alignItems: 'center', gap: 0.5 }}>
+                          {renderCapabilitySymbol(item.capabilityMatrix?.[column.key] || 'no')}
+                          <Typography variant="caption" color="text.secondary">
+                            {l(column.note)}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                    ))}
+                    <TableCell>{l(item.risk)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </MainCard>
       </Grid>
 
       <Grid size={12}>
-        <MainCard title="符号说明">
+        <MainCard title={formatLocalizedMessage(intl, '符号说明')}>
           <Stack direction="row" sx={{ gap: 3, flexWrap: 'wrap' }}>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               {renderCapabilitySymbol('yes')}
-              <Typography variant="body2">有</Typography>
+              <Typography variant="body2">{formatLocalizedMessage(intl, '有')}</Typography>
             </Stack>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               {renderCapabilitySymbol('no')}
-              <Typography variant="body2">无</Typography>
+              <Typography variant="body2">{formatLocalizedMessage(intl, '无')}</Typography>
             </Stack>
             <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
               {renderCapabilitySymbol('building')}
-              <Typography variant="body2">建设中</Typography>
+              <Typography variant="body2">{formatLocalizedMessage(intl, '建设中')}</Typography>
             </Stack>
           </Stack>
         </MainCard>

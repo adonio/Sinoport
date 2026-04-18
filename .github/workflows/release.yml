@@ -1,0 +1,308 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Cloudflare worker environment to deploy
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      release_ref:
+        description: Git SHA or tag to release. Leave blank to use the triggering SHA.
+        required: false
+        type: string
+      release_tag:
+        description: Optional release tag to expose in health/version metadata.
+        required: false
+        type: string
+      staging_validation_ack:
+        description: Required for production. Set to `validated` after the same release ref passed staging.
+        required: false
+        type: string
+      station_api_url:
+        description: Public station API URL used by the Pages build
+        required: true
+        type: string
+      api_url:
+        description: Public api-worker URL used by smoke checks
+        required: true
+        type: string
+      agent_url:
+        description: Public agent-worker URL used by smoke checks
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  release-meta:
+    runs-on: ubuntu-latest
+
+    outputs:
+      release_ref: ${{ steps.meta.outputs.release_ref }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      deployed_at: ${{ steps.meta.outputs.deployed_at }}
+      target_branch: ${{ steps.meta.outputs.target_branch }}
+
+    steps:
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          RELEASE_REF="${{ inputs.release_ref }}"
+          if [ -z "$RELEASE_REF" ]; then
+            RELEASE_REF="${GITHUB_SHA}"
+          fi
+
+          RELEASE_TAG="${{ inputs.release_tag }}"
+          TARGET_BRANCH=$([ "${{ inputs.target }}" = "production" ] && echo "main" || echo "staging")
+
+          echo "release_ref=$RELEASE_REF" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+
+  guard-production:
+    runs-on: ubuntu-latest
+    needs: release-meta
+
+    steps:
+      - name: Require staging validation before production
+        if: ${{ inputs.target == 'production' }}
+        run: |
+          if [ "${{ inputs.staging_validation_ack }}" != "validated" ]; then
+            echo "Production release requires staging_validation_ack=validated"
+            exit 1
+          fi
+
+  build-static:
+    runs-on: ubuntu-latest
+    needs:
+      - release-meta
+      - guard-production
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin-console/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install admin console dependencies
+        working-directory: admin-console
+        run: npm ci
+
+      - name: Build admin console
+        working-directory: admin-console
+        env:
+          VITE_APP_STATION_API_URL: ${{ inputs.station_api_url }}
+          VITE_APP_AGENT_API_URL: ${{ inputs.agent_url }}
+        run: npm run build
+
+      - name: Publish admin static routes
+        run: node scripts/publish-admin-static.mjs
+
+      - name: Prepare Pages artifact
+        run: node scripts/prepare-pages-site.mjs
+
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-pages-artifacts
+          path: |
+            site-dist
+            admin-console/dist
+
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: build-static
+    environment: ${{ inputs.target }}
+
+    outputs:
+      site_url: ${{ steps.resolve-site-url.outputs.site_url }}
+      admin_url: ${{ steps.resolve-admin-url.outputs.admin_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-pages-artifacts
+
+      - name: Deploy main site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler pages deploy site-dist \
+            --project-name adonio-sinoport \
+            --branch "${{ needs.release-meta.outputs.target_branch }}" \
+            --commit-hash "${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-message "release:${{ inputs.target }}:${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-dirty=true
+
+      - name: Deploy admin site to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler pages deploy admin-console/dist \
+            --project-name adonio-sinoport-admin \
+            --branch "${{ needs.release-meta.outputs.target_branch }}" \
+            --commit-hash "${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-message "release:${{ inputs.target }}:${{ needs.release-meta.outputs.release_ref }}" \
+            --commit-dirty=true
+
+      - name: Resolve main site URL
+        id: resolve-site-url
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          echo "site_url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve admin site URL
+        id: resolve-admin-url
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PAGES }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport-admin --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          echo "admin_url=$URL" >> "$GITHUB_OUTPUT"
+
+  deploy-workers:
+    runs-on: ubuntu-latest
+    needs:
+      - release-meta
+      - guard-production
+    environment: ${{ inputs.target }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler d1 migrations apply sinoport-api-${{ inputs.target }} --remote --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }}
+
+      - name: Deploy api-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          VAR_ARGS=(
+            "--var" "APP_VERSION:${{ needs.release-meta.outputs.release_ref }}"
+            "--var" "APP_DEPLOYED_AT:${{ needs.release-meta.outputs.deployed_at }}"
+          )
+          if [ -n "${{ needs.release-meta.outputs.release_tag }}" ]; then
+            VAR_ARGS+=("--var" "APP_RELEASE_TAG:${{ needs.release-meta.outputs.release_tag }}")
+          fi
+          npx wrangler deploy --config apps/api-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars "${VAR_ARGS[@]}"
+
+      - name: Deploy agent-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_INFRA }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          VAR_ARGS=(
+            "--var" "APP_VERSION:${{ needs.release-meta.outputs.release_ref }}"
+            "--var" "APP_DEPLOYED_AT:${{ needs.release-meta.outputs.deployed_at }}"
+          )
+          if [ -n "${{ needs.release-meta.outputs.release_tag }}" ]; then
+            VAR_ARGS+=("--var" "APP_RELEASE_TAG:${{ needs.release-meta.outputs.release_tag }}")
+          fi
+          npx wrangler deploy --config apps/agent-worker/wrangler.jsonc --env ${{ inputs.target }} --keep-vars "${VAR_ARGS[@]}"
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs:
+      - release-meta
+      - deploy-pages
+      - deploy-workers
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            admin-console/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Release smoke
+        env:
+          SMOKE_API_URL: ${{ inputs.api_url }}
+          SMOKE_AGENT_URL: ${{ inputs.agent_url }}
+          SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url || (inputs.target == 'production' && 'https://sinoport.co' || 'https://staging.sinoport.co') }}
+          SMOKE_EXPECTED_VERSION: ${{ needs.release-meta.outputs.release_ref }}
+          SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.target }}
+        run: npm run test:frontend:smoke

@@ -18,8 +18,10 @@ import LeftOutlined from '@ant-design/icons/LeftOutlined';
 import LogoutOutlined from '@ant-design/icons/LogoutOutlined';
 
 import sinoportLogo from 'assets/images/sinoport-logo.png';
+import useConfig from 'hooks/useConfig';
+import { normalizeAppLanguage } from 'utils/app-i18n';
 import { clearMobileSession, readMobileSession, writeMobileSession } from 'utils/mobile/session';
-import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, translateRenderedText, writeMobileLanguage } from 'utils/mobile/i18n';
+import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, writeMobileLanguage } from 'utils/mobile/i18n';
 
 function resolveBottomNav(pathname, language) {
   let match = pathname.match(/^\/mobile\/inbound\/([^/]+)(?:\/.*)?$/);
@@ -63,7 +65,7 @@ function resolveBottomNav(pathname, language) {
         { key: 'overview', label: t(language, 'overview'), icon: AppstoreOutlined, path: `/mobile/outbound/${flightNo}` },
         { key: 'receipt', label: t(language, 'receipt'), icon: InboxOutlined, path: `/mobile/outbound/${flightNo}/receipt` },
         { key: 'container', label: t(language, 'container'), icon: BarcodeOutlined, path: `/mobile/outbound/${flightNo}/pmc` },
-        { key: 'loading', label: language === 'en' ? 'Aircraft' : '装机', icon: CarOutlined, path: `/mobile/outbound/${flightNo}/loading` }
+        { key: 'loading', label: t(language, 'aircraft_loading'), icon: CarOutlined, path: `/mobile/outbound/${flightNo}/loading` }
       ]
     };
   }
@@ -254,45 +256,18 @@ function resolveShell(pathname) {
 export default function MobileLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { state, setField } = useConfig();
   const session = readMobileSession();
-  const language = session?.language || readMobileLanguage();
+  const language = normalizeAppLanguage(state.i18n || session?.language || readMobileLanguage());
   const shell = resolveShell(location.pathname);
   const bottomNav = resolveBottomNav(location.pathname, language);
   const languageOptions = getMobileLanguageOptions(language);
 
   useEffect(() => {
-    if (language !== 'en') return undefined;
-
-    const root = document.querySelector('[data-mobile-shell="true"]');
-    if (!root) return undefined;
-
-    const applyTranslations = () => {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      while (node) {
-        const original = node.nodeValue;
-        const translated = translateRenderedText(language, original);
-        if (translated !== original) {
-          node.nodeValue = translated;
-        }
-        node = walker.nextNode();
-      }
-
-      root.querySelectorAll('input[placeholder]').forEach((element) => {
-        const original = element.getAttribute('placeholder') || '';
-        const translated = translateRenderedText(language, original);
-        if (translated !== original) {
-          element.setAttribute('placeholder', translated);
-        }
-      });
-    };
-
-    applyTranslations();
-    const observer = new MutationObserver(() => applyTranslations());
-    observer.observe(root, { childList: true, subtree: true, characterData: true });
-
-    return () => observer.disconnect();
-  }, [language, location.pathname]);
+    if (session?.language !== language) {
+      writeMobileSession({ ...session, language });
+    }
+  }, [language, session]);
 
   return (
     <Box data-mobile-shell="true" sx={{ height: '100dvh', overflow: 'hidden', bgcolor: 'grey.100' }}>
@@ -337,11 +312,11 @@ export default function MobileLayout() {
                   value={language}
                   onChange={(event) => {
                     const nextLanguage = event.target.value;
+                    setField('i18n', nextLanguage);
                     writeMobileLanguage(nextLanguage);
                     if (session) {
                       writeMobileSession({ ...session, language: nextLanguage });
                     }
-                    navigate(0);
                   }}
                   sx={{ minWidth: 104 }}
                 >

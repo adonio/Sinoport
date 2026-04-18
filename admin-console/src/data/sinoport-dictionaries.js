@@ -1,3 +1,5 @@
+import { localizeUiText, normalizeAppLanguage } from 'utils/app-i18n';
+
 export const runtimeStatusDictionary = [
   { key: 'Scheduled', label: 'Scheduled', color: 'default', group: 'runtime' },
   { key: 'Pre-Arrival', label: 'Pre-Arrival', color: 'info', group: 'runtime' },
@@ -22,6 +24,18 @@ export const fulfillmentStatusDictionary = [
 ];
 
 export const taskStatusDictionary = [
+  { key: 'Created', label: 'Created', color: 'info', group: 'task' },
+  { key: 'Assigned', label: 'Assigned', color: 'warning', group: 'task' },
+  { key: 'Accepted', label: 'Accepted', color: 'info', group: 'task' },
+  { key: 'Started', label: 'Started', color: 'secondary', group: 'task' },
+  { key: 'Evidence Uploaded', label: 'Evidence Uploaded', color: 'secondary', group: 'task' },
+  { key: 'Completed', label: 'Completed', color: 'success', group: 'task' },
+  { key: 'Verified', label: 'Verified', color: 'success', group: 'task' },
+  { key: 'Escalated', label: 'Escalated', color: 'error', group: 'task' },
+  { key: 'Closed', label: 'Closed', color: 'success', group: 'task' },
+  { key: 'Exception Raised', label: 'Exception Raised', color: 'error', group: 'task' },
+  { key: 'Rejected', label: 'Rejected', color: 'error', group: 'task' },
+  { key: 'Rework', label: 'Rework', color: 'warning', group: 'task' },
   { key: '待处理', label: '待处理', color: 'warning', group: 'task' },
   { key: '未开始', label: '未开始', color: 'default', group: 'task' },
   { key: '运行中', label: '运行中', color: 'secondary', group: 'task' },
@@ -47,6 +61,14 @@ export const taskStatusDictionary = [
 ];
 
 export const documentStatusDictionary = [
+  { key: 'Draft', label: 'Draft', color: 'default', group: 'document' },
+  { key: 'Uploaded', label: 'Uploaded', color: 'info', group: 'document' },
+  { key: 'Parsed', label: 'Parsed', color: 'secondary', group: 'document' },
+  { key: 'Validated', label: 'Validated', color: 'success', group: 'document' },
+  { key: 'Missing', label: 'Missing', color: 'error', group: 'document' },
+  { key: 'Replaced', label: 'Replaced', color: 'warning', group: 'document' },
+  { key: 'Approved', label: 'Approved', color: 'success', group: 'document' },
+  { key: 'Released', label: 'Released', color: 'success', group: 'document' },
   { key: '运行中', label: '运行中', color: 'success', group: 'document' },
   { key: '警戒', label: '警戒', color: 'warning', group: 'document' },
   { key: '待处理', label: '待处理', color: 'warning', group: 'document' },
@@ -83,27 +105,43 @@ export const priorityDictionary = [
   { key: '高优先级', label: '高优先级', color: 'error', group: 'priority' }
 ];
 
+export const exceptionStatusDictionary = [
+  { key: 'Open', label: 'Open', color: 'warning', group: 'exception' },
+  { key: 'In Progress', label: 'In Progress', color: 'secondary', group: 'exception' },
+  { key: 'Resolved', label: 'Resolved', color: 'success', group: 'exception' },
+  { key: 'Closed', label: 'Closed', color: 'success', group: 'exception' }
+];
+
 const dictionaries = [
   ...runtimeStatusDictionary,
   ...fulfillmentStatusDictionary,
   ...taskStatusDictionary,
   ...documentStatusDictionary,
+  ...exceptionStatusDictionary,
   ...controlLevelDictionary,
   ...phaseDictionary,
   ...priorityDictionary
 ];
 
 const dictionaryMap = new Map(dictionaries.map((item) => [item.label, item]));
+const dictionaryKeyMap = new Map(dictionaries.map((item) => [item.key, item]));
 
 export function getStatusMeta(label) {
   if (!label) {
     return { label: '', color: 'default', group: 'unknown' };
   }
 
-  return dictionaryMap.get(label) || { label, color: 'default', group: 'unknown' };
+  return dictionaryMap.get(label) || dictionaryKeyMap.get(label) || { label, color: 'default', group: 'unknown' };
 }
 
 export function getStatusColor(label, color) {
   if (color) return color;
   return getStatusMeta(label).color;
+}
+
+export function getLocalizedStatusLabel(label, language = 'zh') {
+  const meta = getStatusMeta(label);
+  const locale = normalizeAppLanguage(language);
+  const source = meta.key || meta.label || label;
+  return localizeUiText(locale, source);
 }

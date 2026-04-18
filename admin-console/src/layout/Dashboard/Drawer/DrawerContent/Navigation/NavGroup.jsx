@@ -17,7 +17,7 @@ import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
 
 // third-party
-import { FormattedMessage } from 'react-intl';
+import { useIntl } from 'react-intl';
 
 // project imports
 import NavItem from './NavItem';
@@ -28,6 +28,7 @@ import Transitions from 'components/@extended/Transitions';
 import { MenuOrientation } from 'config';
 import useConfig from 'hooks/useConfig';
 import { useGetMenuMaster } from 'api/menu';
+import { localizeUiText } from 'utils/app-i18n';
 
 // assets
 import DownOutlined from '@ant-design/icons/DownOutlined';
@@ -66,6 +67,8 @@ export default function NavGroup({
   setSelectedLevel,
   selectedLevel
 }) {
+  const intl = useIntl();
+  const locale = intl.locale;
   const { pathname } = useLocation();
   const { state } = useConfig();
 
@@ -249,11 +252,11 @@ export default function NavGroup({
                 drawerOpen && (
                   <Box sx={{ pl: 3, mb: 1.5 }}>
                     <Typography variant="subtitle2" color="text.secondary">
-                      <FormattedMessage id={item.title} />
+                      {localizeUiText(locale, item.title)}
                     </Typography>
                     {item.caption && (
                       <Typography variant="caption" color="secondary">
-                        <FormattedMessage id={item.caption} />
+                        {localizeUiText(locale, item.caption)}
                       </Typography>
                     )}
                   </Box>
@@ -294,7 +297,7 @@ export default function NavGroup({
               sx={{ mr: 1 }}
               primary={
                 <Typography variant="body1" color={isSelected || anchorEl ? 'primary.main' : 'secondary.dark'}>
-                  <FormattedMessage id={currentItem.id === lastItemId ? 'more-items' : currentItem.title} />
+                  {localizeUiText(locale, currentItem.id === lastItemId ? 'more-items' : currentItem.title)}
                 </Typography>
               }
             />

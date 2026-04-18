@@ -1,0 +1,70 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "sinoport-agent-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-13",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "APP_NAME": "sinoport-agent-worker",
+    "AUTH_TOKEN_SECRET": "sinoport-local-dev-secret",
+    "ENVIRONMENT": "local",
+    "ENABLE_LOCAL_DEBUG_AUTH": "true"
+  },
+  "env": {
+    "staging": {
+      "vars": {
+        "APP_NAME": "sinoport-agent-worker-staging",
+        "ENVIRONMENT": "staging",
+        "ENABLE_LOCAL_DEBUG_AUTH": "false"
+      },
+      "routes": [
+        {
+          "pattern": "staging-agent.sinoport.co",
+          "custom_domain": true
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "sinoport-api-staging",
+          "database_id": "49398fa3-a8b7-47a1-a355-f8a6b1d1af84",
+          "preview_database_id": "49398fa3-a8b7-47a1-a355-f8a6b1d1af84",
+          "migrations_dir": "../api-worker/migrations"
+        }
+      ]
+    },
+    "production": {
+      "vars": {
+        "APP_NAME": "sinoport-agent-worker-production",
+        "ENVIRONMENT": "production",
+        "ENABLE_LOCAL_DEBUG_AUTH": "false"
+      },
+      "routes": [
+        {
+          "pattern": "agent.sinoport.co",
+          "custom_domain": true
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "sinoport-api-production",
+          "database_id": "8dc8bc79-69b4-41fd-b406-b6e06b651ea1",
+          "preview_database_id": "8dc8bc79-69b4-41fd-b406-b6e06b651ea1",
+          "migrations_dir": "../api-worker/migrations"
+        }
+      ]
+    }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sinoport-api-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "preview_database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "../api-worker/migrations"
+    }
+  ]
+}

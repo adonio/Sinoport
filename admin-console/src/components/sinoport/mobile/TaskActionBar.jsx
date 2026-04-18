@@ -1,9 +1,15 @@
 import PropTypes from 'prop-types';
+import { useIntl } from 'react-intl';
 
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 
+import { localizeMobileText } from 'utils/mobile/i18n';
+
 export default function TaskActionBar({ actions }) {
+  const intl = useIntl();
+  const locale = intl.locale;
+
   return (
     <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
       {actions.map((action) => (
@@ -15,7 +21,7 @@ export default function TaskActionBar({ actions }) {
           disabled={action.disabled}
           onClick={action.onClick}
         >
-          {action.label}
+          {localizeMobileText(locale, action.label)}
         </Button>
       ))}
     </Stack>
