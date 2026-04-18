@@ -302,7 +302,7 @@ jobs:
         env:
           SMOKE_API_URL: ${{ inputs.api_url }}
           SMOKE_AGENT_URL: ${{ inputs.agent_url }}
-          SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url }}
+          SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url || (inputs.target == 'production' && 'https://sinoport.co' || 'https://staging.sinoport.co') }}
           SMOKE_EXPECTED_VERSION: ${{ needs.release-meta.outputs.release_ref }}
           SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.target }}
         run: npm run test:frontend:smoke
