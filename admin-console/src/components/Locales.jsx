@@ -22,7 +22,7 @@ const loadLocaleData = (locale) => {
 // ==============================|| LOCALIZATION ||============================== //
 
 function handleIntlError(error) {
-  // Ignore missing translation noise so one missing key doesn't break navigation rendering.
+  // Ignore missing-translation noise so one missing key does not break navigation rendering.
   if (error && (error.code === 'MISSING_TRANSLATION' || String(error.message || '').includes('Missing message'))) {
     return;
   }
