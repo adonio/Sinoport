@@ -6,6 +6,7 @@ import FileTextOutlined from '@ant-design/icons/FileTextOutlined';
 import ImportOutlined from '@ant-design/icons/ImportOutlined';
 import IdcardOutlined from '@ant-design/icons/IdcardOutlined';
 import MessageOutlined from '@ant-design/icons/MessageOutlined';
+import TeamOutlined from '@ant-design/icons/TeamOutlined';
 
 const icons = {
   AlertOutlined,
@@ -14,7 +15,8 @@ const icons = {
   ExportOutlined,
   FileTextOutlined,
   IdcardOutlined,
-  ImportOutlined
+  ImportOutlined,
+  TeamOutlined
 };
 
 const station = {
@@ -151,6 +153,13 @@ const station = {
         { id: 'station-resources-devices', title: 'PDA 设备绑定', type: 'item', url: '/station/resources/devices' },
         { id: 'station-resources-vehicles', title: '车辆与 Collection Note', type: 'item', url: '/station/resources/vehicles' }
       ]
+    },
+    {
+      id: 'station-users',
+      title: '用户与权限',
+      type: 'item',
+      url: '/station/users',
+      icon: icons.TeamOutlined
     },
     {
       id: 'station-exceptions',

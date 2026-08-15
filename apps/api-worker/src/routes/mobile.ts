@@ -1145,7 +1145,9 @@ async function authenticateMobileUser(c: any, body: any) {
 
   const credential = (await c.env.DB?.prepare(
     `
-      SELECT sc.user_id, sc.password_hash, sc.login_name, u.default_station_id, u.display_name, u.email
+      SELECT sc.user_id, sc.password_hash, sc.login_name, sc.station_id,
+             sc.account_status, sc.must_change_password, sc.failed_login_attempts, sc.locked_until,
+             u.tenant_id, u.default_station_id, u.display_name, u.email
       FROM station_credentials sc
       JOIN users u ON u.user_id = sc.user_id
       WHERE LOWER(sc.login_name) = ?
@@ -1154,19 +1156,40 @@ async function authenticateMobileUser(c: any, body: any) {
   )
     .bind(email)
     .first()) as
-    | { user_id: string; password_hash: string; login_name: string; default_station_id: string | null; display_name: string | null; email: string | null }
+    | { user_id: string; password_hash: string; login_name: string; station_id: string | null; account_status: string; must_change_password: number; failed_login_attempts: number; locked_until: string | null; tenant_id: string; default_station_id: string | null; display_name: string | null; email: string | null }
     | null;
 
   if (!credential) {
     throw new Error('INVALID_CREDENTIALS');
   }
 
-  const matched = await verifyPasswordHash(password, credential.password_hash);
-  if (!matched) {
+  if (
+    credential.account_status !== 'active' ||
+    (credential.locked_until && credential.locked_until > new Date().toISOString())
+  ) {
     throw new Error('INVALID_CREDENTIALS');
   }
 
-  const stationCode = body.stationCode || body.station_code || credential.default_station_id || 'MME';
+  const stationCode = String(body.stationCode || body.station_code || credential.station_id || credential.default_station_id || 'MME').toUpperCase();
+  if (credential.station_id && credential.station_id !== stationCode) {
+    throw new Error('INVALID_CREDENTIALS');
+  }
+
+  const matched = await verifyPasswordHash(password, credential.password_hash);
+  if (!matched) {
+    const now = new Date();
+    const failedAttempts = Number(credential.failed_login_attempts || 0) + 1;
+    const lockedUntil = failedAttempts >= 5 ? new Date(now.getTime() + 15 * 60 * 1000).toISOString() : null;
+    await c.env.DB?.prepare(
+      `UPDATE station_credentials SET failed_login_attempts = ?, locked_until = ?, updated_at = ? WHERE user_id = ?`
+    ).bind(failedAttempts, lockedUntil, now.toISOString(), credential.user_id).run();
+    throw new Error('INVALID_CREDENTIALS');
+  }
+
+  if (credential.must_change_password) {
+    throw new Error('PASSWORD_CHANGE_REQUIRED');
+  }
+
   const requestedRoleIds = mapMobileRoleKeyToRoleCodes(body.roleKey || body.role_key || 'receiver');
   const roleRows = (await c.env.DB?.prepare(
     `
@@ -1182,10 +1205,19 @@ async function authenticateMobileUser(c: any, body: any) {
   const availableRoleIds = (roleRows?.results || []).map((item) => item.role_code);
   const roleIds = requestedRoleIds.filter((roleCode) => availableRoleIds.includes(roleCode));
 
+  if (!availableRoleIds.length) {
+    throw new Error('INVALID_CREDENTIALS');
+  }
+
+  await c.env.DB?.prepare(
+    `UPDATE station_credentials SET last_login_at = ?, failed_login_attempts = 0, locked_until = NULL, updated_at = ? WHERE user_id = ?`
+  ).bind(new Date().toISOString(), new Date().toISOString(), credential.user_id).run();
+
   return {
     userId: credential.user_id,
+    tenantId: credential.tenant_id,
     stationCode,
-    roleIds: roleIds.length ? roleIds : availableRoleIds.length ? availableRoleIds : requestedRoleIds,
+    roleIds: roleIds.length ? roleIds : availableRoleIds,
     user: {
       user_id: credential.user_id,
       display_name: credential.display_name || credential.user_id,
@@ -2288,6 +2320,9 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
         if (error instanceof Error && error.message === 'INVALID_CREDENTIALS') {
           throw jsonError(c, 401, 'INVALID_CREDENTIALS', 'Invalid email or password');
         }
+        if (error instanceof Error && error.message === 'PASSWORD_CHANGE_REQUIRED') {
+          throw jsonError(c, 403, 'PASSWORD_CHANGE_REQUIRED', 'Change the temporary password in the station web portal before using the mobile app');
+        }
 
         throw error;
       });
@@ -2308,7 +2343,7 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
           user_id: userId,
           role_ids: roleIds,
           station_scope: [stationCode],
-          tenant_id: 'sinoport-demo',
+          tenant_id: formalLogin?.tenantId || 'sinoport-demo',
           client_source: 'mobile-pda'
         },
         secret
@@ -2321,13 +2356,16 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
             user_id: userId,
             role_ids: roleIds,
             station_scope: [stationCode],
-            tenant_id: 'sinoport-demo',
+            tenant_id: formalLogin?.tenantId || 'sinoport-demo',
             client_source: 'mobile-pda'
           },
           user: formalLogin?.user || null
         }
       });
     } catch (error) {
+      if (error instanceof Response) {
+        return error;
+      }
       return handleServiceError(c, error, 'POST /mobile/login');
     }
   });

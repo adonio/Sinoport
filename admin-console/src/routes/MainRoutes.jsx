@@ -47,6 +47,7 @@ const StationResourcesTeamsPage = Loadable(lazy(() => import('pages/station/reso
 const StationResourcesZonesPage = Loadable(lazy(() => import('pages/station/resources-zones')));
 const StationResourcesDevicesPage = Loadable(lazy(() => import('pages/station/resources-devices')));
 const StationResourcesVehiclesPage = Loadable(lazy(() => import('pages/station/resources-vehicles')));
+const StationUsersPage = Loadable(lazy(() => import('pages/station/users')));
 const StationExceptionsPage = Loadable(lazy(() => import('pages/station/exceptions')));
 const StationExceptionDetailPage = Loadable(lazy(() => import('pages/station/exception-detail')));
 const StationReportsPage = Loadable(lazy(() => import('pages/station/reports')));
@@ -286,6 +287,10 @@ const MainRoutes = {
             {
               path: 'resources/vehicles',
               element: <StationResourcesVehiclesPage />
+            },
+            {
+              path: 'users',
+              element: <StationUsersPage />
             },
             {
               path: 'exceptions',

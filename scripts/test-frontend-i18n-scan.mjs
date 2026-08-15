@@ -59,6 +59,7 @@ const defaultRoutes = [
   '/station/resources/zones',
   '/station/resources/devices',
   '/station/resources/vehicles',
+  '/station/users',
   '/station/reports',
   '/station/reports/shift',
   '/station/copilot?object_type=Flight&object_key=SE803',
@@ -86,7 +87,7 @@ const defaultRoutes = [
 
 const stationLoginPayload = {
   userId: 'i18n-scan-supervisor',
-  roleIds: ['platform_admin', 'station_supervisor', 'document_desk', 'OCC_DM', 'B1_TAS_STATION_CONTROLLER', 'TAS_OPERATOR'],
+  roleIds: ['platform_admin', 'station_admin', 'station_supervisor', 'document_desk', 'OCC_DM', 'B1_TAS_STATION_CONTROLLER', 'TAS_OPERATOR'],
   stationCode: 'MME'
 };
 

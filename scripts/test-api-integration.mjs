@@ -143,6 +143,11 @@ async function runCommand(command, args) {
 
 async function resetIntegrationFixtures() {
   const sql = [
+    "DELETE FROM audit_events WHERE object_type = 'StationUser' AND object_id IN (SELECT user_id FROM station_credentials WHERE login_name LIKE 'it-user-%');",
+    "DELETE FROM station_refresh_tokens WHERE user_id IN (SELECT user_id FROM station_credentials WHERE login_name LIKE 'it-user-%');",
+    "DELETE FROM user_roles WHERE user_id IN (SELECT user_id FROM station_credentials WHERE login_name LIKE 'it-user-%');",
+    "DELETE FROM station_credentials WHERE login_name LIKE 'it-user-%';",
+    "DELETE FROM users WHERE email LIKE 'it-user-%';",
     "DELETE FROM state_transitions WHERE object_type = 'Flight' AND object_id IN (SELECT flight_id FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%');",
     "DELETE FROM audit_events WHERE object_type = 'Flight' AND object_id IN (SELECT flight_id FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%');",
     "DELETE FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%';",
@@ -232,6 +237,147 @@ async function main() {
       headers: { Authorization: `Bearer ${stationToken}` }
     });
     assert(stationMe.ok, 'station/me failed');
+
+    const stationUserOptions = await jsonRequest('/api/v1/station/users/options', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(stationUserOptions.ok, 'station/users/options failed');
+    assert(
+      stationUserOptions.json?.data?.role_options?.some((item) => item.value === 'station_admin'),
+      'station/users/options missing station_admin'
+    );
+
+    const stationUserLogin = `it-user-${uniqueSuffix(8).toLowerCase()}@sinoport.local`;
+    const initialStationUserPassword = `Temp-${uniqueSuffix(8)}!A1`;
+    const changedStationUserPassword = `Changed-${uniqueSuffix(8)}!A1`;
+    const resetStationUserPassword = `Reset-${uniqueSuffix(8)}!A1`;
+    const createStationUser = await jsonRequest('/api/v1/station/users', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        display_name: 'Integration Station Admin',
+        login_name: stationUserLogin,
+        employee_no: `IT-${uniqueSuffix(5)}`,
+        password: initialStationUserPassword,
+        roles: ['station_admin', 'station_supervisor'],
+        must_change_password: true
+      })
+    });
+    assert(createStationUser.status === 201, 'station/users create failed');
+    const createdStationUserId = createStationUser.json?.data?.user_id;
+    assert(Boolean(createdStationUserId), 'station/users create user_id missing');
+    assert(createStationUser.json?.data?.default_station_id === 'MME', 'station/users create station scope mismatch');
+
+    const createdStationUserLogin = await jsonRequest('/api/v1/station/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: stationUserLogin, password: initialStationUserPassword })
+    });
+    assert(createdStationUserLogin.ok, 'created station user login failed');
+    assert(createdStationUserLogin.json?.data?.account?.must_change_password === true, 'temporary password flag missing from login');
+    const createdStationUserToken = createdStationUserLogin.json?.data?.token;
+
+    const mobileBeforePasswordChange = await jsonRequest('/api/v1/mobile/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: stationUserLogin, password: initialStationUserPassword, roleKey: 'supervisor' })
+    });
+    assert(mobileBeforePasswordChange.status === 403, 'mobile login should require temporary password change');
+
+    const changeOwnPassword = await jsonRequest('/api/v1/station/me/change-password', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${createdStationUserToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ current_password: initialStationUserPassword, new_password: changedStationUserPassword })
+    });
+    assert(changeOwnPassword.ok, 'station/me/change-password failed');
+
+    const changedStationUserLogin = await jsonRequest('/api/v1/station/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: stationUserLogin, password: changedStationUserPassword })
+    });
+    assert(changedStationUserLogin.ok, 'station login after password change failed');
+    assert(changedStationUserLogin.json?.data?.account?.must_change_password === false, 'password change flag was not cleared');
+
+    const stationAdminCrossScope = await jsonRequest('/api/v1/station/users?station_id=TAS', {
+      headers: { Authorization: `Bearer ${changedStationUserLogin.json?.data?.token}` }
+    });
+    assert(stationAdminCrossScope.status === 403, 'station admin should not manage another station');
+
+    const resetCreatedStationUser = await jsonRequest(`/api/v1/station/users/${encodeURIComponent(createdStationUserId)}/reset-password`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password: resetStationUserPassword })
+    });
+    assert(resetCreatedStationUser.ok, 'station/users reset-password failed');
+
+    const disableCreatedStationUser = await jsonRequest(`/api/v1/station/users/${encodeURIComponent(createdStationUserId)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        display_name: 'Integration Station Admin',
+        email: stationUserLogin,
+        roles: ['station_admin', 'station_supervisor'],
+        account_status: 'disabled',
+        must_change_password: true
+      })
+    });
+    assert(disableCreatedStationUser.ok, 'station/users disable failed');
+
+    const disabledStationUserLogin = await jsonRequest('/api/v1/station/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: stationUserLogin, password: resetStationUserPassword })
+    });
+    assert(disabledStationUserLogin.status === 401, 'disabled station user should not log in');
+
+    const stationUsers = await jsonRequest('/api/v1/station/users', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(stationUsers.ok, 'station/users list failed');
+    assert(
+      stationUsers.json?.items?.some((item) => item.user_id === createdStationUserId && item.account_status === 'disabled'),
+      'station/users list missing disabled test user'
+    );
+    const demoSupervisorUser = stationUsers.json?.items?.find((item) => item.user_id === 'demo-supervisor');
+    assert(demoSupervisorUser?.protected_roles?.includes('platform_admin'), 'station/users did not expose protected platform role');
+    const updateDemoSupervisorStationRoles = await jsonRequest('/api/v1/station/users/demo-supervisor', {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${stationToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        display_name: demoSupervisorUser.display_name,
+        email: demoSupervisorUser.email,
+        employee_no: demoSupervisorUser.employee_no,
+        roles: demoSupervisorUser.roles,
+        account_status: demoSupervisorUser.account_status,
+        must_change_password: Boolean(demoSupervisorUser.must_change_password)
+      })
+    });
+    assert(updateDemoSupervisorStationRoles.ok, 'station/users station-role-only update failed');
+    const stationUsersAfterProtectedRoleUpdate = await jsonRequest('/api/v1/station/users', {
+      headers: { Authorization: `Bearer ${stationToken}` }
+    });
+    assert(
+      stationUsersAfterProtectedRoleUpdate.json?.items
+        ?.find((item) => item.user_id === 'demo-supervisor')
+        ?.protected_roles?.includes('platform_admin'),
+      'station/users update removed protected platform role'
+    );
 
     const stationRefresh = await jsonRequest('/api/v1/station/refresh', {
       method: 'POST',
@@ -1618,6 +1764,7 @@ async function main() {
     console.log('\nIntegration summary');
     console.log(`- station/login: ${stationLogin.status}`);
     console.log(`- station/me & refresh: ${stationMe.status}/${stationRefresh.status}`);
+    console.log(`- station users options/create/password/scope/reset/disable/list/protected-role: ${stationUserOptions.status}/${createStationUser.status}/${changeOwnPassword.status}/${stationAdminCrossScope.status}/${resetCreatedStationUser.status}/${disableCreatedStationUser.status}/${stationUsers.status}/${updateDemoSupervisorStationRoles.status}`);
     console.log(`- mobile/login: ${mobileLogin.status}`);
     console.log(
       `- platform stations options/list/create/update/archive/restore: ${stationOptions.status}/${platformStations.status}/${createStation.status}/${updateStation.status}/${archiveStation.status}/${restoreStation.status}`

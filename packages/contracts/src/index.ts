@@ -1,5 +1,6 @@
 export type RoleCode =
   | 'platform_admin'
+  | 'station_admin'
   | 'station_supervisor'
   | 'document_desk'
   | 'check_worker'

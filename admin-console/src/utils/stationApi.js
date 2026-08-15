@@ -86,7 +86,8 @@ export function buildUserFromActor(actor) {
     name: actor?.display_name || actor?.user_id || 'Station User',
     email: actor?.email || `${actor?.user_id || 'station-user'}@sinoport.local`,
     role: primaryRole,
-    stationScope: actor?.station_scope || ['MME']
+    stationScope: actor?.station_scope || ['MME'],
+    mustChangePassword: Boolean(actor?.must_change_password)
   };
 }
 
@@ -175,6 +176,14 @@ export async function logoutStationSession() {
   }
 
   clearStationSession();
+}
+
+export async function changeStationPassword(currentPassword, newPassword) {
+  const response = await stationAxios.post('/api/v1/station/me/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword
+  });
+  return response?.data?.data || null;
 }
 
 async function bootstrapStationToken() {

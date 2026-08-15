@@ -55,6 +55,7 @@ const routes = [
   'station/resources/zones',
   'station/resources/devices',
   'station/resources/vehicles',
+  'station/users',
   'station/exceptions',
   'station/exceptions/EXP-0408-001',
   'station/reports',
