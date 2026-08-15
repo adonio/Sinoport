@@ -5,6 +5,8 @@ import { loadMmeInboundBundleFixture } from './replay-mme-inbound.mjs';
 const PORT = 8793;
 const INSPECTOR_PORT = 9233;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const REQUEST_TIMEOUT_MS = 15_000;
+const COMMAND_TIMEOUT_MS = 120_000;
 
 function assert(condition, message) {
   if (!condition) {
@@ -35,7 +37,16 @@ async function waitForReady(child) {
 }
 
 async function jsonRequest(path, options = {}) {
-  const response = await fetch(`${BASE_URL}${path}`, options);
+  let response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal: options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+  } catch (error) {
+    throw new Error(`${path} request failed: ${error.message}`);
+  }
   const json = await response.json();
 
   return { ok: response.ok, status: response.status, json };
@@ -92,7 +103,17 @@ async function runCommand(command, args) {
     output += chunk.toString();
   });
 
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    child.kill('SIGKILL');
+  }, COMMAND_TIMEOUT_MS);
   const [code] = await once(child, 'exit');
+  clearTimeout(timeout);
+
+  if (timedOut) {
+    throw new Error(`${command} ${args.join(' ')} timed out after ${COMMAND_TIMEOUT_MS}ms\n${output}`);
+  }
 
   if (code !== 0) {
     throw new Error(output || `${command} ${args.join(' ')} failed`);
