@@ -1,8 +1,8 @@
 import { useParams } from 'react-router-dom';
 
-import { MobileNodeDetailPage } from 'pages/mobile/node-shared';
+import { V14MobileDetailPage } from 'pages/mobile/v14-execution-shared';
 
 export default function MobilePreWarehouseDetailPage() {
   const { batchId } = useParams();
-  return <MobileNodeDetailPage flowKey="preWarehouse" itemId={batchId} backPath="/mobile/pre-warehouse" />;
+  return <V14MobileDetailPage kind="prewarehouse" itemId={batchId} />;
 }

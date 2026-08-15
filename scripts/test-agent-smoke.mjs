@@ -4,6 +4,8 @@ import { spawn } from 'node:child_process';
 const PORT = 8794 + Math.floor(Math.random() * 200);
 const INSPECTOR_PORT = 9236 + Math.floor(Math.random() * 200);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const REQUEST_TIMEOUT_MS = 15_000;
+const COMMAND_TIMEOUT_MS = 120_000;
 
 function waitForOutput(child, pattern, timeoutMs = 30_000) {
   return new Promise((resolve, reject) => {
@@ -27,9 +29,23 @@ function waitForOutput(child, pattern, timeoutMs = 30_000) {
   });
 }
 
+function killProcessTree(child, signal) {
+  if (!child?.pid || child.exitCode !== null) return;
+
+  try {
+    if (process.platform === 'win32') {
+      child.kill(signal);
+    } else {
+      process.kill(-child.pid, signal);
+    }
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error;
+  }
+}
+
 async function stopChild(child) {
-  if (!child || child.killed) return;
-  child.kill('SIGINT');
+  if (!child || child.exitCode !== null) return;
+  killProcessTree(child, 'SIGINT');
 
   try {
     await Promise.race([
@@ -37,7 +53,7 @@ async function stopChild(child) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for child exit.')), 10_000))
     ]);
   } catch {
-    child.kill('SIGKILL');
+    killProcessTree(child, 'SIGKILL');
   }
 }
 
@@ -48,7 +64,8 @@ async function jsonRequest(path) {
       'X-Debug-Roles': 'station_supervisor,document_desk',
       'X-Debug-User-Id': 'demo-supervisor',
       'X-Debug-Station-Scope': 'MME'
-    }
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
   const json = await response.json();
   return { ok: response.ok, status: response.status, json };
@@ -64,7 +81,8 @@ async function postJson(path, payload) {
       'X-Debug-User-Id': 'demo-supervisor',
       'X-Debug-Station-Scope': 'MME'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
   const json = await response.json();
   return { ok: response.ok, status: response.status, json };
@@ -73,7 +91,8 @@ async function postJson(path, payload) {
 async function runCommand(command, args) {
   const child = spawn(command, args, {
     cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32'
   });
 
   let output = '';
@@ -84,7 +103,16 @@ async function runCommand(command, args) {
     output += chunk.toString();
   });
 
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    killProcessTree(child, 'SIGKILL');
+  }, COMMAND_TIMEOUT_MS);
   const [code] = await once(child, 'exit');
+  clearTimeout(timeout);
+  if (timedOut) {
+    throw new Error(`${command} ${args.join(' ')} timed out after ${COMMAND_TIMEOUT_MS}ms\n${output}`);
+  }
   if (code !== 0) {
     throw new Error(output || `${command} ${args.join(' ')} failed`);
   }
@@ -97,7 +125,8 @@ async function main() {
 
   const worker = spawn('npx', ['wrangler', 'dev', '--config', 'apps/agent-worker/wrangler.jsonc', '--port', String(PORT), '--inspector-port', String(INSPECTOR_PORT)], {
     cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32'
   });
 
   worker.stdout.pipe(process.stdout);

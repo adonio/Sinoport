@@ -11,7 +11,9 @@
     "AUTH_TOKEN_SECRET": "sinoport-local-dev-secret",
     "ENVIRONMENT": "local",
     "ENABLE_LOCAL_DEBUG_AUTH": "true",
-    "ENABLE_LOCAL_DEMO_AUTH": "true"
+    "ENABLE_LOCAL_DEMO_AUTH": "true",
+    "SKYLEDGER_BASE_URL": "http://127.0.0.1:8100",
+    "SKYLEDGER_INTEGRATION_SECRET": "sinoport-skyledger-local-integration-secret"
   },
   "triggers": {
     "crons": [

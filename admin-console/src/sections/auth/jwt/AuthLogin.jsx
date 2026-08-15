@@ -91,7 +91,7 @@ export default function AuthLogin({ isDemo = false }) {
             <Grid container spacing={3}>
               <Grid size={12}>
                 <Stack sx={{ gap: 1 }}>
-                  <InputLabel htmlFor="email-login">Email Address</InputLabel>
+                  <InputLabel htmlFor="email-login">Email</InputLabel>
                   <OutlinedInput
                     id="email-login"
                     type="email"

@@ -10,7 +10,7 @@ import Typography from '@mui/material/Typography';
 
 import MainCard from 'components/MainCard';
 import { syncMobileQueue, useMobileOpsStorage } from 'utils/mobile/task-ops';
-import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
+import { formatLocalizedMessage } from 'utils/app-i18n';
 import { localizeMobileText } from 'utils/mobile/i18n';
 
 function queueSummary(queue = []) {

@@ -143,6 +143,30 @@ const dictionaries = {
 };
 
 const renderedTextMap = [
+  ['按当前角色能力优先显示建议进入的节点，帮助现场人员更快找到自己的任务入口。', 'Recommended milestones are shown first based on the current role so operators can reach the right task entry faster.'],
+  ['航班已进入 Landed，可继续触发到港机坪和目的站准备任务。', 'The flight is Landed; destination-ramp and destination-readiness tasks may proceed.'],
+  ['用于运行确认、异常升级和后续节点联动的关键字段。', 'Key fields for operational confirmation, exception escalation, and downstream coordination.'],
+  ['最终版待上传，拆板任务仅可预排', 'Final version pending upload; breakdown tasks may only be pre-planned'],
+  ['已生效，可继续目的站准备', 'Effective; destination-readiness work may proceed'],
+  ['中国侧与哈方事实、车辆映射和 Gate 独立记录。', 'Record China-side and Kazakhstan-side facts, vehicle mapping, and gates independently.'],
+  ['封志、卸货和 CargoUnit 三方逐件核对。', 'Reconcile seal, unloading, and CargoUnit piece facts across all three sources.'],
+  ['阿拉山口 / 多斯特克', 'Alashankou / Dostyk'],
+  ['TAS 机场清点', 'TAS Airport Counting'],
+  ['前置仓逐件清点', 'Pre-warehouse Piece Counting'],
+  ['卡车节点持续跟踪', 'Continuous Truck Milestone Tracking'],
+  ['阿拉山口 / 多斯特克作业', 'Alashankou / Dostyk Operations'],
+  ['TAS 机场逐件清点', 'TAS Airport Piece Counting'],
+  ['实时业务对象与服务端权限绑定；页面不使用演示任务或本地假状态。', 'Live business objects are bound to server-side permissions; this page uses no demo tasks or local mock state.'],
+  ['更新：', 'Updated: '],
+  ['进入现场作业', 'Open Field Operations'],
+  ['当前没有待处理业务对象。', 'No pending business objects.'],
+  ['航班必须信息', 'Required Flight Information'],
+  ['进入运行确认前，先核对航班主信息、当前阶段和关键文件状态。', 'Before operational confirmation, verify the flight master data, current stage, and critical document status.'],
+  ['关键文件状态', 'Critical Document Status'],
+  ['航班必需信息', 'Required Flight Information'],
+  ['关键文档状态', 'Critical Document Status'],
+  ['机型', 'Aircraft Type'],
+  ['记录', 'Records'],
   ['条码枪扫码后的回车会直接被识别成一次确认，并自动完成点数加 1。', 'Each scanner trigger is treated as one confirmation and automatically adds 1 count.'],
   ['使用 PDA 条码枪扫描提单后，会直接进入该票的计数器。', 'Scan an AWB with the PDA scanner to start counting that AWB immediately.'],
   ['使用 PDA items码枪SCan AWB后，会直接Open该AWBs的计数器。', 'Scan an AWB with the PDA scanner to open that AWB counter immediately.'],
@@ -482,6 +506,7 @@ const genericRenderedReplacements = [
 ];
 
 const orderedRenderedReplacements = [...renderedTextMap, ...genericRenderedReplacements].sort((a, b) => b[0].length - a[0].length);
+const exactRenderedTextMap = new Map(renderedTextMap);
 
 export function readMobileLanguage() {
   if (typeof window === 'undefined') return 'zh';
@@ -519,7 +544,11 @@ export function translateRenderedText(language, input) {
 
   const locale = normalizeAppLanguage(language);
   if (locale === 'en') {
-    let output = String(input);
+    const raw = String(input);
+    const exact = exactRenderedTextMap.get(raw);
+    if (exact) return exact;
+
+    let output = raw;
     orderedRenderedReplacements.forEach(([from, to]) => {
       output = output.split(from).join(to);
     });
@@ -543,8 +572,11 @@ export function localizeMobileText(language, input) {
     return translateAppRenderedText(locale, localizeUiText(locale, raw));
   }
 
-  const mobileFirst = translateRenderedText(locale, raw);
-  return translateRenderedText(locale, localizeUiText(locale, mobileFirst));
+  const mobileExact = exactRenderedTextMap.get(raw);
+  if (mobileExact) return mobileExact;
+
+  const appFirst = localizeUiText(locale, raw);
+  return appFirst !== raw ? appFirst : translateRenderedText(locale, raw);
 }
 
 export const MOBILE_LANGUAGE_OPTIONS = getMobileLanguageOptions('zh');

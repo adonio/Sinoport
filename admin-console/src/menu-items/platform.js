@@ -29,6 +29,13 @@ const platform = {
       icon: icons.DashboardOutlined
     },
     {
+      id: 'platform-occ-control',
+      title: '跨境空运 OCC 控制塔',
+      type: 'item',
+      url: '/platform/occ-control',
+      icon: icons.DashboardOutlined
+    },
+    {
       id: 'platform-stations',
       title: '货站与资源管理',
       type: 'collapse',

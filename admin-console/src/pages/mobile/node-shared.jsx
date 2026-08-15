@@ -41,6 +41,10 @@ function mt(value) {
   return localizeMobileText(readMobileLanguage() || readMobileSession()?.language, value);
 }
 
+function filterMobileActionsByRole(roleAllowed, actions = []) {
+  return roleAllowed ? actions : [];
+}
+
 function buildTaskActionMessage(language, taskId, actionLabel, failed = false) {
   return localizeMobileText(language, failed ? `任务动作 ${actionLabel} 失败` : `任务 ${taskId} 已执行 ${actionLabel}`);
 }
@@ -230,6 +234,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const loading = nodeData.mobileNodeDetailLoading && !nodeData.detail;
   const detail = nodeData.detail;
   const taskCard = nodeData.taskCard || detail || {};
+  const roleAllowed = !roleView.flowKeys?.length || roleView.flowKeys.includes(flowKey);
   const summaryRows = Array.isArray(taskCard.summaryRows) ? taskCard.summaryRows : [];
   const forecastWaybills = Array.isArray(taskCard.forecastWaybills) ? taskCard.forecastWaybills : [];
   const recordItems = Array.isArray(taskCard.records) ? taskCard.records : [];
@@ -289,7 +294,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
         );
   };
 
-  const taskActions = (taskCard.actions || []).map((action) => ({
+  const taskActions = filterMobileActionsByRole(roleAllowed, taskCard.actions || []).map((action) => ({
     ...action,
     onClick: () => runTaskAction(action.label)
   }));

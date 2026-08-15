@@ -39,6 +39,12 @@ const MobileTailhaulPage = Loadable(lazy(() => import('pages/mobile/tailhaul')))
 const MobileTailhaulDetailPage = Loadable(lazy(() => import('pages/mobile/tailhaul-detail')));
 const MobileDeliveryPage = Loadable(lazy(() => import('pages/mobile/delivery')));
 const MobileDeliveryDetailPage = Loadable(lazy(() => import('pages/mobile/delivery-detail')));
+const MobileBorderPage = Loadable(lazy(() => import('pages/mobile/border')));
+const MobileBorderDetailPage = Loadable(lazy(() => import('pages/mobile/border-detail')));
+const MobileTasPage = Loadable(lazy(() => import('pages/mobile/tas')));
+const MobileTasDetailPage = Loadable(lazy(() => import('pages/mobile/tas-detail')));
+const MobileTasFlightPage = Loadable(lazy(() => import('pages/mobile/tas-flight')));
+const MobileTasFlightDetailPage = Loadable(lazy(() => import('pages/mobile/tas-flight-detail')));
 
 const MobileRoutes = {
   path: '/mobile',
@@ -69,6 +75,12 @@ const MobileRoutes = {
         { path: 'pre-warehouse/:batchId', element: <MobilePreWarehouseDetailPage /> },
         { path: 'headhaul', element: <MobileHeadhaulPage /> },
         { path: 'headhaul/:tripId', element: <MobileHeadhaulDetailPage /> },
+        { path: 'border', element: <MobileBorderPage /> },
+        { path: 'border/:borderId', element: <MobileBorderDetailPage /> },
+        { path: 'tas', element: <MobileTasPage /> },
+        { path: 'tas/flights', element: <MobileTasFlightPage /> },
+        { path: 'tas/flights/:handlingId', element: <MobileTasFlightDetailPage /> },
+        { path: 'tas/:receiptId', element: <MobileTasDetailPage /> },
         { path: 'runtime', element: <MobileRuntimePage /> },
         { path: 'runtime/:flightNo', element: <MobileRuntimeDetailPage /> },
         { path: 'inbound', element: <MobileInboundPage /> },

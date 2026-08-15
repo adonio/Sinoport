@@ -10,11 +10,12 @@ const WEB_PORT = 4175 + Math.floor(Math.random() * 200);
 const DEFAULT_WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 const API_INSPECTOR_PORT = 9235 + Math.floor(Math.random() * 100);
 const AGENT_INSPECTOR_PORT = 9335 + Math.floor(Math.random() * 100);
+const REQUEST_TIMEOUT_MS = 15_000;
 
 const pageChecks = [
   { path: '/station/inbound/flights/SE803', text: '航班详情 / SE803' },
   { path: '/station/inbound/waybills/436-10358585', text: '提单详情 / 436-10358585' },
-  { path: '/station/shipments/in-436-10358585', text: '436-10358585 / SE803 Inbound' },
+  { path: '/station/shipments/in-436-10358585', text: '436-10358585 / SE803 进港' },
   { path: '/station/exceptions/EXP-0408-001', text: '异常详情 / EXP-0408-001' },
   { path: '/station/inbound/mobile', text: 'PDA 作业终端总览' },
   { path: '/station/outbound/flights', text: '出港管理 / 航班管理' },
@@ -30,6 +31,15 @@ const pageChecks = [
   { path: '/platform/stations/teams', text: '站点班组映射' },
   { path: '/platform/audit/trust', text: '可信留痕预览' },
   { path: '/platform/reports/stations', text: '站点对比报表' },
+  { path: '/platform/occ-control', text: '跨境空运运行控制塔' },
+  { path: '/platform/occ-control', text: '新建运行计划' },
+  { path: '/station/v14-execution', text: '跨境前段执行中心' },
+  { path: '/station/tas', text: 'TAS 站点管理' },
+  { path: '/mobile/pre-warehouse', text: '前置仓逐件清点' },
+  { path: '/mobile/headhaul', text: '卡车节点持续跟踪' },
+  { path: '/mobile/border', text: '阿拉山口 / 多斯特克作业' },
+  { path: '/mobile/tas', text: 'TAS 机场逐件清点' },
+  { path: '/mobile/tas/flights', text: 'TAS 航班处理' },
   { path: '/mobile/inbound/SE803/breakdown', text: '拆板与理货任务' },
   { path: '/mobile/outbound/SE913/receipt', text: '收货扫描' }
 ];
@@ -52,7 +62,7 @@ const ignoredResponsePatterns = [/\.woff2?$/i, /\.map$/i, /favicon/i];
 
 const stationLoginPayload = {
   userId: 'smoke-supervisor',
-  roleIds: ['station_supervisor', 'document_desk'],
+  roleIds: ['station_supervisor', 'platform_admin', 'document_desk', 'OCC_DM', 'A1_CARGO_CONTROLLER', 'A2_DOMESTIC_TRUCK_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER', 'B1_TAS_STATION_CONTROLLER', 'DQC_DATA_QUALITY_CONTROLLER'],
   stationCode: 'MME'
 };
 
@@ -75,31 +85,57 @@ const fallbackMobileSession = {
   language: 'zh'
 };
 
+function stripAnsi(text) {
+  return text.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
 function waitForOutput(child, pattern, timeoutMs = 30_000) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${pattern}`)), timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.stdout.off('data', onData);
+      child.stderr.off('data', onData);
+      child.off('exit', onExit);
+    };
     const onData = (chunk) => {
-      const text = chunk.toString();
+      const text = stripAnsi(chunk.toString());
       if (text.includes(pattern)) {
-        clearTimeout(timeout);
-        child.stdout.off('data', onData);
-        child.stderr.off('data', onData);
+        cleanup();
         resolve();
       }
     };
+    const onExit = (code) => {
+      cleanup();
+      reject(new Error(`Process exited early with code ${code}`));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${pattern}`));
+    }, timeoutMs);
 
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`Process exited early with code ${code}`));
-    });
+    child.once('exit', onExit);
   });
 }
 
+function killProcessTree(child, signal) {
+  if (!child?.pid || child.exitCode !== null) return;
+
+  try {
+    if (process.platform === 'win32') {
+      child.kill(signal);
+    } else {
+      process.kill(-child.pid, signal);
+    }
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error;
+  }
+}
+
 async function stopChild(child) {
-  if (!child || child.killed) return;
-  child.kill('SIGINT');
+  if (!child || child.exitCode !== null) return;
+  killProcessTree(child, 'SIGINT');
 
   try {
     await Promise.race([
@@ -107,7 +143,7 @@ async function stopChild(child) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for child exit.')), 10_000))
     ]);
   } catch {
-    child.kill('SIGKILL');
+    killProcessTree(child, 'SIGKILL');
   }
 }
 
@@ -125,7 +161,10 @@ function resolveSmokeTargets() {
 }
 
 async function jsonRequest(baseUrl, path, options = {}) {
-  const response = await fetch(`${baseUrl}${path}`, options);
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    signal: options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  });
   let json = null;
 
   try {
@@ -189,7 +228,8 @@ async function startLocalServices() {
     ['wrangler', 'dev', '--config', 'apps/api-worker/wrangler.jsonc', '--port', String(API_PORT), '--inspector-port', String(API_INSPECTOR_PORT)],
     {
       cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     }
   );
   const agent = spawn(
@@ -197,12 +237,14 @@ async function startLocalServices() {
     ['wrangler', 'dev', '--config', 'apps/agent-worker/wrangler.jsonc', '--port', String(AGENT_PORT), '--inspector-port', String(AGENT_INSPECTOR_PORT)],
     {
       cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     }
   );
   const web = spawn('npm', ['run', 'preview', '--', '--host', '127.0.0.1', '--port', String(WEB_PORT), '--strictPort'], {
     cwd: `${process.cwd()}/admin-console`,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32'
   });
 
   api.stdout.pipe(process.stdout);
@@ -212,11 +254,18 @@ async function startLocalServices() {
   web.stdout.pipe(process.stdout);
   web.stderr.pipe(process.stderr);
 
-  await Promise.all([
-    waitForOutput(api, `Ready on http://localhost:${API_PORT}`),
-    waitForOutput(agent, `Ready on http://localhost:${AGENT_PORT}`),
-    waitForOutput(web, `http://127.0.0.1:${WEB_PORT}`)
-  ]);
+  try {
+    await Promise.all([
+      waitForOutput(api, `Ready on http://localhost:${API_PORT}`),
+      waitForOutput(agent, `Ready on http://localhost:${AGENT_PORT}`),
+      waitForOutput(web, `http://127.0.0.1:${WEB_PORT}`)
+    ]);
+  } catch (error) {
+    for (const child of [web, agent, api]) {
+      await stopChild(child);
+    }
+    throw error;
+  }
 
   return { api, agent, web };
 }
@@ -333,7 +382,19 @@ async function runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationAc
       await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       await page.waitForLoadState('networkidle');
-      await page.getByText(pageConfig.text, { exact: false }).first().waitFor({ timeout: 30_000 });
+      try {
+        await page.getByText(pageConfig.text, { exact: false }).first().waitFor({ timeout: 30_000 });
+      } catch (error) {
+        const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 4_000);
+        throw new Error(
+          `Expected text not found on ${url}: ${pageConfig.text}\n` +
+            `body: ${bodyText}\n` +
+            `console: ${consoleIssues.join(' | ')}\n` +
+            `pageerror: ${pageErrors.join(' | ')}\n` +
+            `responses: ${failedResponses.join(' | ')}\n` +
+            `cause: ${error.message}`
+        );
+      }
 
       if (consoleIssues.length || pageErrors.length || failedResponses.length) {
         throw new Error(

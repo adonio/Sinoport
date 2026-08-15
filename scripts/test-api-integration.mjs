@@ -5,6 +5,8 @@ import { loadMmeInboundBundleFixture } from './replay-mme-inbound.mjs';
 const PORT = 8793;
 const INSPECTOR_PORT = 9233;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const REQUEST_TIMEOUT_MS = 15_000;
+const COMMAND_TIMEOUT_MS = 120_000;
 
 function assert(condition, message) {
   if (!condition) {
@@ -34,8 +36,35 @@ async function waitForReady(child) {
   });
 }
 
+function killProcessTree(child, signal) {
+  if (!child.pid || child.exitCode !== null) {
+    return;
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      child.kill(signal);
+    } else {
+      process.kill(-child.pid, signal);
+    }
+  } catch (error) {
+    if (error.code !== 'ESRCH') {
+      throw error;
+    }
+  }
+}
+
 async function jsonRequest(path, options = {}) {
-  const response = await fetch(`${BASE_URL}${path}`, options);
+  let response;
+
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal: options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
+  } catch (error) {
+    throw new Error(`${path} request failed: ${error.message}`);
+  }
   const json = await response.json();
 
   return { ok: response.ok, status: response.status, json };
@@ -66,7 +95,7 @@ function uniqueSuffix(length = 6) {
 }
 
 async function stopWorker(worker) {
-  worker.kill('SIGINT');
+  killProcessTree(worker, 'SIGINT');
 
   try {
     await Promise.race([
@@ -74,14 +103,15 @@ async function stopWorker(worker) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for wrangler dev to exit.')), 10_000))
     ]);
   } catch {
-    worker.kill('SIGKILL');
+    killProcessTree(worker, 'SIGKILL');
   }
 }
 
 async function runCommand(command, args) {
   const child = spawn(command, args, {
     cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32'
   });
 
   let output = '';
@@ -92,7 +122,17 @@ async function runCommand(command, args) {
     output += chunk.toString();
   });
 
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    killProcessTree(child, 'SIGKILL');
+  }, COMMAND_TIMEOUT_MS);
   const [code] = await once(child, 'exit');
+  clearTimeout(timeout);
+
+  if (timedOut) {
+    throw new Error(`${command} ${args.join(' ')} timed out after ${COMMAND_TIMEOUT_MS}ms\n${output}`);
+  }
 
   if (code !== 0) {
     throw new Error(output || `${command} ${args.join(' ')} failed`);
@@ -110,7 +150,7 @@ async function resetIntegrationFixtures() {
     "UPDATE tasks SET task_status = 'Completed', completed_at = '2026-04-08T19:05:00Z', verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-000';",
     "UPDATE tasks SET task_status = 'Started', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-001';",
     "UPDATE tasks SET task_status = 'Assigned', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-002';",
-    "UPDATE awbs SET noa_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10357944';",
+    "UPDATE awbs SET noa_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10358585';",
     "UPDATE awbs SET pod_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10358585';",
     "UPDATE exceptions SET related_object_type = 'Flight', related_object_id = 'FLIGHT-SE803-2026-04-08-MME', linked_task_id = 'TASK-0408-002', severity = 'P1', owner_role = 'check_worker', owner_team_id = 'TEAM-CK-01', blocker_flag = 1, root_cause = 'Pieces mismatch not verified', action_taken = 'Hold NOA until recount completed', exception_status = 'Open', closed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE exception_id = 'EXP-0408-001';",
     "UPDATE flights SET runtime_status = 'Pre-Departure', actual_takeoff_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE flight_id = 'FLIGHT-SE913-2026-04-09-MME';",
@@ -145,7 +185,11 @@ async function main() {
   const worker = spawn(
     'npx',
     ['wrangler', 'dev', '--config', 'apps/api-worker/wrangler.jsonc', '--port', String(PORT), '--inspector-port', String(INSPECTOR_PORT)],
-    { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] }
+    {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
+    }
   );
 
   worker.stdout.pipe(process.stdout);
@@ -1042,7 +1086,7 @@ async function main() {
       'inbound bundle audit event not found'
     );
 
-    const noa = await jsonRequest('/api/v1/station/inbound/waybills/AWB-436-10357944/noa', {
+    const noa = await jsonRequest('/api/v1/station/inbound/waybills/AWB-436-10358585/noa', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${stationToken}`,

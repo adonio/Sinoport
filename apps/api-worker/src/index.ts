@@ -5,7 +5,17 @@ import { actorMiddleware, requireRoles, type ApiVariables } from './lib/auth';
 import { registerHealthRoutes } from './routes/health';
 import { registerMobileRoutes } from './routes/mobile';
 import { registerStationRoutes } from './routes/station';
+import { registerIntegrationRoutes } from './routes/integrations';
+import { registerV14PrewarehouseRoutes } from './routes/v14-prewarehouse';
+import { registerV14TransportRoutes } from './routes/v14-transport';
+import { registerV14BorderRoutes } from './routes/v14-border';
+import { registerV14TasRoutes } from './routes/v14-tas';
+import { registerV14TasFlightRoutes } from './routes/v14-tas-flight';
+import { registerV14ControlPlanRoutes } from './routes/v14-control-plans';
+import { registerV14DutyControlRoutes } from './routes/v14-duty-control';
+import { registerV14AcceptanceControlRoutes } from './routes/v14-acceptance-controls';
 import { getStationServices } from './lib/services';
+import { dispatchSkyledgerOutbox } from './lib/integration-sync';
 
 type ApiBindings = {
   APP_NAME?: string;
@@ -16,6 +26,8 @@ type ApiBindings = {
   DB?: D1DatabaseLike;
   ENVIRONMENT?: string;
   FILES?: R2Bucket;
+  SKYLEDGER_BASE_URL?: string;
+  SKYLEDGER_INTEGRATION_SECRET?: string;
 };
 
 export type ApiApp = Hono<{
@@ -29,7 +41,15 @@ app.use(
   '/api/v1/*',
   cors({
     origin: '*',
-    allowHeaders: ['Authorization', 'Content-Type', 'X-Request-Id', 'X-Client-Source', 'Idempotency-Key'],
+    allowHeaders: [
+      'Authorization',
+      'Content-Type',
+      'X-Request-Id',
+      'X-Client-Source',
+      'Idempotency-Key',
+      'X-Integration-Timestamp',
+      'X-Integration-Signature'
+    ],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
   })
 );
@@ -39,6 +59,15 @@ app.use('/api/v1/*', actorMiddleware);
 registerHealthRoutes(app);
 registerStationRoutes(app, getStationServices, requireRoles);
 registerMobileRoutes(app, getStationServices, requireRoles);
+registerIntegrationRoutes(app, requireRoles);
+registerV14PrewarehouseRoutes(app, requireRoles);
+registerV14TransportRoutes(app, requireRoles);
+registerV14BorderRoutes(app, requireRoles);
+registerV14TasRoutes(app, requireRoles);
+registerV14TasFlightRoutes(app, requireRoles);
+registerV14ControlPlanRoutes(app, requireRoles);
+registerV14DutyControlRoutes(app, requireRoles);
+registerV14AcceptanceControlRoutes(app, requireRoles);
 
 async function runDocumentRetentionSweep(env: ApiBindings) {
   const now = new Date().toISOString();
@@ -78,6 +107,6 @@ async function runDocumentRetentionSweep(env: ApiBindings) {
 export default {
   fetch: app.fetch,
   scheduled: async (_event: ScheduledEvent, env: ApiBindings) => {
-    await runDocumentRetentionSweep(env);
+    await Promise.all([runDocumentRetentionSweep(env), dispatchSkyledgerOutbox(env)]);
   }
 };

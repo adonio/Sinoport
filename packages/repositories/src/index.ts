@@ -92,6 +92,7 @@ export interface D1PreparedStatementLike {
 
 export interface D1DatabaseLike {
   prepare(query: string): D1PreparedStatementLike;
+  batch?(statements: D1PreparedStatementLike[]): Promise<unknown[]>;
 }
 
 export interface FlightRepository {
