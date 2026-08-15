@@ -36,6 +36,24 @@ async function waitForReady(child) {
   });
 }
 
+function killProcessTree(child, signal) {
+  if (!child.pid || child.exitCode !== null) {
+    return;
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      child.kill(signal);
+    } else {
+      process.kill(-child.pid, signal);
+    }
+  } catch (error) {
+    if (error.code !== 'ESRCH') {
+      throw error;
+    }
+  }
+}
+
 async function jsonRequest(path, options = {}) {
   let response;
 
@@ -77,7 +95,7 @@ function uniqueSuffix(length = 6) {
 }
 
 async function stopWorker(worker) {
-  worker.kill('SIGINT');
+  killProcessTree(worker, 'SIGINT');
 
   try {
     await Promise.race([
@@ -85,14 +103,15 @@ async function stopWorker(worker) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for wrangler dev to exit.')), 10_000))
     ]);
   } catch {
-    worker.kill('SIGKILL');
+    killProcessTree(worker, 'SIGKILL');
   }
 }
 
 async function runCommand(command, args) {
   const child = spawn(command, args, {
     cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32'
   });
 
   let output = '';
@@ -106,7 +125,7 @@ async function runCommand(command, args) {
   let timedOut = false;
   const timeout = setTimeout(() => {
     timedOut = true;
-    child.kill('SIGKILL');
+    killProcessTree(child, 'SIGKILL');
   }, COMMAND_TIMEOUT_MS);
   const [code] = await once(child, 'exit');
   clearTimeout(timeout);
@@ -166,7 +185,11 @@ async function main() {
   const worker = spawn(
     'npx',
     ['wrangler', 'dev', '--config', 'apps/api-worker/wrangler.jsonc', '--port', String(PORT), '--inspector-port', String(INSPECTOR_PORT)],
-    { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] }
+    {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
+    }
   );
 
   worker.stdout.pipe(process.stdout);
