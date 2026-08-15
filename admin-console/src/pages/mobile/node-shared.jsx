@@ -20,7 +20,6 @@ import ObjectSummaryCard from 'components/sinoport/ObjectSummaryCard';
 import TaskQueueCard from 'components/sinoport/TaskQueueCard';
 import TaskCard from 'components/sinoport/mobile/TaskCard';
 import TaskOpsPanel from 'components/sinoport/mobile/TaskOpsPanel';
-import { filterMobileActionsByRole, isMobileFlowAllowed } from 'data/sinoport-adapters';
 import {
   acceptMobileTask,
   completeMobileTask,
@@ -40,6 +39,10 @@ const PAGE_SIZE = 20;
 
 function mt(value) {
   return localizeMobileText(readMobileLanguage() || readMobileSession()?.language, value);
+}
+
+function filterMobileActionsByRole(roleAllowed, actions = []) {
+  return roleAllowed ? actions : [];
 }
 
 function buildTaskActionMessage(language, taskId, actionLabel, failed = false) {
@@ -231,7 +234,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
   const loading = nodeData.mobileNodeDetailLoading && !nodeData.detail;
   const detail = nodeData.detail;
   const taskCard = nodeData.taskCard || detail || {};
-  const roleAllowed = isMobileFlowAllowed(session?.roleKey, flowKey);
+  const roleAllowed = !roleView.flowKeys?.length || roleView.flowKeys.includes(flowKey);
   const summaryRows = Array.isArray(taskCard.summaryRows) ? taskCard.summaryRows : [];
   const forecastWaybills = Array.isArray(taskCard.forecastWaybills) ? taskCard.forecastWaybills : [];
   const recordItems = Array.isArray(taskCard.records) ? taskCard.records : [];
@@ -291,7 +294,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
         );
   };
 
-  const taskActions = filterMobileActionsByRole(session?.roleKey, taskCard.actions || []).map((action) => ({
+  const taskActions = filterMobileActionsByRole(roleAllowed, taskCard.actions || []).map((action) => ({
     ...action,
     onClick: () => runTaskAction(action.label)
   }));
@@ -480,7 +483,7 @@ export function MobileNodeDetailPage({ flowKey, itemId, backPath }) {
               description={localizeMobileText(language, taskCard.description)}
               evidence={taskCard.evidence.map((item) => localizeMobileText(language, item))}
               blockers={blockers.map((item) => localizeMobileText(language, item))}
-              actions={roleAllowed ? taskActions : []}
+              actions={taskActions}
             />
           </>
         ) : null}
