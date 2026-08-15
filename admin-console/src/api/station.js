@@ -953,29 +953,6 @@ function buildTaskSummaryCards(items) {
   ];
 }
 
-function mapExceptionToViewModel(item) {
-  const objectTo =
-    item.related_object_type === 'Flight'
-      ? `/station/inbound/flights/${encodeURIComponent(item.related_object_label?.split(' / ')[0] || '')}`
-      : item.related_object_type === 'AWB'
-        ? `/station/inbound/waybills/${encodeURIComponent(item.related_object_label?.split(' / ')[0] || '')}`
-        : '/station/tasks';
-
-  return {
-    id: item.exception_id,
-    type: item.exception_type,
-    object: item.related_object_label,
-    owner: [item.owner_role, item.owner_team_id].filter(Boolean).join(' / '),
-    sla: item.severity,
-    blockedTask: item.blocker_flag ? '阻断中' : '-',
-    recoveryAction: item.root_cause || '待补充恢复动作',
-    status: item.exception_status,
-    objectTo,
-    jumpTo: '/station/tasks',
-    detailTo: `/station/exceptions/${item.exception_id}`
-  };
-}
-
 function mapStationExceptionListItemToViewModel(item) {
   const objectTo =
     item.related_object_type === 'Flight'
@@ -1063,20 +1040,6 @@ function mapStationExceptionDetailToViewModel(detail) {
           gateIds: []
         }
   };
-}
-
-function buildExceptionOverview(items) {
-  const openCount = items.filter((item) => item.exception_status === 'Open').length;
-  const blockingCount = items.filter((item) => item.blocker_flag).length;
-  const p1Count = items.filter((item) => item.severity === 'P1').length;
-  const resolvedCount = items.filter((item) => ['Resolved', 'Closed'].includes(item.exception_status)).length;
-
-  return [
-    { title: '开放异常', value: String(openCount), helper: '当前待处理异常', chip: 'Open', color: 'warning' },
-    { title: '阻断异常', value: String(blockingCount), helper: '会阻断主链推进', chip: 'Block', color: 'error' },
-    { title: 'P1 异常', value: String(p1Count), helper: '高优先级异常', chip: 'Priority', color: 'secondary' },
-    { title: '已恢复/关闭', value: String(resolvedCount), helper: `总异常 ${items.length}`, chip: 'Closed', color: 'success' }
-  ];
 }
 
 function groupRowsByKey(rows, key) {
@@ -2432,54 +2395,6 @@ function mapDocumentToViewModel(item) {
     retentionClass: item.retention_class || 'operational',
     sizeBytes: Number(item.size_bytes || 0),
     archived: Boolean(item.deleted_at)
-  };
-}
-
-function mapDocumentVersionToViewModel(item) {
-  return {
-    versionId: item.versionId || item.version_id || item.documentId || item.document_id,
-    version: item.version || item.version_no || 'v1',
-    status: item.status || item.documentStatus || item.document_status || 'Pending',
-    updatedAt: item.updatedAt || item.updated_at || '--',
-    diffSummary: item.diffSummary || item.diff_summary || '首版登记',
-    previewSummary: item.previewSummary || item.preview_summary || '',
-    previewType: item.previewType || item.preview_type || inferPreviewType(item.documentName || item.document_name || ''),
-    sortOrder: Number(item.sortOrder || item.sort_order || 0),
-    rollbackTarget: item.rollbackTarget || item.rollback_target || null,
-    replacedBy: item.replacedBy || item.replaced_by || null
-  };
-}
-
-function mapDocumentOverviewResponse(payload) {
-  const stationDocuments = Array.isArray(payload?.stationDocuments) ? payload.stationDocuments : EMPTY_ARRAY;
-  const documentVersionsByDocumentId = payload?.documentVersionsByDocumentId || {};
-
-  return {
-    stationDocuments: stationDocuments.map((item) => ({
-      documentId: item.documentId,
-      type: item.type,
-      name: item.name,
-      linkedTo: item.linkedTo,
-      version: item.version,
-      updatedAt: item.updatedAt,
-      status: item.status,
-      activeVersionId: item.activeVersionId,
-      previewType: item.previewType,
-      nextStep: item.nextStep,
-      gateIds: Array.isArray(item.gateIds) ? item.gateIds : [],
-      bindingTargets: Array.isArray(item.bindingTargets) ? item.bindingTargets : []
-    })),
-    documentVersionsByDocumentId: Object.fromEntries(
-      Object.entries(documentVersionsByDocumentId).map(([documentId, versions]) => [documentId, Array.isArray(versions) ? versions.map(mapDocumentVersionToViewModel) : []])
-    ),
-    inboundDocumentGates: Array.isArray(payload?.inboundDocumentGates) ? payload.inboundDocumentGates : EMPTY_ARRAY,
-    outboundDocumentGates: Array.isArray(payload?.outboundDocumentGates) ? payload.outboundDocumentGates : EMPTY_ARRAY,
-    instructionTemplateRows: Array.isArray(payload?.instructionTemplateRows) ? payload.instructionTemplateRows : EMPTY_ARRAY,
-    documentGateEvaluationsByDocumentId: payload?.documentGateEvaluationsByDocumentId || {},
-    stationDocumentsLoading: false,
-    stationDocumentsError: null,
-    stationDocumentsValidating: false,
-    stationDocumentsUsingMock: false
   };
 }
 

@@ -32,7 +32,6 @@ import StatusChip from 'components/sinoport/StatusChip';
 import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
 const PAGE_SIZE = 20;
-const FINAL_RECEIPT_STATES = ['ACCEPTED', 'CONDITIONAL_ACCEPTED', 'REJECTED_OR_QUARANTINED', 'COMPLETED'];
 const EDITABLE_HANDLING_STATES = ['PLANNING', 'BUILDUP'];
 
 const EMPTY_ACTION_FORM = {

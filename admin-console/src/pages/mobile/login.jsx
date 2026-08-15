@@ -216,7 +216,7 @@ export default function MobileLoginPage() {
             <TextField
               name="demo_role"
               select
-              label={localizeMobileText(language, '角色')}
+              label={localizeMobileText(language, 'Demo 角色')}
               value={form.roleKey}
               disabled={optionsLoading || !loginOptions.roleOptions.length}
               onChange={(event) => setForm((prev) => ({ ...prev, roleKey: event.target.value }))}
