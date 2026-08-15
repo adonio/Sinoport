@@ -42,7 +42,19 @@ const platform = {
       url: '/platform/stations',
       icon: icons.ApartmentOutlined,
       children: [
-        { id: 'platform-stations-overview', title: '总览', type: 'item', url: '/platform/stations' },
+        {
+          id: 'platform-stations-overview',
+          title: '总览',
+          type: 'item',
+          url: '/platform/stations',
+          activePaths: ['/platform/stations/:stationCode'],
+          inactivePaths: [
+            '/platform/stations/capabilities',
+            '/platform/stations/teams',
+            '/platform/stations/zones',
+            '/platform/stations/devices'
+          ]
+        },
         { id: 'platform-stations-capabilities', title: '货站能力矩阵', type: 'item', url: '/platform/stations/capabilities' },
         { id: 'platform-stations-teams', title: '站点班组映射', type: 'item', url: '/platform/stations/teams' },
         { id: 'platform-stations-zones', title: '站点区位映射', type: 'item', url: '/platform/stations/zones' },

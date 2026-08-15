@@ -1,6 +1,4 @@
-import PropTypes from 'prop-types';
 import React from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 
 // material-ui
 import Button from '@mui/material/Button';
@@ -8,7 +6,6 @@ import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormHelperText from '@mui/material/FormHelperText';
 import Grid from '@mui/material/Grid';
-import Link from '@mui/material/Link';
 import InputAdornment from '@mui/material/InputAdornment';
 import InputLabel from '@mui/material/InputLabel';
 import OutlinedInput from '@mui/material/OutlinedInput';
@@ -39,7 +36,7 @@ const defaultCredentials = isTestStationEnvironment()
   ? TEST_DEFAULT_STATION_CREDENTIALS
   : { email: '', password: '' };
 
-export default function AuthLogin({ isDemo = false }) {
+export default function AuthLogin() {
   const [checked, setChecked] = React.useState(false);
 
   const { login } = useAuth();
@@ -53,9 +50,6 @@ export default function AuthLogin({ isDemo = false }) {
     event.preventDefault();
   };
 
-  const [searchParams] = useSearchParams();
-  const auth = searchParams.get('auth'); // get auth and set route based on that
-
   return (
     <>
       <Formik
@@ -65,11 +59,11 @@ export default function AuthLogin({ isDemo = false }) {
           submit: null
         }}
         validationSchema={Yup.object().shape({
-          email: Yup.string().email('Must be a valid email').max(255).required('Email is required'),
+          email: Yup.string().max(255, '登录名不能超过 255 个字符').required('请输入登录名'),
           password: Yup.string()
-            .required('Password is required')
-            .test('no-leading-trailing-whitespace', 'Password cannot start or end with spaces', (value) => value === value.trim())
-            .max(64, 'Password must be less than 64 characters')
+            .required('请输入密码')
+            .test('no-leading-trailing-whitespace', '密码首尾不能包含空格', (value) => value === value.trim())
+            .max(64, '密码不能超过 64 个字符')
         })}
         onSubmit={async (values, { setErrors, setStatus, setSubmitting }) => {
           try {
@@ -91,15 +85,15 @@ export default function AuthLogin({ isDemo = false }) {
             <Grid container spacing={3}>
               <Grid size={12}>
                 <Stack sx={{ gap: 1 }}>
-                  <InputLabel htmlFor="email-login">Email</InputLabel>
+                  <InputLabel htmlFor="email-login">登录名</InputLabel>
                   <OutlinedInput
                     id="email-login"
-                    type="email"
+                    type="text"
                     value={values.email}
                     name="email"
                     onBlur={handleBlur}
                     onChange={handleChange}
-                    placeholder="Enter email address"
+                    placeholder="输入货站登录名"
                     fullWidth
                     error={Boolean(touched.email && errors.email)}
                   />
@@ -112,7 +106,7 @@ export default function AuthLogin({ isDemo = false }) {
               </Grid>
               <Grid size={12}>
                 <Stack sx={{ gap: 1 }}>
-                  <InputLabel htmlFor="password-login">Password</InputLabel>
+                  <InputLabel htmlFor="password-login">密码</InputLabel>
                   <OutlinedInput
                     fullWidth
                     error={Boolean(touched.password && errors.password)}
@@ -135,7 +129,7 @@ export default function AuthLogin({ isDemo = false }) {
                         </IconButton>
                       </InputAdornment>
                     }
-                    placeholder="Enter password"
+                    placeholder="输入密码"
                   />
                 </Stack>
                 {touched.password && errors.password && (
@@ -156,16 +150,9 @@ export default function AuthLogin({ isDemo = false }) {
                         size="small"
                       />
                     }
-                    label={<Typography variant="h6">Keep me sign in</Typography>}
+                    label={<Typography variant="h6">保持登录</Typography>}
                   />
-                  <Link
-                    variant="h6"
-                    component={RouterLink}
-                    to={isDemo ? '/auth/forgot-password' : auth ? `/${auth}/forgot-password?auth=jwt` : '/forgot-password'}
-                    color="text.primary"
-                  >
-                    Forgot Password?
-                  </Link>
+                  <Typography variant="caption" color="text.secondary">忘记密码请联系本站管理员重置</Typography>
                 </Stack>
               </Grid>
               {errors.submit && (
@@ -176,7 +163,7 @@ export default function AuthLogin({ isDemo = false }) {
               <Grid size={12}>
                 <AnimateButton>
                   <Button disableElevation disabled={isSubmitting} fullWidth size="large" type="submit" variant="contained" color="primary">
-                    Login
+                    登录
                   </Button>
                 </AnimateButton>
               </Grid>
@@ -187,5 +174,3 @@ export default function AuthLogin({ isDemo = false }) {
     </>
   );
 }
-
-AuthLogin.propTypes = { isDemo: PropTypes.bool };

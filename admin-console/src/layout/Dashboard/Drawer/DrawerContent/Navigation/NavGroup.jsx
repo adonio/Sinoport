@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import { Fragment, useEffect, useState } from 'react';
-import { matchPath, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 // material-ui
 import { styled } from '@mui/material/styles';
@@ -29,6 +29,7 @@ import { MenuOrientation } from 'config';
 import useConfig from 'hooks/useConfig';
 import { useGetMenuMaster } from 'api/menu';
 import { localizeUiText } from 'utils/app-i18n';
+import { isActiveMenuItem, matchesMenuTree } from 'utils/menuMatch';
 
 // assets
 import DownOutlined from '@ant-design/icons/DownOutlined';
@@ -96,18 +97,13 @@ export default function NavGroup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, lastItem, downLG]);
 
-  const matchesMenuTree = (menu, currentPath) => {
-    if (menu?.url && matchPath({ path: menu?.link ? menu.link : menu.url, end: false }, currentPath)) return true;
-    return menu?.children?.some((child) => matchesMenuTree(child, currentPath)) || false;
-  };
-
   const checkOpenForParent = (child, id) => {
     child.forEach((ele) => {
       if (ele.children?.length) {
         checkOpenForParent(ele.children, currentItem.id);
       }
 
-      if (ele.url && !!matchPath({ path: ele?.link ? ele.link : ele.url, end: false }, pathname)) {
+      if (isActiveMenuItem(ele, pathname)) {
         setSelectedID(id);
       }
     });
@@ -120,7 +116,7 @@ export default function NavGroup({
         checkOpenForParent(itemCheck.children, currentItem.id);
       }
 
-      if (itemCheck && itemCheck?.url && !!matchPath({ path: itemCheck?.link ? itemCheck.link : itemCheck.url, end: false }, pathname)) {
+      if (isActiveMenuItem(itemCheck, pathname)) {
         setSelectedID(currentItem.id);
       }
     });

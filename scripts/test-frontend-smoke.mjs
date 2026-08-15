@@ -35,6 +35,7 @@ const pageChecks = [
   { path: '/platform/occ-control', text: '新建运行计划' },
   { path: '/station/v14-execution', text: '跨境前段执行中心' },
   { path: '/station/tas', text: 'TAS 站点管理' },
+  { path: '/station/users', text: '货站用户与权限' },
   { path: '/mobile/pre-warehouse', text: '前置仓逐件清点' },
   { path: '/mobile/headhaul', text: '卡车节点持续跟踪' },
   { path: '/mobile/border', text: '阿拉山口 / 多斯特克作业' },
@@ -62,7 +63,7 @@ const ignoredResponsePatterns = [/\.woff2?$/i, /\.map$/i, /favicon/i];
 
 const stationLoginPayload = {
   userId: 'smoke-supervisor',
-  roleIds: ['station_supervisor', 'platform_admin', 'document_desk', 'OCC_DM', 'A1_CARGO_CONTROLLER', 'A2_DOMESTIC_TRUCK_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER', 'B1_TAS_STATION_CONTROLLER', 'DQC_DATA_QUALITY_CONTROLLER'],
+  roleIds: ['station_supervisor', 'station_admin', 'platform_admin', 'document_desk', 'OCC_DM', 'A1_CARGO_CONTROLLER', 'A2_DOMESTIC_TRUCK_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER', 'B1_TAS_STATION_CONTROLLER', 'DQC_DATA_QUALITY_CONTROLLER'],
   stationCode: 'MME'
 };
 

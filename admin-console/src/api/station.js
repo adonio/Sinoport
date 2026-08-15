@@ -25,6 +25,9 @@ const endpoints = {
   stationResourcesVehicles: '/api/v1/station/resources/vehicles',
   stationResourcesVehicleOptions: '/api/v1/station/resources/vehicles/options',
   stationResourcesVehicleDetail: (vehicleId) => `/api/v1/station/resources/vehicles/${encodeURIComponent(vehicleId)}`,
+  stationUsers: '/api/v1/station/users',
+  stationUserOptions: '/api/v1/station/users/options',
+  stationUserDetail: (userId) => `/api/v1/station/users/${encodeURIComponent(userId)}`,
   outboundFlights: '/api/v1/station/outbound/flights',
   outboundWaybills: '/api/v1/station/outbound/waybills',
   stationShipments: '/api/v1/station/shipments',
@@ -1564,6 +1567,67 @@ export async function archiveStationResourceVehicle(vehicleId) {
     mutate(endpoints.stationResourcesVehicleDetail(vehicleId))
   ]);
 
+  return data?.data || data;
+}
+
+export function useGetStationUsers() {
+  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationUsers, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+
+  const items = toArray(data?.items);
+
+  return useMemo(
+    () => ({
+      stationUsers: items,
+      stationUsersTotal: Number(data?.total || items.length),
+      stationUsersStationId: data?.station_id || '',
+      stationUsersLoading: isLoading,
+      stationUsersError: error,
+      stationUsersValidating: isValidating
+    }),
+    [data, error, isLoading, isValidating, items]
+  );
+}
+
+export function useGetStationUserOptions() {
+  const { data, isLoading, error, isValidating } = useSWR(endpoints.stationUserOptions, stationFetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false
+  });
+  const liveData = data?.data || EMPTY_OBJECT;
+
+  return useMemo(
+    () => ({
+      stationUserRoleOptions: toArray(liveData.role_options).map(mapSelectOption),
+      stationUserStatusOptions: toArray(liveData.status_options).map(mapSelectOption),
+      stationUserOptionsStationId: liveData.station_id || '',
+      stationUserOptionsLoading: isLoading,
+      stationUserOptionsError: error,
+      stationUserOptionsValidating: isValidating
+    }),
+    [liveData, error, isLoading, isValidating]
+  );
+}
+
+export async function createStationUser(payload) {
+  const data = await stationPoster(endpoints.stationUsers, payload);
+  await mutate(endpoints.stationUsers);
+  return data?.data || data;
+}
+
+export async function updateStationUser(userId, payload) {
+  const data = await stationPatcher(endpoints.stationUserDetail(userId), payload);
+  await mutate(endpoints.stationUsers);
+  return data?.data || data;
+}
+
+export async function resetStationUserPassword(userId, password) {
+  const data = await stationPoster(`${endpoints.stationUserDetail(userId)}/reset-password`, { password });
+  await mutate(endpoints.stationUsers);
   return data?.data || data;
 }
 

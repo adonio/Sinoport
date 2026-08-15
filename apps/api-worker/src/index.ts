@@ -5,6 +5,7 @@ import { actorMiddleware, requireRoles, type ApiVariables } from './lib/auth';
 import { registerHealthRoutes } from './routes/health';
 import { registerMobileRoutes } from './routes/mobile';
 import { registerStationRoutes } from './routes/station';
+import { registerStationUserRoutes } from './routes/station-users';
 import { registerIntegrationRoutes } from './routes/integrations';
 import { registerV14PrewarehouseRoutes } from './routes/v14-prewarehouse';
 import { registerV14TransportRoutes } from './routes/v14-transport';
@@ -58,6 +59,7 @@ app.use('/api/v1/*', actorMiddleware);
 
 registerHealthRoutes(app);
 registerStationRoutes(app, getStationServices, requireRoles);
+registerStationUserRoutes(app, requireRoles);
 registerMobileRoutes(app, getStationServices, requireRoles);
 registerIntegrationRoutes(app, requireRoles);
 registerV14PrewarehouseRoutes(app, requireRoles);

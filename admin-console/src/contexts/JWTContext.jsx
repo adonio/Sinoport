@@ -76,7 +76,8 @@ export const JWTProvider = ({ children }) => {
             user: buildUserFromActor({
               ...nextActor,
               display_name: me?.user?.display_name,
-              email: me?.user?.email
+              email: me?.user?.email,
+              must_change_password: me?.account?.must_change_password
             })
           }
         });
@@ -113,7 +114,8 @@ export const JWTProvider = ({ children }) => {
         user: buildUserFromActor({
           ...data.actor,
           display_name: data.user?.display_name,
-          email: data.user?.email
+          email: data.user?.email,
+          must_change_password: data.account?.must_change_password
         })
       }
     });

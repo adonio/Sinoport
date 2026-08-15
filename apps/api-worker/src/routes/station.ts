@@ -14000,7 +14000,7 @@ async function loadUserProfile(db: any, userId: string) {
   const user = (await db
     .prepare(
       `
-        SELECT user_id, display_name, email, default_station_id
+        SELECT user_id, tenant_id, display_name, email, default_station_id
         FROM users
         WHERE user_id = ?
         LIMIT 1
@@ -14009,6 +14009,7 @@ async function loadUserProfile(db: any, userId: string) {
     .bind(userId)
     .first()) as {
     user_id: string;
+    tenant_id: string;
     display_name: string;
     email: string | null;
     default_station_id: string | null;
@@ -14034,6 +14035,27 @@ async function loadUserProfile(db: any, userId: string) {
   };
 }
 
+async function loadStationAccountState(db: any, userId: string, stationId: string) {
+  return (await db
+    ?.prepare(
+      `SELECT station_id, account_status, must_change_password, failed_login_attempts,
+              locked_until, last_login_at, password_updated_at
+       FROM station_credentials
+       WHERE user_id = ? AND station_id = ?
+       LIMIT 1`,
+    )
+    .bind(userId, stationId)
+    .first()) as {
+    station_id: string;
+    account_status: string;
+    must_change_password: number;
+    failed_login_attempts: number;
+    locked_until: string | null;
+    last_login_at: string | null;
+    password_updated_at: string;
+  } | null;
+}
+
 async function issueStationSession(
   c: any,
   params: { userId: string; stationCode: string; roleIds: RoleCode[] },
@@ -14042,11 +14064,22 @@ async function issueStationSession(
     c.env.AUTH_TOKEN_SECRET,
     c.env.ENVIRONMENT,
   );
+  const profile = (await loadUserProfile(c.env.DB, params.userId)) || {
+    user_id: params.userId,
+    tenant_id: "sinoport-demo",
+    display_name: params.userId,
+    email: `${params.userId}@sinoport.local`,
+    default_station_id: params.stationCode,
+    roles: params.roleIds.map((roleCode: RoleCode) => ({
+      role_code: roleCode,
+      station_id: params.stationCode,
+    })),
+  };
   const actor = {
     user_id: params.userId,
     role_ids: params.roleIds,
     station_scope: [params.stationCode],
-    tenant_id: "sinoport-demo",
+    tenant_id: profile.tenant_id || "sinoport-demo",
     client_source: "station-web" as const,
   };
   const token = await signAuthToken(actor, secret, 60 * 60);
@@ -14083,16 +14116,11 @@ async function issueStationSession(
     )
     .run();
 
-  const profile = (await loadUserProfile(c.env.DB, params.userId)) || {
-    user_id: params.userId,
-    display_name: params.userId,
-    email: `${params.userId}@sinoport.local`,
-    default_station_id: params.stationCode,
-    roles: params.roleIds.map((roleCode: RoleCode) => ({
-      role_code: roleCode,
-      station_id: params.stationCode,
-    })),
-  };
+  const account = await loadStationAccountState(
+    c.env.DB,
+    params.userId,
+    params.stationCode,
+  );
 
   return {
     token,
@@ -14105,6 +14133,21 @@ async function issueStationSession(
       email: profile.email,
       default_station_id: profile.default_station_id,
     },
+    account: account
+      ? {
+          station_id: account.station_id,
+          account_status: account.account_status,
+          must_change_password: Boolean(account.must_change_password),
+          failed_login_attempts: account.failed_login_attempts,
+          locked_until: account.locked_until,
+          last_login_at: account.last_login_at,
+          password_updated_at: account.password_updated_at,
+        }
+      : {
+          station_id: params.stationCode,
+          account_status: "active",
+          must_change_password: false,
+        },
   };
 }
 
@@ -14129,7 +14172,9 @@ async function authenticateStationUser(c: any, body: any) {
 
   const credential = (await c.env.DB?.prepare(
     `
-      SELECT sc.user_id, sc.password_hash, sc.login_name, u.default_station_id
+      SELECT sc.user_id, sc.password_hash, sc.login_name, sc.station_id,
+             sc.account_status, sc.failed_login_attempts, sc.locked_until,
+             u.default_station_id
       FROM station_credentials sc
       JOIN users u ON u.user_id = sc.user_id
       WHERE LOWER(sc.login_name) = ?
@@ -14141,6 +14186,10 @@ async function authenticateStationUser(c: any, body: any) {
     user_id: string;
     password_hash: string;
     login_name: string;
+    station_id: string | null;
+    account_status: string;
+    failed_login_attempts: number;
+    locked_until: string | null;
     default_station_id: string | null;
   } | null;
 
@@ -14148,8 +14197,39 @@ async function authenticateStationUser(c: any, body: any) {
     throw new Error("INVALID_CREDENTIALS");
   }
 
+  const now = new Date();
+  if (
+    credential.account_status !== "active" ||
+    (credential.locked_until && credential.locked_until > now.toISOString())
+  ) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  const requestedStation = String(
+    body.stationCode ||
+      body.station_code ||
+      credential.station_id ||
+      credential.default_station_id ||
+      "MME",
+  ).toUpperCase();
+
+  if (credential.station_id && credential.station_id !== requestedStation) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
   const matched = await verifyPasswordHash(password, credential.password_hash);
   if (!matched) {
+    const failedAttempts = Number(credential.failed_login_attempts || 0) + 1;
+    const lockedUntil = failedAttempts >= 5
+      ? new Date(now.getTime() + 15 * 60 * 1000).toISOString()
+      : null;
+    await c.env.DB?.prepare(
+      `UPDATE station_credentials
+       SET failed_login_attempts = ?, locked_until = ?, updated_at = ?
+       WHERE user_id = ?`,
+    )
+      .bind(failedAttempts, lockedUntil, now.toISOString(), credential.user_id)
+      .run();
     throw new Error("INVALID_CREDENTIALS");
   }
 
@@ -14158,24 +14238,28 @@ async function authenticateStationUser(c: any, body: any) {
     throw new Error("INVALID_CREDENTIALS");
   }
 
-  const requestedStation =
-    body.stationCode ||
-    body.station_code ||
-    profile.default_station_id ||
-    profile.roles[0]?.station_id ||
-    "MME";
   const stationScopedRoles = profile.roles
     .filter(
       (item: any) => !item.station_id || item.station_id === requestedStation,
     )
     .map((item: any) => item.role_code);
 
+  if (!stationScopedRoles.length) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  await c.env.DB?.prepare(
+    `UPDATE station_credentials
+     SET failed_login_attempts = 0, locked_until = NULL, account_status = 'active', last_login_at = ?, updated_at = ?
+     WHERE user_id = ?`,
+  )
+    .bind(now.toISOString(), now.toISOString(), credential.user_id)
+    .run();
+
   return {
     userId: profile.user_id,
     stationCode: requestedStation,
-    roleIds: stationScopedRoles.length
-      ? stationScopedRoles
-      : ["station_supervisor"],
+    roleIds: stationScopedRoles,
   };
 }
 
@@ -14253,6 +14337,12 @@ export function registerStationRoutes(
     try {
       const actor = c.var.actor;
       const profile = await loadUserProfile(c.env.DB, actor.userId);
+      const stationId = getDefaultStationFromActor(actor) || "MME";
+      const account = await loadStationAccountState(
+        c.env.DB,
+        actor.userId,
+        stationId,
+      );
 
       return c.json({
         data: {
@@ -14275,6 +14365,21 @@ export function registerStationRoutes(
                 display_name: actor.userId,
                 email: `${actor.userId}@sinoport.local`,
                 default_station_id: getDefaultStationFromActor(actor) || "MME",
+              },
+          account: account
+            ? {
+                station_id: account.station_id,
+                account_status: account.account_status,
+                must_change_password: Boolean(account.must_change_password),
+                failed_login_attempts: account.failed_login_attempts,
+                locked_until: account.locked_until,
+                last_login_at: account.last_login_at,
+                password_updated_at: account.password_updated_at,
+              }
+            : {
+                station_id: stationId,
+                account_status: "active",
+                must_change_password: false,
               },
         },
       });
