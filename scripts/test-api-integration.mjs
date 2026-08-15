@@ -150,7 +150,7 @@ async function resetIntegrationFixtures() {
     "UPDATE tasks SET task_status = 'Completed', completed_at = '2026-04-08T19:05:00Z', verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-000';",
     "UPDATE tasks SET task_status = 'Started', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-001';",
     "UPDATE tasks SET task_status = 'Assigned', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-002';",
-    "UPDATE awbs SET noa_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10357944';",
+    "UPDATE awbs SET noa_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10358585';",
     "UPDATE awbs SET pod_status = 'Pending', updated_at = CURRENT_TIMESTAMP WHERE awb_id = 'AWB-436-10358585';",
     "UPDATE exceptions SET related_object_type = 'Flight', related_object_id = 'FLIGHT-SE803-2026-04-08-MME', linked_task_id = 'TASK-0408-002', severity = 'P1', owner_role = 'check_worker', owner_team_id = 'TEAM-CK-01', blocker_flag = 1, root_cause = 'Pieces mismatch not verified', action_taken = 'Hold NOA until recount completed', exception_status = 'Open', closed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE exception_id = 'EXP-0408-001';",
     "UPDATE flights SET runtime_status = 'Pre-Departure', actual_takeoff_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE flight_id = 'FLIGHT-SE913-2026-04-09-MME';",
@@ -1086,7 +1086,7 @@ async function main() {
       'inbound bundle audit event not found'
     );
 
-    const noa = await jsonRequest('/api/v1/station/inbound/waybills/AWB-436-10357944/noa', {
+    const noa = await jsonRequest('/api/v1/station/inbound/waybills/AWB-436-10358585/noa', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${stationToken}`,
