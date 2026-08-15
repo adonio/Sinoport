@@ -14,7 +14,7 @@ const AGENT_INSPECTOR_PORT = 9335 + Math.floor(Math.random() * 100);
 const pageChecks = [
   { path: '/station/inbound/flights/SE803', text: '航班详情 / SE803' },
   { path: '/station/inbound/waybills/436-10358585', text: '提单详情 / 436-10358585' },
-  { path: '/station/shipments/in-436-10358585', text: '436-10358585 / SE803 Inbound' },
+  { path: '/station/shipments/in-436-10358585', text: '436-10358585 / SE803 进港' },
   { path: '/station/exceptions/EXP-0408-001', text: '异常详情 / EXP-0408-001' },
   { path: '/station/inbound/mobile', text: 'PDA 作业终端总览' },
   { path: '/station/outbound/flights', text: '出港管理 / 航班管理' },
@@ -30,6 +30,15 @@ const pageChecks = [
   { path: '/platform/stations/teams', text: '站点班组映射' },
   { path: '/platform/audit/trust', text: '可信留痕预览' },
   { path: '/platform/reports/stations', text: '站点对比报表' },
+  { path: '/platform/occ-control', text: '跨境空运运行控制塔' },
+  { path: '/platform/occ-control', text: '新建运行计划' },
+  { path: '/station/v14-execution', text: '跨境前段执行中心' },
+  { path: '/station/tas', text: 'TAS 站点管理' },
+  { path: '/mobile/pre-warehouse', text: '前置仓逐件清点' },
+  { path: '/mobile/headhaul', text: '卡车节点持续跟踪' },
+  { path: '/mobile/border', text: '阿拉山口 / 多斯特克作业' },
+  { path: '/mobile/tas', text: 'TAS 机场逐件清点' },
+  { path: '/mobile/tas/flights', text: 'TAS 航班处理' },
   { path: '/mobile/inbound/SE803/breakdown', text: '拆板与理货任务' },
   { path: '/mobile/outbound/SE913/receipt', text: '收货扫描' }
 ];
@@ -52,7 +61,7 @@ const ignoredResponsePatterns = [/\.woff2?$/i, /\.map$/i, /favicon/i];
 
 const stationLoginPayload = {
   userId: 'smoke-supervisor',
-  roleIds: ['station_supervisor', 'document_desk'],
+  roleIds: ['station_supervisor', 'platform_admin', 'document_desk', 'OCC_DM', 'A1_CARGO_CONTROLLER', 'A2_DOMESTIC_TRUCK_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER', 'B1_TAS_STATION_CONTROLLER', 'DQC_DATA_QUALITY_CONTROLLER'],
   stationCode: 'MME'
 };
 
@@ -333,7 +342,19 @@ async function runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationAc
       await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       await page.waitForLoadState('networkidle');
-      await page.getByText(pageConfig.text, { exact: false }).first().waitFor({ timeout: 30_000 });
+      try {
+        await page.getByText(pageConfig.text, { exact: false }).first().waitFor({ timeout: 30_000 });
+      } catch (error) {
+        const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(0, 4_000);
+        throw new Error(
+          `Expected text not found on ${url}: ${pageConfig.text}\n` +
+            `body: ${bodyText}\n` +
+            `console: ${consoleIssues.join(' | ')}\n` +
+            `pageerror: ${pageErrors.join(' | ')}\n` +
+            `responses: ${failedResponses.join(' | ')}\n` +
+            `cause: ${error.message}`
+        );
+      }
 
       if (consoleIssues.length || pageErrors.length || failedResponses.length) {
         throw new Error(

@@ -30,6 +30,20 @@ const station = {
       icon: icons.DashboardOutlined
     },
     {
+      id: 'station-v14-execution',
+      title: '前仓 / 卡车 / 口岸 / TAS',
+      type: 'item',
+      url: '/station/v14-execution',
+      icon: icons.DashboardOutlined
+    },
+    {
+      id: 'station-tas-management',
+      title: 'TAS 站点管理',
+      type: 'item',
+      url: '/station/tas',
+      icon: icons.ExportOutlined
+    },
+    {
       id: 'station-inbound',
       title: '进港管理',
       type: 'collapse',

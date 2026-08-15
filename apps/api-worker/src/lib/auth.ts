@@ -28,7 +28,9 @@ export const actorMiddleware = createMiddleware<{ Variables: ApiVariables; Bindi
       '/api/v1/mobile/login',
       '/api/v1/mobile/options/login',
       '/api/v1/station/login',
-      '/api/v1/station/refresh'
+      '/api/v1/station/refresh',
+      '/api/v1/integrations/skyledger/events',
+      '/api/v1/integrations/skyledger/reconciliation/snapshot'
     ].includes(c.req.path)
   ) {
     await next();

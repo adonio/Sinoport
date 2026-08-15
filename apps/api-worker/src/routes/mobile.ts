@@ -8,13 +8,16 @@ import type { ApiApp } from '../index';
 
 type RequireRoles = (roles: RoleCode[]) => MiddlewareHandler;
 
-const mobileLoginStationOptions = [
+const fallbackMobileLoginStationOptions = [
   { value: 'mme', code: 'MME', label: 'MME 样板站' },
   { value: 'urc', code: 'URC', label: 'URC 前置站' },
+  { value: 'tas', code: 'TAS', label: 'TAS 塔什干航空货站' },
   { value: 'mst', code: 'MST', label: 'MST 分拨站' },
   { value: 'boh', code: 'BOH', label: 'BoH 航站' },
   { value: 'rze', code: 'RZE', label: 'RZE 协同站' }
 ];
+
+type MobileLoginStationOption = (typeof fallbackMobileLoginStationOptions)[number];
 
 const mobileLoginRoleOptions = [
   { value: 'receiver', label: '收货员' },
@@ -31,7 +34,7 @@ const mobileRoleViews = {
     taskRoles: ['Warehouse Receiver', 'Export Receiver'],
     inboundTabs: ['overview', 'counting'],
     outboundTabs: ['overview', 'receipt'],
-    flowKeys: ['preWarehouse'],
+    flowKeys: ['preWarehouse', 'tasV14'],
     actionTypes: ['scan', 'confirm', 'exception', 'suspend', 'complete']
   },
   checker: {
@@ -39,7 +42,7 @@ const mobileRoleViews = {
     taskRoles: ['Check Worker', 'Pallet Builder'],
     inboundTabs: ['overview', 'counting', 'pallet'],
     outboundTabs: ['overview', 'receipt', 'container'],
-    flowKeys: ['destinationRamp'],
+    flowKeys: ['tasV14', 'destinationRamp'],
     actionTypes: ['scan', 'confirm', 'exception', 'suspend', 'complete', 'upload-evidence']
   },
   supervisor: {
@@ -47,7 +50,7 @@ const mobileRoleViews = {
     taskRoles: ['Inbound Supervisor', 'Export Supervisor', 'Runtime Monitor', 'Ramp Loader', 'Destination Ramp', 'Build-up Worker'],
     inboundTabs: ['overview', 'counting', 'pallet', 'loading'],
     outboundTabs: ['overview', 'receipt', 'container', 'loading'],
-    flowKeys: ['exportRamp', 'runtime', 'destinationRamp'],
+    flowKeys: ['borderV14', 'tasV14', 'exportRamp', 'runtime', 'destinationRamp'],
     actionTypes: ['scan', 'confirm', 'exception', 'suspend', 'complete', 'upload-evidence', 'sign']
   },
   document_clerk: {
@@ -63,7 +66,7 @@ const mobileRoleViews = {
     taskRoles: ['Linehaul Coordinator', 'Loading Coordinator'],
     inboundTabs: ['overview', 'loading'],
     outboundTabs: ['overview', 'loading'],
-    flowKeys: ['headhaul', 'tailhaul'],
+    flowKeys: ['headhaul', 'borderV14', 'tasV14', 'tailhaul'],
     actionTypes: ['confirm', 'exception', 'suspend', 'complete']
   },
   delivery_clerk: {
@@ -79,6 +82,8 @@ const mobileRoleViews = {
 const mobileNodeFlowMap = {
   pre_warehouse: 'preWarehouse',
   headhaul: 'headhaul',
+  border_v14: 'borderV14',
+  tas_v14: 'tasV14',
   outbound_station: 'exportRamp',
   export_ramp: 'exportRamp',
   flight_runtime: 'runtime',
@@ -100,6 +105,18 @@ const mobileNodeOptions = [
     title: '头程卡车',
     description: '处理 CMR、司机、车牌、发车和到站交接。',
     path: '/mobile/headhaul'
+  },
+  {
+    key: 'border_v14',
+    title: '阿拉山口 / 多斯特克',
+    description: '中国侧与哈方事实、车辆映射和 Gate 独立记录。',
+    path: '/mobile/border'
+  },
+  {
+    key: 'tas_v14',
+    title: 'TAS 站点执行',
+    description: '处理卡车收货、逐件清点、ULD 组板、航司交接、装机与起飞确认。',
+    path: '/mobile/tas'
   },
   {
     key: 'outbound_station',
@@ -1104,6 +1121,18 @@ async function writeMobileStateTransition(
 
 function allowLocalMobileDemoLogin(c: any) {
   return allowLocalOnlyAuth(c.env.ENVIRONMENT, c.env.ENABLE_LOCAL_DEMO_AUTH);
+}
+
+async function loadMobileLoginStationOptions(db: any): Promise<MobileLoginStationOption[]> {
+  if (!db) return fallbackMobileLoginStationOptions;
+  const rows = await db.prepare(
+    `SELECT LOWER(station_id) AS value, station_id AS code,
+            station_id || ' · ' || station_name AS label
+     FROM stations
+     WHERE deleted_at IS NULL AND COALESCE(phase, 'active') NOT IN ('archived', 'inactive')
+     ORDER BY CASE station_id WHEN 'MME' THEN 0 WHEN 'TAS' THEN 1 ELSE 2 END, station_id`
+  ).all() as { results: MobileLoginStationOption[] };
+  return rows.results.length ? rows.results : fallbackMobileLoginStationOptions;
 }
 
 async function authenticateMobileUser(c: any, body: any) {
@@ -2212,13 +2241,14 @@ async function listInboundLoadingPlanItems(db: any, stationId: string, flightNo:
 
 export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) => StationServices, requireRoles: RequireRoles) {
   app.get('/api/v1/mobile/login', async (c) => {
+    const stationOptions = await loadMobileLoginStationOptions(c.env.DB);
     return c.json({
       data: {
-        station_options: mobileLoginStationOptions,
+        station_options: stationOptions,
         role_options: mobileLoginRoleOptions,
         requires_formal_auth: !allowLocalMobileDemoLogin(c),
         defaults: {
-          station: mobileLoginStationOptions[0]?.value || '',
+          station: stationOptions[0]?.value || '',
           role_key: mobileLoginRoleOptions[0]?.value || ''
         }
       }
@@ -2226,10 +2256,11 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
   });
 
   app.get('/api/v1/mobile/options/login', async (c) => {
+    const stationOptions = await loadMobileLoginStationOptions(c.env.DB);
     return c.json({
       data: {
         ...buildMobileUnifiedOptionsPayload('login', {
-        station_options: mobileLoginStationOptions.map((item) => ({
+        station_options: stationOptions.map((item) => ({
           value: item.value,
           label: item.label,
           disabled: false,
@@ -2243,7 +2274,7 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
         }),
         requires_formal_auth: !allowLocalMobileDemoLogin(c),
         defaults: {
-          station: mobileLoginStationOptions[0]?.value || '',
+          station: stationOptions[0]?.value || '',
           role_key: mobileLoginRoleOptions[0]?.value || ''
         }
       }

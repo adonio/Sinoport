@@ -1,5 +1,5 @@
-import { MobileNodeListPage } from 'pages/mobile/node-shared';
+import { V14MobileListPage } from 'pages/mobile/v14-execution-shared';
 
 export default function MobilePreWarehousePage() {
-  return <MobileNodeListPage flowKey="preWarehouse" pathOf={(id) => `/mobile/pre-warehouse/${id}`} />;
+  return <V14MobileListPage kind="prewarehouse" />;
 }

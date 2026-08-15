@@ -26,6 +26,7 @@ const fallbackLoginOptions = {
   stationOptions: [
     { value: 'mme', code: 'MME', label: 'MME 样板站' },
     { value: 'urc', code: 'URC', label: 'URC 前置站' },
+    { value: 'tas', code: 'TAS', label: 'TAS 塔什干航空货站' },
     { value: 'mst', code: 'MST', label: 'MST 分拨站' }
   ],
   roleOptions: [
@@ -264,6 +265,7 @@ export default function MobileLoginPage() {
                     roleKey: role.value,
                     roleLabel: role.label,
                     role: role.label,
+                    roleIds: response?.data?.actor?.role_ids || [],
                     language,
                     businessType: '',
                     loginAt: new Date().toISOString()

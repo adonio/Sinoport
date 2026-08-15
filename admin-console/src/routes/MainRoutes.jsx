@@ -23,6 +23,7 @@ const PlatformAuditEventsPage = Loadable(lazy(() => import('pages/platform/audit
 const PlatformAuditTrustPage = Loadable(lazy(() => import('pages/platform/audit-trust')));
 const PlatformReportsPage = Loadable(lazy(() => import('pages/platform/reports')));
 const PlatformReportStationsPage = Loadable(lazy(() => import('pages/platform/report-stations')));
+const OccControlPage = Loadable(lazy(() => import('pages/platform/occ-control')));
 
 const StationDashboardPage = Loadable(lazy(() => import('pages/station/dashboard')));
 const StationInboundPage = Loadable(lazy(() => import('pages/station/inbound')));
@@ -53,6 +54,8 @@ const StationReportsShiftPage = Loadable(lazy(() => import('pages/station/report
 const StationDocumentsNoaPage = Loadable(lazy(() => import('pages/station/documents-noa')));
 const StationDocumentsPodPage = Loadable(lazy(() => import('pages/station/documents-pod')));
 const StationCopilotPage = Loadable(lazy(() => import('pages/station/copilot')));
+const V14ExecutionPage = Loadable(lazy(() => import('pages/station/v14-execution')));
+const TasStationManagementPage = Loadable(lazy(() => import('pages/station/tas-management')));
 
 const MainRoutes = {
   path: '/',
@@ -68,6 +71,10 @@ const MainRoutes = {
         {
           path: 'platform',
           children: [
+            {
+              path: 'occ-control',
+              element: <OccControlPage />
+            },
             {
               path: 'operations',
               element: <PlatformOperationsPage />
@@ -153,6 +160,14 @@ const MainRoutes = {
         {
           path: 'station',
           children: [
+            {
+              path: 'tas',
+              element: <TasStationManagementPage />
+            },
+            {
+              path: 'v14-execution',
+              element: <V14ExecutionPage />
+            },
             {
               path: 'dashboard',
               element: <StationDashboardPage />

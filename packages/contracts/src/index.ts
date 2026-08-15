@@ -5,9 +5,45 @@ export type RoleCode =
   | 'check_worker'
   | 'inbound_operator'
   | 'delivery_desk'
-  | 'mobile_operator';
+  | 'mobile_operator'
+  | 'OCC_DM'
+  | 'A1_CARGO_CONTROLLER'
+  | 'A2_DOMESTIC_TRUCK_CONTROLLER'
+  | 'A3_CROSS_BORDER_CONTROLLER'
+  | 'B1_TAS_STATION_CONTROLLER'
+  | 'B2_FLIGHT_MONITOR'
+  | 'OBI_OVERSEAS_INTERFACE'
+  | 'DQC_DATA_QUALITY_CONTROLLER'
+  | 'PREWH_OPERATOR'
+  | 'TRUCK_OPERATOR'
+  | 'ALASHANKOU_AGENT'
+  | 'DOSTYK_AGENT'
+  | 'TAS_OPERATOR'
+  | 'AIRLINE'
+  | 'BUSINESS'
+  | 'SMDG';
 
-export type ClientSource = 'station-web' | 'mobile-pda' | 'agent-tool';
+export type ClientSource = 'station-web' | 'mobile-pda' | 'agent-tool' | 'integration-service';
+
+export type IntegrationSystem = 'SINOport' | 'SKYLEDGER';
+
+export interface IntegrationEventEnvelope<TPayload = Record<string, unknown>> {
+  event_id: string;
+  event_type: string;
+  schema_version: 1;
+  source_system: IntegrationSystem;
+  aggregate_type: string;
+  aggregate_id: string;
+  aggregate_sequence: number;
+  correlation_id?: string;
+  causation_id?: string;
+  occurred_at: string;
+  payload: TPayload;
+  payload_hash: string;
+}
+
+export type V14GateStatus = 'PENDING' | 'PASSED' | 'BLOCKED' | 'EXPIRED' | 'OVERRIDDEN';
+export type V14HealthState = 'UNKNOWN' | 'BLUE' | 'YELLOW' | 'RED' | 'STALE';
 export type ServiceLevel = 'P1' | 'P2' | 'P3';
 export type FlightRuntimeStatus =
   | 'Scheduled'

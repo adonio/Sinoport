@@ -33,6 +33,7 @@ const defaultRoutes = [
   '/platform/audit/trust',
   '/platform/reports',
   '/platform/reports/stations',
+  '/platform/occ-control',
   '/station/dashboard',
   '/station/inbound',
   '/station/inbound/flights',
@@ -61,6 +62,8 @@ const defaultRoutes = [
   '/station/reports',
   '/station/reports/shift',
   '/station/copilot?object_type=Flight&object_key=SE803',
+  '/station/v14-execution',
+  '/station/tas',
   '/mobile/login',
   '/mobile/select',
   '/mobile/inbound',
@@ -73,12 +76,17 @@ const defaultRoutes = [
   '/mobile/outbound/SE913/receipt',
   '/mobile/outbound/SE913/pmc',
   '/mobile/outbound/SE913/loading',
-  '/mobile/runtime/SE803'
+  '/mobile/runtime/SE803',
+  '/mobile/pre-warehouse',
+  '/mobile/headhaul',
+  '/mobile/border',
+  '/mobile/tas',
+  '/mobile/tas/flights'
 ];
 
 const stationLoginPayload = {
   userId: 'i18n-scan-supervisor',
-  roleIds: ['station_supervisor', 'document_desk'],
+  roleIds: ['platform_admin', 'station_supervisor', 'document_desk', 'OCC_DM', 'B1_TAS_STATION_CONTROLLER', 'TAS_OPERATOR'],
   stationCode: 'MME'
 };
 

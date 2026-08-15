@@ -2412,6 +2412,9 @@ function applyPatternLocalization(language, input) {
 
   if (language === 'en') {
     return input
+      .replace(/Missing CritiCal Files\t([^\t]+)\t(\d+) items do not meet release conditions\tCoverage (\d+) 份关键文档。/gu, 'Missing Critical Files\t$1\t$2 items do not meet release conditions\tCovering $3 critical documents.')
+      .replace(/Missing CritiCal Files/gu, 'Missing Critical Files')
+      .replace(/^Coverage (\d+) 份关键文档。?$/u, 'Covering $1 critical documents.')
       .replace(/(\d+) 会话/gu, '$1 sessions')
       .replace(/(\d+) 个目的港/gu, '$1 destinations')
       .replace(/(\d+)\/(\d+) 班已落地/gu, '$1/$2 flights landed')
@@ -2493,6 +2496,13 @@ function applyPatternLocalization(language, input) {
       .replace(/按最近Update的关键文件排序。/gu, 'Sorted by the most recently updated critical documents.')
       .replace(/4 items未满足ReleaseitemspieCes/gu, '4 items do not meet release conditions')
       .replace(/4 items未满足Releaseitems件/gu, '4 items do not meet release conditions')
+      .replace(/(\d+) items当日报告Task/gu, '$1 daily report tasks in scope today')
+      .replace(/(\d+) 份文档Open日报范围/gu, '$1 documents in the open daily-report scope')
+      .replace(/(\d+) 个Station参与Platform日报/gu, '$1 stations included in the platform daily report')
+      .replace(/(\d+) items未满足ReleaseitemspieCes/gu, '$1 items do not meet release conditions')
+      .replace(/覆盖 (\d+) 份关键文档。/gu, 'Covering $1 critical documents.')
+      .replace(/暂NoneVersion替换/gu, 'No version replacement yet')
+      .replace(/暂None可用DoCumentsVersion。/gu, 'No document version is available yet.')
       .replace(/已OpenInbound处理/gu, 'opened inbound handling')
       .replace(/必须先清BloCker/gu, 'must clear the blocker first')
       .replace(/已归档，可支持交付闭环/gu, 'is archived and can support delivery closure')
@@ -2545,12 +2555,16 @@ export function localizeUiText(language, input) {
 
   const locale = normalizeAppLanguage(language);
   if (locale === 'en') {
-    const translated = enMessages[input] || translateRenderedText(locale, input);
-    return translated === input ? translated : translateRenderedText(locale, translated);
+    if (Object.prototype.hasOwnProperty.call(enMessages, input)) {
+      return enMessages[input];
+    }
+    return translateRenderedText(locale, input);
   }
 
-  const translated = zhMessages[input] || translateRenderedText(locale, input);
-  return translated === input ? translated : translateRenderedText(locale, translated);
+  if (Object.prototype.hasOwnProperty.call(zhMessages, input)) {
+    return zhMessages[input];
+  }
+  return translateRenderedText(locale, input);
 }
 
 export function formatLocalizedMessage(intl, message) {

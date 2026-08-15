@@ -1,8 +1,8 @@
 import { useParams } from 'react-router-dom';
 
-import { MobileNodeDetailPage } from 'pages/mobile/node-shared';
+import { V14MobileDetailPage } from 'pages/mobile/v14-execution-shared';
 
 export default function MobileHeadhaulDetailPage() {
   const { tripId } = useParams();
-  return <MobileNodeDetailPage flowKey="headhaul" itemId={tripId} backPath="/mobile/headhaul" />;
+  return <V14MobileDetailPage kind="transport" itemId={tripId} />;
 }

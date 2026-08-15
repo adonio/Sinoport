@@ -2877,11 +2877,15 @@ export async function mobileLogin(payload) {
 function normalizeMobileLoginOptionsPayload(payload) {
   const data = payload?.data || payload || {};
   const groups = data.groups || {};
-  const stationOptions = Array.isArray(groups.station_options)
+  const rawStationOptions = Array.isArray(groups.station_options)
     ? groups.station_options
     : Array.isArray(data.station_options)
       ? data.station_options
       : [];
+  const stationOptions = rawStationOptions.map((item) => ({
+    ...item,
+    code: item?.code || item?.meta?.code || String(item?.value || '').toUpperCase()
+  }));
   const roleOptions = Array.isArray(groups.role_options) ? groups.role_options : Array.isArray(data.role_options) ? data.role_options : [];
   const defaults = data.defaults || {};
 

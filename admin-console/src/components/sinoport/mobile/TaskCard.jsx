@@ -25,6 +25,7 @@ export default function TaskCard({ title, node, role, status, priority, sla, des
       .replace(/OUTBOUND.*?机坪.*?ACTIONS/giu, 'Outbound Airport Ramp Operations')
       .replace(/尾程卡车装车与运输/gu, 'Final Mile Truck Loading and Transport')
       .replace(/理货Node 30 分钟初判/gu, 'Initial judgment within 30 minutes at the counting node')
+      .replace(/理货Milestone 30 分钟初判/gu, 'Initial judgment within 30 minutes at the counting node')
       .replace(/理货节点 30 分钟初判/gu, 'Initial judgment within 30 minutes at the counting node')
       .replace(/VehiCle到场后 15 分钟内启动/gu, 'Start within 15 minutes after vehicle arrival')
       .replace(/车辆到场后 15 分钟内启动/gu, 'Start within 15 minutes after vehicle arrival')
