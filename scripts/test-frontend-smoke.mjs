@@ -10,6 +10,7 @@ const WEB_PORT = 4175 + Math.floor(Math.random() * 200);
 const DEFAULT_WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 const API_INSPECTOR_PORT = 9235 + Math.floor(Math.random() * 100);
 const AGENT_INSPECTOR_PORT = 9335 + Math.floor(Math.random() * 100);
+const REQUEST_TIMEOUT_MS = 15_000;
 
 const pageChecks = [
   { path: '/station/inbound/flights/SE803', text: '航班详情 / SE803' },
@@ -106,9 +107,23 @@ function waitForOutput(child, pattern, timeoutMs = 30_000) {
   });
 }
 
+function killProcessTree(child, signal) {
+  if (!child?.pid || child.exitCode !== null) return;
+
+  try {
+    if (process.platform === 'win32') {
+      child.kill(signal);
+    } else {
+      process.kill(-child.pid, signal);
+    }
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error;
+  }
+}
+
 async function stopChild(child) {
-  if (!child || child.killed) return;
-  child.kill('SIGINT');
+  if (!child || child.exitCode !== null) return;
+  killProcessTree(child, 'SIGINT');
 
   try {
     await Promise.race([
@@ -116,7 +131,7 @@ async function stopChild(child) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out waiting for child exit.')), 10_000))
     ]);
   } catch {
-    child.kill('SIGKILL');
+    killProcessTree(child, 'SIGKILL');
   }
 }
 
@@ -134,7 +149,10 @@ function resolveSmokeTargets() {
 }
 
 async function jsonRequest(baseUrl, path, options = {}) {
-  const response = await fetch(`${baseUrl}${path}`, options);
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    signal: options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  });
   let json = null;
 
   try {
@@ -198,7 +216,8 @@ async function startLocalServices() {
     ['wrangler', 'dev', '--config', 'apps/api-worker/wrangler.jsonc', '--port', String(API_PORT), '--inspector-port', String(API_INSPECTOR_PORT)],
     {
       cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     }
   );
   const agent = spawn(
@@ -206,12 +225,14 @@ async function startLocalServices() {
     ['wrangler', 'dev', '--config', 'apps/agent-worker/wrangler.jsonc', '--port', String(AGENT_PORT), '--inspector-port', String(AGENT_INSPECTOR_PORT)],
     {
       cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     }
   );
   const web = spawn('npm', ['run', 'preview', '--', '--host', '127.0.0.1', '--port', String(WEB_PORT), '--strictPort'], {
     cwd: `${process.cwd()}/admin-console`,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32'
   });
 
   api.stdout.pipe(process.stdout);
