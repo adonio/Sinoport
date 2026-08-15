@@ -69,7 +69,8 @@ const station = {
           id: 'station-inbound-waybills',
           title: '提单管理',
           type: 'item',
-          url: '/station/inbound/waybills'
+          url: '/station/inbound/waybills',
+          matchPrefix: true
         },
         {
           id: 'station-inbound-mobile',
@@ -96,13 +97,15 @@ const station = {
           id: 'station-outbound-flights',
           title: '航班管理',
           type: 'item',
-          url: '/station/outbound/flights'
+          url: '/station/outbound/flights',
+          matchPrefix: true
         },
         {
           id: 'station-outbound-waybills',
           title: '提单管理',
           type: 'item',
-          url: '/station/outbound/waybills'
+          url: '/station/outbound/waybills',
+          matchPrefix: true
         }
       ]
     },
@@ -168,7 +171,14 @@ const station = {
       url: '/station/exceptions',
       icon: icons.AlertOutlined,
       children: [
-        { id: 'station-exceptions-overview', title: '总览', type: 'item', url: '/station/exceptions' },
+        {
+          id: 'station-exceptions-overview',
+          title: '总览',
+          type: 'item',
+          url: '/station/exceptions',
+          activePaths: ['/station/exceptions/:exceptionId'],
+          inactivePaths: ['/station/exceptions/EXP-0408-001']
+        },
         { id: 'station-exceptions-detail-demo', title: '异常详情示例', type: 'item', url: '/station/exceptions/EXP-0408-001' }
       ]
     },

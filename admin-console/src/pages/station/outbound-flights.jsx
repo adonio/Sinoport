@@ -136,6 +136,9 @@ export default function StationOutboundFlightsPage() {
           chips={[m('预报'), m('收货'), m('装载'), m('Manifest'), m('任务入口'), m('门槛控制')]}
           action={
             <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+              <Button size="small" variant="contained" component={RouterLink} to="/station/outbound/flights/new">
+                {m('新建航班')}
+              </Button>
               <Button size="small" variant="outlined" component={RouterLink} to="/station/outbound/waybills">
                 {m('提单管理')}
               </Button>

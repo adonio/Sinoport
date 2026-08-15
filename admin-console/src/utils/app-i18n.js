@@ -1617,7 +1617,6 @@ const sharedPhrasePairs = [
   ,['已恢复。', 'has been restored.']
   ,['已归档。', 'has been archived.']
   ,['已登记。', 'has been registered.']
-  ,['未找到提单 ', 'AWB ']
   ,['，请返回提单列表重新选择。', ' was not found. Return to the list and choose another one.']
   ,['已创建航班：', 'Created flight: ']
   ,['来源 ', 'source ']
@@ -2380,8 +2379,18 @@ const sharedPhrasePairs = [
   ,['OUTBOUND机场机坪ACTIONS', 'Outbound Airport Ramp Operations']
 ];
 
-const orderedZhToEnReplacements = [...exactZhToEnPairs, ...sharedPhrasePairs].sort((a, b) => b[0].length - a[0].length);
+const zhToEnOnlyPhrasePairs = [['未找到提单 ', 'AWB ']];
+
+const orderedZhToEnReplacements = [...exactZhToEnPairs, ...sharedPhrasePairs, ...zhToEnOnlyPhrasePairs].sort(
+  (a, b) => b[0].length - a[0].length
+);
 const orderedEnToZhReplacements = [...exactEnToZhPairs, ...sharedPhrasePairs.map(([zh, en]) => [en, zh])].sort((a, b) => b[0].length - a[0].length);
+
+const cargoSummaryPattern = /^\d[\d,.]*\s+AWB\s*\/\s*\d[\d,.]*\s+pcs\s*\/\s*\d[\d,.]*\s+kg$/iu;
+
+function isCargoSummary(input) {
+  return typeof input === 'string' && cargoSummaryPattern.test(input.trim());
+}
 
 export function normalizeAppLanguage(language) {
   return SUPPORTED_APP_LANGUAGES.includes(language) ? language : DEFAULT_APP_LANGUAGE;
@@ -2542,6 +2551,7 @@ function applyPatternLocalization(language, input) {
 
 export function translateRenderedText(language, input) {
   if (typeof input !== 'string' || !input) return input;
+  if (isCargoSummary(input)) return input;
 
   const locale = normalizeAppLanguage(language);
   if (locale === 'en') {

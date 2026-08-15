@@ -35,6 +35,7 @@ const StationInboundWaybillsPage = Loadable(lazy(() => import('pages/station/inb
 const StationInboundWaybillDetailPage = Loadable(lazy(() => import('pages/station/inbound-waybill-detail')));
 const StationOutboundPage = Loadable(lazy(() => import('pages/station/outbound')));
 const StationOutboundFlightsPage = Loadable(lazy(() => import('pages/station/outbound-flights')));
+const StationOutboundFlightCreatePage = Loadable(lazy(() => import('pages/station/outbound-flight-create')));
 const StationOutboundFlightDetailPage = Loadable(lazy(() => import('pages/station/outbound-flight-detail')));
 const StationOutboundWaybillsPage = Loadable(lazy(() => import('pages/station/outbound-waybills')));
 const StationOutboundWaybillDetailPage = Loadable(lazy(() => import('pages/station/outbound-waybill-detail')));
@@ -216,6 +217,10 @@ const MainRoutes = {
                 {
                   path: 'flights',
                   element: <StationOutboundFlightsPage />
+                },
+                {
+                  path: 'flights/new',
+                  element: <StationOutboundFlightCreatePage />
                 },
                 {
                   path: 'flights/:flightNo',
