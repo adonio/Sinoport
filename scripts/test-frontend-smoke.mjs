@@ -85,25 +85,37 @@ const fallbackMobileSession = {
   language: 'zh'
 };
 
+function stripAnsi(text) {
+  return text.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
 function waitForOutput(child, pattern, timeoutMs = 30_000) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${pattern}`)), timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.stdout.off('data', onData);
+      child.stderr.off('data', onData);
+      child.off('exit', onExit);
+    };
     const onData = (chunk) => {
-      const text = chunk.toString();
+      const text = stripAnsi(chunk.toString());
       if (text.includes(pattern)) {
-        clearTimeout(timeout);
-        child.stdout.off('data', onData);
-        child.stderr.off('data', onData);
+        cleanup();
         resolve();
       }
     };
+    const onExit = (code) => {
+      cleanup();
+      reject(new Error(`Process exited early with code ${code}`));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${pattern}`));
+    }, timeoutMs);
 
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
-    child.once('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`Process exited early with code ${code}`));
-    });
+    child.once('exit', onExit);
   });
 }
 
@@ -242,11 +254,18 @@ async function startLocalServices() {
   web.stdout.pipe(process.stdout);
   web.stderr.pipe(process.stderr);
 
-  await Promise.all([
-    waitForOutput(api, `Ready on http://localhost:${API_PORT}`),
-    waitForOutput(agent, `Ready on http://localhost:${AGENT_PORT}`),
-    waitForOutput(web, `http://127.0.0.1:${WEB_PORT}`)
-  ]);
+  try {
+    await Promise.all([
+      waitForOutput(api, `Ready on http://localhost:${API_PORT}`),
+      waitForOutput(agent, `Ready on http://localhost:${AGENT_PORT}`),
+      waitForOutput(web, `http://127.0.0.1:${WEB_PORT}`)
+    ]);
+  } catch (error) {
+    for (const child of [web, agent, api]) {
+      await stopChild(child);
+    }
+    throw error;
+  }
 
   return { api, agent, web };
 }
