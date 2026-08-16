@@ -136,7 +136,9 @@ jobs:
 
   deploy-pages:
     runs-on: ubuntu-latest
-    needs: build-static
+    needs:
+      - release-meta
+      - build-static
     environment: ${{ inputs.target }}
 
     outputs:
@@ -146,6 +148,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -193,7 +197,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
-          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); const branch=process.argv[1]; const source=process.argv[2].slice(0,7); const item=items.find((entry) => entry.Branch === branch && String(entry.Source || '').startsWith(source)); process.stdout.write((item && (item.Deployment || item.url)) || '')" "${{ needs.release-meta.outputs.target_branch }}" "${{ needs.release-meta.outputs.release_ref }}")
+          test -n "$URL"
           echo "site_url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Resolve admin site URL
@@ -203,7 +208,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
-          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport-admin --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport-admin --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); const branch=process.argv[1]; const source=process.argv[2].slice(0,7); const item=items.find((entry) => entry.Branch === branch && String(entry.Source || '').startsWith(source)); process.stdout.write((item && (item.Deployment || item.url)) || '')" "${{ needs.release-meta.outputs.target_branch }}" "${{ needs.release-meta.outputs.release_ref }}")
+          test -n "$URL"
           echo "admin_url=$URL" >> "$GITHUB_OUTPUT"
 
   deploy-workers:
@@ -283,6 +289,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4

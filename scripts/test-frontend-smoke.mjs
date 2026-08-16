@@ -403,7 +403,10 @@ async function runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationAc
         }
       });
       page.on('pageerror', (error) => {
-        pageErrors.push(error.message);
+        const detail = String(error?.stack || error?.message || error || '').trim();
+        if (detail) {
+          pageErrors.push(detail);
+        }
       });
       page.on('response', (response) => {
         if (response.status() >= 400 && !ignoredResponsePatterns.some((pattern) => pattern.test(response.url()))) {
@@ -412,7 +415,6 @@ async function runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationAc
       });
 
       const url = `${baseUrl}${pageConfig.path}`;
-      await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       await page.waitForLoadState('networkidle');
       try {
