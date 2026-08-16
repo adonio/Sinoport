@@ -75,6 +75,36 @@ jobs:
     needs: release-meta
 
     steps:
+      - name: Require endpoints for the selected environment
+        env:
+          TARGET: ${{ inputs.target }}
+          STATION_API_URL: ${{ inputs.station_api_url }}
+          API_URL: ${{ inputs.api_url }}
+          AGENT_URL: ${{ inputs.agent_url }}
+        run: |
+          if [ "$TARGET" = "production" ]; then
+            EXPECTED_STATION_API_URL="https://api.sinoport.co"
+            EXPECTED_API_URL="https://api.sinoport.co"
+            EXPECTED_AGENT_URL="https://agent.sinoport.co"
+          else
+            EXPECTED_STATION_API_URL="https://staging-api.sinoport.co"
+            EXPECTED_API_URL="https://staging-api.sinoport.co"
+            EXPECTED_AGENT_URL="https://staging-agent.sinoport.co"
+          fi
+
+          if [ "$STATION_API_URL" != "$EXPECTED_STATION_API_URL" ]; then
+            echo "::error::station_api_url must be $EXPECTED_STATION_API_URL for $TARGET"
+            exit 1
+          fi
+          if [ "$API_URL" != "$EXPECTED_API_URL" ]; then
+            echo "::error::api_url must be $EXPECTED_API_URL for $TARGET"
+            exit 1
+          fi
+          if [ "$AGENT_URL" != "$EXPECTED_AGENT_URL" ]; then
+            echo "::error::agent_url must be $EXPECTED_AGENT_URL for $TARGET"
+            exit 1
+          fi
+
       - name: Require staging validation before production
         if: ${{ inputs.target == 'production' }}
         run: |
