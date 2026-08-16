@@ -16,7 +16,7 @@ import useConfig from 'hooks/useConfig';
 import { normalizeAppLanguage } from 'utils/app-i18n';
 import { writeMobileSession } from 'utils/mobile/session';
 import { getMobileLanguageOptions, localizeMobileText, readMobileLanguage, t, writeMobileLanguage } from 'utils/mobile/i18n';
-import { isTestStationEnvironment, TEST_DEFAULT_STATION_CREDENTIALS } from 'utils/stationApi';
+import { clearStationSession, isTestStationEnvironment, persistStationSession, TEST_DEFAULT_STATION_CREDENTIALS } from 'utils/stationApi';
 
 function normalizeOptions(value) {
   return Array.isArray(value) ? value : [];
@@ -254,7 +254,12 @@ export default function MobileLoginPage() {
                   });
 
                   if (response?.data?.token) {
-                    localStorage.setItem('serviceToken', response.data.token);
+                    clearStationSession();
+                    persistStationSession({
+                      token: response.data.token,
+                      refresh_token: null,
+                      actor: response.data.actor || null
+                    });
                   }
 
                   writeMobileSession({
