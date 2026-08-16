@@ -270,6 +270,7 @@ jobs:
 
   smoke:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
     needs:
       - release-meta
       - deploy-pages
@@ -305,4 +306,7 @@ jobs:
           SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url || (inputs.target == 'production' && 'https://sinoport.co' || 'https://staging.sinoport.co') }}
           SMOKE_EXPECTED_VERSION: ${{ needs.release-meta.outputs.release_ref }}
           SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.target }}
+          SMOKE_STATION_EMAIL: ${{ secrets.SMOKE_STATION_EMAIL }}
+          SMOKE_STATION_PASSWORD: ${{ secrets.SMOKE_STATION_PASSWORD }}
+          SMOKE_STATION_CODE: ${{ vars.SMOKE_STATION_CODE || 'MME' }}
         run: npm run test:frontend:smoke

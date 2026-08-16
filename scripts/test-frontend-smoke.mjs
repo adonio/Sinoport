@@ -75,6 +75,37 @@ const mobileLoginPayload = {
   language: 'zh'
 };
 
+function resolveLoginPayloads(remoteMode) {
+  if (!remoteMode) {
+    return {
+      station: stationLoginPayload,
+      mobile: mobileLoginPayload
+    };
+  }
+
+  const email = process.env.SMOKE_STATION_EMAIL?.trim();
+  const password = process.env.SMOKE_STATION_PASSWORD || '';
+  const stationCode = process.env.SMOKE_STATION_CODE?.trim().toUpperCase() || 'MME';
+
+  if (!email || !password) {
+    throw new Error('Remote smoke requires SMOKE_STATION_EMAIL and SMOKE_STATION_PASSWORD.');
+  }
+
+  return {
+    station: {
+      email,
+      password,
+      stationCode
+    },
+    mobile: {
+      ...mobileLoginPayload,
+      email,
+      password,
+      stationCode
+    }
+  };
+}
+
 const fallbackMobileSession = {
   station: 'MME',
   stationCode: 'MME',
@@ -181,11 +212,12 @@ async function jsonRequest(baseUrl, path, options = {}) {
   };
 }
 
-async function loginForSmoke(apiUrl) {
+async function loginForSmoke(apiUrl, remoteMode) {
+  const loginPayloads = resolveLoginPayloads(remoteMode);
   const stationLogin = await jsonRequest(apiUrl, '/api/v1/station/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(stationLoginPayload)
+    body: JSON.stringify(loginPayloads.station)
   });
 
   if (!stationLogin.ok) {
@@ -195,7 +227,7 @@ async function loginForSmoke(apiUrl) {
   const mobileLogin = await jsonRequest(apiUrl, '/api/v1/mobile/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mobileLoginPayload)
+    body: JSON.stringify(loginPayloads.mobile)
   });
 
   if (!mobileLogin.ok) {
@@ -441,7 +473,7 @@ async function main() {
   const children = remoteMode ? [] : Object.values(await startLocalServices());
 
   try {
-    const { stationToken, stationActor, mobileSession } = await loginForSmoke(apiUrl);
+    const { stationToken, stationActor, mobileSession } = await loginForSmoke(apiUrl, remoteMode);
     await verifyApiSmoke(apiUrl, agentUrl, stationToken);
     await runBrowserSmoke(webUrl, apiUrl, agentUrl, stationToken, stationActor, mobileSession);
 
