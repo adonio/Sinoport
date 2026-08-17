@@ -42,6 +42,7 @@ export function registerV14PrewarehouseRoutes(app: ApiApp, requireRoles: Require
     async (c) => {
       try {
         const db = requireV14Db(c.env);
+        const actor = c.var.actor;
         const status = String(c.req.query('status') ?? '').trim();
         const shipmentId = String(c.req.query('shipment_id') ?? '').trim();
         const limit = Math.max(1, Math.min(100, Number(c.req.query('page_size')) || 50));
@@ -51,10 +52,10 @@ export function registerV14PrewarehouseRoutes(app: ApiApp, requireRoles: Require
                     r.expected_pieces - r.unique_received_pieces AS remaining_pieces
              FROM warehouse_receipt_sessions r
              JOIN shipments s ON s.shipment_id = r.shipment_id
-             WHERE (? = '' OR r.status = ?) AND (? = '' OR r.shipment_id = ?)
+             WHERE r.tenant_id = ? AND (? = '' OR r.status = ?) AND (? = '' OR r.shipment_id = ?)
              ORDER BY r.updated_at DESC LIMIT ?`
           )
-          .bind(status, status, shipmentId, shipmentId, limit)
+          .bind(actor.tenantId, status, status, shipmentId, shipmentId, limit)
           .all();
         return response(c, { items: rows.results, total: rows.results.length });
       } catch (error) {
@@ -78,14 +79,28 @@ export function registerV14PrewarehouseRoutes(app: ApiApp, requireRoles: Require
           return response(c, { receipt_session_id: duplicate.aggregate_id, duplicate: true, summary });
         }
         const shipmentId = requiredText(body, 'shipment_id');
-        const stationId = optionalText(body, 'warehouse_station_id') ?? 'SZX';
+        const stationId = String(optionalText(body, 'warehouse_station_id') ?? 'SZX').toUpperCase();
+        if (stationId !== 'SZX') {
+          throw new V14OperationError(409, 'ORIGIN_EXECUTION_STATION_MISMATCH', 'V1.4 pre-warehouse receipt must execute at SZX');
+        }
         const shipment = await loadRequired<{ total_pieces: number | null }>(
           db,
-          `SELECT total_pieces FROM shipments WHERE shipment_id = ?`,
-          [shipmentId],
+          `SELECT s.total_pieces
+           FROM shipments s
+           JOIN v14_awb_intakes i ON i.shipment_id = s.shipment_id
+           WHERE s.shipment_id = ? AND i.tenant_id = ? AND i.origin_execution_station_id = ?`,
+          [shipmentId, actor.tenantId, stationId],
           'SHIPMENT_NOT_FOUND',
           'Shipment was not found'
         );
+        const activeReceipt = await db.prepare(
+          `SELECT receipt_session_id, status FROM warehouse_receipt_sessions
+           WHERE tenant_id = ? AND shipment_id = ? AND status <> 'CANCELLED'
+           ORDER BY updated_at DESC LIMIT 1`
+        ).bind(actor.tenantId, shipmentId).first<{ receipt_session_id: string; status: string }>();
+        if (activeReceipt) {
+          throw new V14OperationError(409, 'PREWAREHOUSE_RECEIPT_ALREADY_EXISTS', 'An active pre-warehouse receipt already exists', activeReceipt);
+        }
         await db
           .prepare(
             `INSERT INTO stations (station_id, station_name, region, control_level, phase)
@@ -99,8 +114,9 @@ export function registerV14PrewarehouseRoutes(app: ApiApp, requireRoles: Require
         if (baselineId) {
           const baseline = await loadRequired<{ expected_pieces: number; status: string }>(
             db,
-            `SELECT expected_pieces, status FROM cargo_baseline_versions WHERE baseline_version_id = ? AND shipment_id = ?`,
-            [baselineId, shipmentId],
+            `SELECT expected_pieces, status FROM cargo_baseline_versions
+             WHERE tenant_id = ? AND baseline_version_id = ? AND shipment_id = ?`,
+            [actor.tenantId, baselineId, shipmentId],
             'EXPECTED_BASELINE_CHANGED',
             'Expected baseline is missing or belongs to another shipment'
           );

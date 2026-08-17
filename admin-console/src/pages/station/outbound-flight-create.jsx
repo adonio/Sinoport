@@ -14,6 +14,7 @@ import MainCard from 'components/MainCard';
 import PageHeader from 'components/sinoport/PageHeader';
 import useAuth from 'hooks/useAuth';
 import { createStationOutboundFlight, useGetStationFlightOptions } from 'api/station';
+import { v14Endpoints, v14Post } from 'api/v14';
 import { openSnackbar } from 'api/snackbar';
 import { formatLocalizedMessage, localizeUiText } from 'utils/app-i18n';
 
@@ -86,26 +87,37 @@ export default function StationOutboundFlightCreatePage() {
 
     try {
       const flightNo = form.flightNo.trim().toUpperCase();
-      await createStationOutboundFlight({
-        flight_no: flightNo,
-        destination_code: form.destination,
-        std_at: form.std,
-        etd_at: form.etd || undefined,
-        runtime_status: form.runtimeStatus,
-        service_level: form.serviceLevel,
-        aircraft_type: form.aircraftType.trim() || undefined,
-        notes: form.notes.trim() || undefined
-      });
+      if (isTasLgg) {
+        await v14Post(v14Endpoints.tasOutboundTasks, {
+          flight_no: flightNo,
+          std_at: new Date(form.std).toISOString(),
+          etd_at: form.etd ? new Date(form.etd).toISOString() : undefined,
+          service_level: form.serviceLevel,
+          aircraft_type: form.aircraftType.trim() || undefined,
+          notes: form.notes.trim() || undefined
+        });
+      } else {
+        await createStationOutboundFlight({
+          flight_no: flightNo,
+          destination_code: form.destination,
+          std_at: form.std,
+          etd_at: form.etd || undefined,
+          runtime_status: form.runtimeStatus,
+          service_level: form.serviceLevel,
+          aircraft_type: form.aircraftType.trim() || undefined,
+          notes: form.notes.trim() || undefined
+        });
+      }
 
       openSnackbar({
         open: true,
         message: isTasLgg
-          ? `${m('航班')} ${flightNo} ${m('已创建；还需 OCC 创建并发布 TAS → LGG 运行计划。')}`
+          ? `${m('航班')} ${flightNo} ${m('及 TAS 独立出港任务已创建，可以直接录入预报或开始现场收货。')}`
           : `${m('航班')} ${flightNo} ${m('已创建。')}`,
         variant: 'alert',
-        alert: { color: isTasLgg ? 'warning' : 'success' }
+        alert: { color: 'success' }
       });
-      navigate(`/station/outbound/flights/${encodeURIComponent(flightNo)}`);
+      navigate(isTasLgg ? '/station/tas/outbound' : `/station/outbound/flights/${encodeURIComponent(flightNo)}`);
     } catch (error) {
       setFeedback({
         severity: 'error',
@@ -145,9 +157,9 @@ export default function StationOutboundFlightCreatePage() {
             {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
             {stationFlightOptionsError ? <Alert severity="error">{m('航班选项加载失败，请刷新页面后重试。')}</Alert> : null}
             {isTasLgg ? (
-              <Alert severity="warning">
+              <Alert severity="success">
                 {m(
-                  '这是 v1.4 主链路航班。此处只建立 TAS 货站出港航班；创建后还必须由 OCC 在“运行控制”中选择该航班、创建运行计划，并由另一名人员审批发布。'
+                  '这是 TAS 货站独立出港航班。提交后会同时建立 TAS–LGG 作业任务，可直接在 TAS 端录入货物/卡车预报或开始现场收货；OCC 计划不是前置条件。'
                 )}
               </Alert>
             ) : null}
@@ -255,12 +267,12 @@ export default function StationOutboundFlightCreatePage() {
           </Stack>
 
           <MainCard sx={{ mt: 3 }} contentSX={{ p: 2 }}>
-            <Typography variant="subtitle2" color={isTasLgg ? 'warning.main' : 'text.secondary'} sx={{ mb: 0.5 }}>
+            <Typography variant="subtitle2" color={isTasLgg ? 'success.main' : 'text.secondary'} sx={{ mb: 0.5 }}>
               {isTasLgg ? m('TAS → LGG 后续动作') : m('创建后的下一步')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {isTasLgg
-                ? m('货站建档完成后，由 OCC 为同一航班建立运行计划并完成 maker-checker 发布；发布后再在 TAS 航班处理中建立处理批次。')
+                ? m('创建成功后进入“TAS-LGG 出港作业”，可录入预报、逐箱收货、ULD/散货、装机和起飞；上游/OCC 数据若存在会作为补充关联。')
                 : m('创建成功后进入航班详情，可继续维护提单、装载、Manifest 和航班状态。')}
             </Typography>
           </MainCard>

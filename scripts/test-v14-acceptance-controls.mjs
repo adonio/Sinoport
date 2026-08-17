@@ -35,6 +35,18 @@ const adminHeaders = {
 const supervisorHeaders = { ...adminHeaders, 'X-Debug-User-Id': 'acceptance-supervisor' };
 const a3OnlyHeaders = { ...adminHeaders, 'X-Debug-User-Id': 'acceptance-a3-only', 'X-Debug-Roles': 'A3_CROSS_BORDER_CONTROLLER' };
 const obiHeaders = { ...adminHeaders, 'X-Debug-User-Id': 'acceptance-obi', 'X-Debug-Roles': 'OBI_OVERSEAS_INTERFACE' };
+const tasOperatorHeaders = {
+  ...adminHeaders,
+  'X-Debug-User-Id': 'acceptance-tas-operator',
+  'X-Debug-Roles': 'TAS_OPERATOR',
+  'X-Debug-Station-Scope': 'TAS'
+};
+const b1Headers = {
+  ...adminHeaders,
+  'X-Debug-User-Id': 'acceptance-b1-controller',
+  'X-Debug-Roles': 'B1_TAS_STATION_CONTROLLER',
+  'X-Debug-Station-Scope': 'TAS'
+};
 
 async function api(path, { method = 'GET', body, headers = adminHeaders, expected = [200, 201], idem } = {}) {
   const requestHeaders = { ...headers };
@@ -126,7 +138,34 @@ await api(`/api/v1/airport-receipts/${tasId}/arrival`, { method: 'POST', idem: '
 const sealMismatch = await api(`/api/v1/airport-receipts/${tasId}/seal-check`, { method: 'POST', idem: 'tas-seal-mismatch', body: { seal_actual: 'WRONG-SEAL', evidence_ids: ['EV-SEAL-MISMATCH'] } });
 assert.equal(sealMismatch.json.result, 'MISMATCH');
 assert.ok(sealMismatch.json.exception_id);
-await api(`/api/v1/airport-receipts/${tasId}/unloading/start`, { method: 'POST', idem: 'tas-unload-approved', body: { seal_mismatch_approved: true } });
+const operatorApprovalDenied = await api(`/api/v1/airport-receipts/${tasId}/seal-mismatch/approve`, {
+  method: 'POST', headers: tasOperatorHeaders, idem: 'tas-operator-approval-denied', expected: [403],
+  body: { reason: 'Operator cannot approve own exception', evidence_ids: ['EV-DENIED'] }
+});
+assert.equal(operatorApprovalDenied.json.error.code, 'FORBIDDEN');
+const makerCheckerConflict = await api(`/api/v1/airport-receipts/${tasId}/seal-mismatch/approve`, {
+  method: 'POST', headers: adminHeaders, idem: 'tas-maker-checker-conflict', expected: [409],
+  body: { reason: 'Same checker must not approve', evidence_ids: ['EV-CONFLICT'] }
+});
+assert.equal(makerCheckerConflict.json.error.code, 'MAKER_CHECKER_ROLE_CONFLICT');
+const selfReportedApprovalDenied = await api(`/api/v1/airport-receipts/${tasId}/unloading/start`, {
+  method: 'POST', headers: tasOperatorHeaders, idem: 'tas-unload-self-approved-denied', expected: [409],
+  body: { seal_mismatch_approved: true }
+});
+assert.equal(selfReportedApprovalDenied.json.error.code, 'SEAL_MISMATCH_APPROVAL_REQUIRED');
+const sealApproval = await api(`/api/v1/airport-receipts/${tasId}/seal-mismatch/approve`, {
+  method: 'POST', headers: b1Headers, idem: 'tas-seal-mismatch-approval',
+  body: { reason: 'Seal evidence reviewed and controlled unloading authorized', evidence_ids: ['EV-SEAL-APPROVAL'] }
+});
+assert.equal(sealApproval.json.result, 'APPROVED');
+assert.equal(sealApproval.json.requested_by, 'acceptance-admin');
+assert.equal(sealApproval.json.approved_by, 'acceptance-b1-controller');
+const tasAfterApproval = await api(`/api/v1/airport-receipts/${tasId}`);
+const approvalAudit = tasAfterApproval.json.audit_events.find((event) => event.event_type === 'TAS_SEAL_MISMATCH_APPROVED');
+assert.ok(approvalAudit);
+assert.equal(approvalAudit.actor_id, 'acceptance-b1-controller');
+assert.equal(JSON.parse(approvalAudit.payload_json).requested_by, 'acceptance-admin');
+await api(`/api/v1/airport-receipts/${tasId}/unloading/start`, { method: 'POST', headers: tasOperatorHeaders, idem: 'tas-unload-approved', body: {} });
 const wrongTas = await api(`/api/v1/airport-receipts/${tasId}/scans`, { method: 'POST', idem: 'tas-wrong-shipment', expected: [409], body: { barcode: `ACC-${runId}` } });
 assert.equal(wrongTas.json.error.code, 'BARCODE_WRONG_SHIPMENT');
 assert.ok(wrongTas.json.error.details.exception_id);

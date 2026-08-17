@@ -49,11 +49,10 @@ export default function MobileSelectPage() {
     description: localizeMobileText(language, item.description),
     enterLabel: t(language, 'open_node')
   }));
-  const v14NodeOptions = [
-    { key: 'border_v14', title: localizeMobileText(language, '阿拉山口 / 多斯特克'), description: localizeMobileText(language, '中国侧与哈方事实、车辆映射和 Gate 独立记录。'), path: '/mobile/border', recommended: true, enterLabel: t(language, 'open_node') },
-    { key: 'tas_v14', title: localizeMobileText(language, 'TAS 站点执行'), description: localizeMobileText(language, '处理卡车收货、逐件清点、ULD 组板、航司交接、装机与起飞确认。'), path: '/mobile/tas', recommended: true, enterLabel: t(language, 'open_node') }
-  ];
-  const nodeOptions = [...configuredNodeOptions, ...v14NodeOptions.filter((fixed) => !configuredNodeOptions.some((item) => item.path === fixed.path))];
+  // The server is the only source of truth for role-to-node visibility. Do not
+  // append fixed v1.4 nodes here: doing so exposes unusable entry points to
+  // roles that the API will correctly reject.
+  const nodeOptions = configuredNodeOptions;
   const recommendedNodeOptions = nodeOptions.filter((item) => item.recommended);
   const inboundCapability = roleView.inboundTabs?.length ? roleView.inboundTabs.join(' / ') : '-';
   const outboundCapability = roleView.outboundTabs?.length ? roleView.outboundTabs.join(' / ') : '-';

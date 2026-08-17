@@ -25,6 +25,7 @@
     "test:agent:smoke": "node ./scripts/test-agent-smoke.mjs",
     "test:integration:api": "node ./scripts/test-api-integration.mjs",
     "test:v14:e2e": "node ./scripts/test-v14-e2e-smoke.mjs",
+    "test:tas:standalone": "node ./scripts/test-tas-standalone-outbound.mjs",
     "test:v14:acceptance": "node ./scripts/test-v14-acceptance-controls.mjs",
     "test:v14:cross-system": "node ./scripts/test-cross-system-v14-e2e.mjs",
     "test:validate:m10": "node ./scripts/validate-m10-copilot.mjs",

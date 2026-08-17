@@ -21,6 +21,26 @@ export interface AuthTokenClaims {
   iat: number;
 }
 
+export const MOBILE_ROLE_KEYS = [
+  'receiver',
+  'checker',
+  'supervisor',
+  'document_clerk',
+  'driver',
+  'delivery_clerk'
+] as const;
+
+export type MobileRoleKey = (typeof MOBILE_ROLE_KEYS)[number];
+
+const mobileRoleEligibility: Record<MobileRoleKey, RoleCode[]> = {
+  receiver: ['inbound_operator', 'TAS_OPERATOR'],
+  checker: ['check_worker'],
+  supervisor: ['platform_admin', 'station_supervisor', 'B1_TAS_STATION_CONTROLLER'],
+  document_clerk: ['document_desk', 'DQC_DATA_QUALITY_CONTROLLER'],
+  driver: ['mobile_operator', 'TRUCK_OPERATOR', 'A2_DOMESTIC_TRUCK_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER'],
+  delivery_clerk: ['delivery_desk']
+};
+
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
@@ -141,6 +161,20 @@ export function mapMobileRoleKeyToRoleCodes(roleKey: string): RoleCode[] {
     default:
       return ['mobile_operator', 'inbound_operator'];
   }
+}
+
+export function isMobileRoleKey(value: string): value is MobileRoleKey {
+  return (MOBILE_ROLE_KEYS as readonly string[]).includes(value);
+}
+
+export function canUseMobileRoleKey(roleKey: string, roleIds: RoleCode[]) {
+  if (!isMobileRoleKey(roleKey)) return false;
+  return roleIds.some((role) => mobileRoleEligibility[roleKey].includes(role));
+}
+
+export function inferMobileRoleKey(roleIds: RoleCode[]): MobileRoleKey | null {
+  const preference: MobileRoleKey[] = ['supervisor', 'document_clerk', 'checker', 'delivery_clerk', 'receiver', 'driver'];
+  return preference.find((roleKey) => canUseMobileRoleKey(roleKey, roleIds)) ?? null;
 }
 
 export function resolveStationId(actor: AuthActor, requestedStationId?: string | null) {

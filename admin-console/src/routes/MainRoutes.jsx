@@ -58,6 +58,7 @@ const StationDocumentsPodPage = Loadable(lazy(() => import('pages/station/docume
 const StationCopilotPage = Loadable(lazy(() => import('pages/station/copilot')));
 const V14ExecutionPage = Loadable(lazy(() => import('pages/station/v14-execution')));
 const TasStationManagementPage = Loadable(lazy(() => import('pages/station/tas-management')));
+const TasOutboundPage = Loadable(lazy(() => import('pages/station/tas-outbound')));
 
 const MainRoutes = {
   path: '/',
@@ -165,6 +166,10 @@ const MainRoutes = {
             {
               path: 'tas',
               element: <TasStationManagementPage />
+            },
+            {
+              path: 'tas/outbound',
+              element: <TasOutboundPage />
             },
             {
               path: 'v14-execution',

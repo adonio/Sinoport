@@ -150,6 +150,8 @@ async function resetIntegrationFixtures() {
     "DELETE FROM users WHERE email LIKE 'it-user-%';",
     "DELETE FROM state_transitions WHERE object_type = 'Flight' AND object_id IN (SELECT flight_id FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%');",
     "DELETE FROM audit_events WHERE object_type = 'Flight' AND object_id IN (SELECT flight_id FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%');",
+    "DELETE FROM v14_awb_intakes WHERE flight_id IN (SELECT flight_id FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%');",
+    "DELETE FROM v14_flight_tenant_scopes WHERE flight_id IN (SELECT flight_id FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%');",
     "DELETE FROM flights WHERE flight_no LIKE 'IT%' OR flight_no LIKE 'OT%' OR flight_no LIKE 'DBG%';",
     "UPDATE tasks SET task_status = 'Created', completed_at = NULL, verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-201';",
     "UPDATE tasks SET task_status = 'Completed', completed_at = '2026-04-08T19:05:00Z', verified_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_id = 'TASK-0408-000';",
@@ -246,6 +248,77 @@ async function main() {
       stationUserOptions.json?.data?.role_options?.some((item) => item.value === 'station_admin'),
       'station/users/options missing station_admin'
     );
+
+    const mobileRoleCases = [
+      { slug: 'legacy-receiver', roles: ['mobile_operator', 'inbound_operator'], roleKey: 'receiver' },
+      { slug: 'legacy-checker', roles: ['check_worker'], roleKey: 'checker' },
+      { slug: 'legacy-supervisor', roles: ['station_supervisor'], roleKey: 'supervisor' },
+      { slug: 'legacy-mobile', roles: ['mobile_operator'], roleKey: 'driver' },
+      { slug: 'pure-b1', roles: ['B1_TAS_STATION_CONTROLLER'], roleKey: 'supervisor' },
+      { slug: 'pure-tas', roles: ['TAS_OPERATOR'], roleKey: 'receiver' }
+    ];
+    const mobileRoleResults = [];
+    for (const roleCase of mobileRoleCases) {
+      const loginName = `it-user-${roleCase.slug}-${uniqueSuffix(6).toLowerCase()}@sinoport.local`;
+      const password = `Mobile-${uniqueSuffix(10)}!A1`;
+      const created = await jsonRequest('/api/v1/station/users', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stationToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          station_id: 'TAS',
+          display_name: `Integration ${roleCase.slug}`,
+          login_name: loginName,
+          employee_no: `IT-${uniqueSuffix(5)}`,
+          password,
+          roles: roleCase.roles,
+          must_change_password: false
+        })
+      });
+      assert(created.status === 201, `${roleCase.slug} station user create failed`);
+
+      const unauthorizedRoleKey = roleCase.roleKey === 'supervisor' ? 'receiver' : 'supervisor';
+      const unauthorizedLogin = await jsonRequest('/api/v1/mobile/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginName, password, stationCode: 'TAS', roleKey: unauthorizedRoleKey })
+      });
+      assert(unauthorizedLogin.status === 403, `${roleCase.slug} unauthorized role login should be forbidden`);
+      assert(
+        unauthorizedLogin.json?.error?.code === 'MOBILE_ROLE_NOT_ASSIGNED',
+        `${roleCase.slug} unauthorized role login used an unexpected error code`
+      );
+
+      const login = await jsonRequest('/api/v1/mobile/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginName, password, stationCode: 'TAS', roleKey: roleCase.roleKey })
+      });
+      assert(login.ok, `${roleCase.slug} mobile login failed`);
+      const actorRoles = login.json?.data?.actor?.role_ids || [];
+      assert(actorRoles.length === roleCase.roles.length, `${roleCase.slug} token gained or lost formal roles`);
+      assert(roleCase.roles.every((role) => actorRoles.includes(role)), `${roleCase.slug} token lost a formal role`);
+      const roleToken = login.json?.data?.token;
+      assert(Boolean(roleToken), `${roleCase.slug} mobile token missing`);
+
+      const select = await jsonRequest('/api/v1/mobile/select', {
+        headers: { Authorization: `Bearer ${roleToken}` }
+      });
+      assert(select.ok, `${roleCase.slug} mobile/select failed`);
+      assert(select.json?.data?.session?.roleKey === roleCase.roleKey, `${roleCase.slug} mobile/select inferred the wrong role`);
+      assert(
+        roleCase.roles.every((role) => select.json?.data?.session?.roleIds?.includes(role)),
+        `${roleCase.slug} mobile/select lost a formal role`
+      );
+
+      const unauthorizedSelect = await jsonRequest(`/api/v1/mobile/select?role_key=${encodeURIComponent(unauthorizedRoleKey)}`, {
+        headers: { Authorization: `Bearer ${roleToken}` }
+      });
+      assert(unauthorizedSelect.status === 403, `${roleCase.slug} unauthorized mobile/select should be forbidden`);
+      mobileRoleResults.push({ roleCase, created, login, select, unauthorizedLogin, unauthorizedSelect });
+    }
 
     const stationUserLogin = `it-user-${uniqueSuffix(8).toLowerCase()}@sinoport.local`;
     const initialStationUserPassword = `Temp-${uniqueSuffix(8)}!A1`;
@@ -1766,6 +1839,7 @@ async function main() {
     console.log(`- station/me & refresh: ${stationMe.status}/${stationRefresh.status}`);
     console.log(`- station users options/create/password/scope/reset/disable/list/protected-role: ${stationUserOptions.status}/${createStationUser.status}/${changeOwnPassword.status}/${stationAdminCrossScope.status}/${resetCreatedStationUser.status}/${disableCreatedStationUser.status}/${stationUsers.status}/${updateDemoSupervisorStationRoles.status}`);
     console.log(`- mobile/login: ${mobileLogin.status}`);
+    console.log(`- mobile role auth/select cases: ${mobileRoleResults.map(({ roleCase, login, select }) => `${roleCase.slug}:${login.status}/${select.status}`).join(', ')}`);
     console.log(
       `- platform stations options/list/create/update/archive/restore: ${stationOptions.status}/${platformStations.status}/${createStation.status}/${updateStation.status}/${archiveStation.status}/${restoreStation.status}`
     );

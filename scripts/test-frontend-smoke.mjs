@@ -35,6 +35,7 @@ const pageChecks = [
   { path: '/platform/occ-control', text: '新建运行计划' },
   { path: '/station/v14-execution', text: '跨境前段执行中心' },
   { path: '/station/tas', text: 'TAS 站点管理' },
+  { path: '/station/tas/outbound', text: 'TAS–LGG 独立出港作业' },
   { path: '/station/users', text: '货站用户与权限' },
   { path: '/mobile/pre-warehouse', text: '前置仓逐件清点' },
   { path: '/mobile/headhaul', text: '卡车节点持续跟踪' },
@@ -104,6 +105,23 @@ function resolveLoginPayloads(remoteMode) {
       stationCode
     }
   };
+}
+
+function inferSmokeMobileRoleKey(actor) {
+  const roles = Array.isArray(actor?.role_ids) ? actor.role_ids : [];
+  const candidates = [
+    ['supervisor', ['platform_admin', 'station_supervisor', 'B1_TAS_STATION_CONTROLLER']],
+    ['document_clerk', ['document_desk', 'DQC_DATA_QUALITY_CONTROLLER']],
+    ['checker', ['check_worker']],
+    ['delivery_clerk', ['delivery_desk']],
+    ['receiver', ['inbound_operator', 'TAS_OPERATOR']],
+    ['driver', ['mobile_operator', 'TRUCK_OPERATOR', 'A2_DOMESTIC_TRUCK_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER']]
+  ];
+  const match = candidates.find(([, eligibleRoles]) => eligibleRoles.some((role) => roles.includes(role)));
+  if (!match) {
+    throw new Error(`Remote smoke account has no eligible mobile role: ${roles.join(',') || '--'}`);
+  }
+  return match[0];
 }
 
 const fallbackMobileSession = {
@@ -224,29 +242,32 @@ async function loginForSmoke(apiUrl, remoteMode) {
     throw new Error(`station/login failed with status ${stationLogin.status}`);
   }
 
+  const stationToken = stationLogin.json?.data?.token;
+  const stationActor = stationLogin.json?.data?.actor;
+  if (!stationToken || !stationActor) {
+    throw new Error('station/login did not return a usable session');
+  }
+  const mobileRoleKey = remoteMode ? inferSmokeMobileRoleKey(stationActor) : loginPayloads.mobile.roleKey;
+
   const mobileLogin = await jsonRequest(apiUrl, '/api/v1/mobile/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(loginPayloads.mobile)
+    body: JSON.stringify({ ...loginPayloads.mobile, roleKey: mobileRoleKey })
   });
 
   if (!mobileLogin.ok) {
     throw new Error(`mobile/login failed with status ${mobileLogin.status}`);
   }
 
-  const stationToken = stationLogin.json?.data?.token;
-  const stationActor = stationLogin.json?.data?.actor;
   const mobileSession = mobileLogin.json?.data?.actor
     ? {
         ...fallbackMobileSession,
         station: mobileLogin.json.data.actor.station_scope?.[0] || fallbackMobileSession.station,
-        stationCode: mobileLogin.json.data.actor.station_scope?.[0] || fallbackMobileSession.stationCode
+        stationCode: mobileLogin.json.data.actor.station_scope?.[0] || fallbackMobileSession.stationCode,
+        roleKey: mobileRoleKey,
+        roleIds: mobileLogin.json.data.actor.role_ids || []
       }
-    : fallbackMobileSession;
-
-  if (!stationToken || !stationActor) {
-    throw new Error('station/login did not return a usable session');
-  }
+    : { ...fallbackMobileSession, roleKey: mobileRoleKey };
 
   return {
     stationToken,

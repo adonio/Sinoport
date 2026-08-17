@@ -241,6 +241,7 @@ async function ensureStation(db: D1DatabaseLike, stationId: string, now: string)
 
 async function applyFlightBaseline(db: D1DatabaseLike, event: IntegrationEventEnvelope, now: string) {
   const payload = event.payload as Record<string, unknown>;
+  const tenantId = optionalText(payload, 'tenant_id') ?? 'sinoport-demo';
   const externalId = requiredText(payload, 'skyledger_flight_id');
   const existing = await loadLink(db, 'Flight', externalId);
   const localId = existing?.local_object_id ?? `FLT-SKY-${externalId}`;
@@ -249,6 +250,12 @@ async function applyFlightBaseline(db: D1DatabaseLike, event: IntegrationEventEn
   const flightDate = requiredText(payload, 'flight_date');
   const origin = requiredText(payload, 'origin_code');
   const destination = requiredText(payload, 'destination_code');
+  const existingScope = await db.prepare(
+    `SELECT tenant_id, station_id FROM v14_flight_tenant_scopes WHERE flight_id = ?`
+  ).bind(localId).first<{ tenant_id: string; station_id: string }>();
+  if (existingScope && (existingScope.tenant_id !== tenantId || existingScope.station_id !== stationId)) {
+    throw new IntegrationSyncError(409, 'FLIGHT_SCOPE_MISMATCH', 'Flight is already owned by another tenant or station');
+  }
   await ensureStation(db, stationId, now);
   await db
     .prepare(
@@ -290,6 +297,12 @@ async function applyFlightBaseline(db: D1DatabaseLike, event: IntegrationEventEn
       now
     )
     .run();
+  await db.prepare(
+    `INSERT INTO v14_flight_tenant_scopes (
+       flight_id, tenant_id, station_id, source_type, source_ref, created_by, created_at
+     ) VALUES (?, ?, ?, 'SKYLEDGER_SYNC', ?, 'skyledger-integration', ?)
+     ON CONFLICT(flight_id) DO NOTHING`
+  ).bind(localId, tenantId, stationId, event.event_id, now).run();
   await upsertLink(db, {
     objectType: 'Flight',
     localObjectId: localId,
@@ -336,6 +349,7 @@ async function applyFlightSchedule(db: D1DatabaseLike, event: IntegrationEventEn
 
 async function applyAwbBaseline(db: D1DatabaseLike, event: IntegrationEventEnvelope, now: string) {
   const payload = event.payload as Record<string, unknown>;
+  const tenantId = optionalText(payload, 'tenant_id') ?? 'sinoport-demo';
   const externalAwbId = requiredText(payload, 'skyledger_awb_id');
   const awbNo = requiredText(payload, 'awb_no');
   const existing = await loadLink(db, 'Awb', externalAwbId);
@@ -346,6 +360,20 @@ async function applyAwbBaseline(db: D1DatabaseLike, event: IntegrationEventEnvel
   const stationId = optionalText(payload, 'station_id') ?? 'TAS';
   const flightExternalId = optionalText(payload, 'skyledger_flight_id');
   const flightLink = flightExternalId ? await loadLink(db, 'Flight', flightExternalId) : null;
+  const existingIntake = await db.prepare(
+    `SELECT tenant_id, control_station_id FROM v14_awb_intakes WHERE awb_id = ?`
+  ).bind(localAwbId).first<{ tenant_id: string; control_station_id: string }>();
+  if (existingIntake && (existingIntake.tenant_id !== tenantId || existingIntake.control_station_id !== stationId)) {
+    throw new IntegrationSyncError(409, 'AWB_SCOPE_MISMATCH', 'AWB is already owned by another tenant or station');
+  }
+  if (flightLink) {
+    const flightScope = await db.prepare(
+      `SELECT tenant_id, station_id FROM v14_flight_tenant_scopes WHERE flight_id = ?`
+    ).bind(flightLink.local_object_id).first<{ tenant_id: string; station_id: string }>();
+    if (!flightScope || flightScope.tenant_id !== tenantId || flightScope.station_id !== stationId) {
+      throw new IntegrationSyncError(409, 'FLIGHT_SCOPE_MISMATCH', 'AWB flight must belong to the same tenant and station');
+    }
+  }
   await ensureStation(db, stationId, now);
   await db
     .prepare(
@@ -396,6 +424,19 @@ async function applyAwbBaseline(db: D1DatabaseLike, event: IntegrationEventEnvel
       now
     )
     .run();
+  if (flightLink) {
+    await db.prepare(
+      `INSERT INTO v14_awb_intakes (
+         awb_intake_id, tenant_id, control_station_id, origin_execution_station_id,
+         shipment_id, awb_id, flight_id, source_type, source_ref, created_by, created_at
+       ) VALUES (?, ?, ?, 'SZX', ?, ?, ?, 'SKYLEDGER_SYNC', ?, 'skyledger-integration', ?)
+       ON CONFLICT(tenant_id, awb_id) DO UPDATE SET
+         shipment_id = excluded.shipment_id, flight_id = excluded.flight_id, source_ref = excluded.source_ref`
+    ).bind(
+      `INTAKE-SKY-${externalAwbId}`, tenantId, stationId, shipmentId, localAwbId,
+      flightLink.local_object_id, event.event_id, now
+    ).run();
+  }
   await upsertLink(db, {
     objectType: 'Shipment', localObjectId: shipmentId, externalObjectId: shipmentExternalId,
     naturalKey: optionalText(payload, 'order_id'), sequence: event.aggregate_sequence, eventId: event.event_id, now
@@ -438,7 +479,7 @@ async function applyTruckAssignment(db: D1DatabaseLike, event: IntegrationEventE
     )
     .bind(
       localJobId,
-      optionalText(payload, 'tenant_id') ?? 'sinoport-v14',
+      optionalText(payload, 'tenant_id') ?? 'sinoport-demo',
       stationId,
       shipmentLink.local_object_id,
       flightLink?.local_object_id ?? null,
@@ -494,7 +535,7 @@ async function applyTruckLocation(db: D1DatabaseLike, event: IntegrationEventEnv
     )
     .bind(
       eventId,
-      optionalText(payload, 'tenant_id') ?? 'sinoport-v14',
+      optionalText(payload, 'tenant_id') ?? 'sinoport-demo',
       jobLink.local_object_id,
       optionalText(payload, 'provider_code') ?? 'SKYLEDGER',
       sourceEventId,
