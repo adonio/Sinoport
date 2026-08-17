@@ -766,6 +766,29 @@ async function upsertFlight(db: ImportDb, flight: NormalizedFlight, stationId: s
   };
 }
 
+async function claimV14FlightScope(
+  db: ImportDb,
+  actor: AuthActor,
+  flight: NormalizedFlight,
+  stationId: string,
+  requestId: string
+) {
+  const existing = await selectOne<{ tenant_id: string; station_id: string }>(
+    db,
+    `SELECT tenant_id, station_id FROM v14_flight_tenant_scopes WHERE flight_id = ?`,
+    [flight.flightId]
+  );
+  if (existing && (existing.tenant_id !== actor.tenantId || existing.station_id !== stationId)) {
+    throw new InboundBundleImportError('FLIGHT_SCOPE_MISMATCH', 'Flight is already owned by another tenant or station');
+  }
+  await db.prepare(
+    `INSERT INTO v14_flight_tenant_scopes (
+       flight_id, tenant_id, station_id, source_type, source_ref, created_by, created_at
+     ) VALUES (?, ?, ?, 'STATION_BUNDLE_IMPORT', ?, ?, ?)
+     ON CONFLICT(flight_id) DO NOTHING`
+  ).bind(flight.flightId, actor.tenantId, stationId, requestId, actor.userId, nowIso()).run();
+}
+
 async function upsertShipment(db: ImportDb, shipment: NormalizedShipment): Promise<ImportTableCounts> {
   const existing = await selectOne<ShipmentRow>(db, `SELECT * FROM shipments WHERE shipment_id = ? LIMIT 1`, [shipment.shipmentId]);
   const now = nowIso();
@@ -903,6 +926,43 @@ async function upsertAwb(db: ImportDb, awb: NormalizedAwb): Promise<ImportTableC
     created: existing ? 0 : 1,
     updated: existing ? 1 : 0
   };
+}
+
+async function claimV14AwbIntake(db: ImportDb, actor: AuthActor, awb: NormalizedAwb, requestId: string) {
+  const storedAwb = await selectOne<{ awb_id: string; shipment_id: string; flight_id: string | null; station_id: string }>(
+    db,
+    `SELECT awb_id, shipment_id, flight_id, station_id FROM awbs WHERE awb_no = ? AND deleted_at IS NULL LIMIT 1`,
+    [awb.awbNo]
+  );
+  if (!storedAwb?.flight_id) {
+    throw new InboundBundleImportError('FLIGHT_REQUIRED', 'Imported AWB must reference a flight', { awb_no: awb.awbNo });
+  }
+  const existing = await selectOne<{ tenant_id: string; control_station_id: string }>(
+    db,
+    `SELECT tenant_id, control_station_id FROM v14_awb_intakes WHERE awb_id = ?`,
+    [storedAwb.awb_id]
+  );
+  if (existing && (existing.tenant_id !== actor.tenantId || existing.control_station_id !== storedAwb.station_id)) {
+    throw new InboundBundleImportError('AWB_SCOPE_MISMATCH', 'AWB is already owned by another tenant or station', { awb_no: awb.awbNo });
+  }
+  await db.prepare(
+    `INSERT INTO v14_awb_intakes (
+       awb_intake_id, tenant_id, control_station_id, origin_execution_station_id,
+       shipment_id, awb_id, flight_id, source_type, source_ref, created_by, created_at
+     ) VALUES (?, ?, ?, 'SZX', ?, ?, ?, 'STATION_BUNDLE_IMPORT', ?, ?, ?)
+     ON CONFLICT(tenant_id, awb_id) DO UPDATE SET
+       shipment_id = excluded.shipment_id, flight_id = excluded.flight_id, source_ref = excluded.source_ref`
+  ).bind(
+    `INTAKE-IMPORT-${storedAwb.awb_id}`,
+    actor.tenantId,
+    storedAwb.station_id,
+    storedAwb.shipment_id,
+    storedAwb.awb_id,
+    storedAwb.flight_id,
+    requestId,
+    actor.userId,
+    nowIso()
+  ).run();
 }
 
 async function upsertTask(db: ImportDb, task: NormalizedTask): Promise<ImportTableCounts> {
@@ -1206,6 +1266,7 @@ export async function importInboundBundle(db: ImportDb, actor: AuthActor, rawInp
     await runInTransaction(db, async (tx) => {
       counts.station = await upsertStation(tx, normalized.station);
       counts.flight = await upsertFlight(tx, normalized.flight, normalized.station.stationId);
+      await claimV14FlightScope(tx, actor, normalized.flight, normalized.station.stationId, normalized.requestId);
 
       for (const shipment of normalized.shipments) {
         const shipmentResult = await upsertShipment(tx, shipment);
@@ -1217,6 +1278,7 @@ export async function importInboundBundle(db: ImportDb, actor: AuthActor, rawInp
 
       for (const awb of normalized.awbs) {
         const awbResult = await upsertAwb(tx, awb);
+        await claimV14AwbIntake(tx, actor, awb, normalized.requestId);
         counts.awbs = {
           created: counts.awbs.created + awbResult.created,
           updated: counts.awbs.updated + awbResult.updated

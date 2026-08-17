@@ -39,6 +39,7 @@ export function registerV14TransportRoutes(app: ApiApp, requireRoles: RequireRol
   app.get('/api/v1/transport-jobs', requireRoles(viewRoles), async (c) => {
     try {
       const db = requireV14Db(c.env);
+      const actor = c.var.actor;
       const status = String(c.req.query('status') ?? '').trim();
       const shipmentId = String(c.req.query('shipment_id') ?? '').trim();
       const rows = await db
@@ -48,10 +49,10 @@ export function registerV14TransportRoutes(app: ApiApp, requireRoles: RequireRol
                    WHERE v.transport_job_id = j.transport_job_id AND v.active_flag = 1
                    ORDER BY v.snapshot_version DESC LIMIT 1) AS vehicle_plate
            FROM transport_jobs j JOIN route_templates r ON r.route_template_id = j.route_template_id
-           WHERE (? = '' OR j.status = ?) AND (? = '' OR j.shipment_id = ?)
+           WHERE j.tenant_id = ? AND (? = '' OR j.status = ?) AND (? = '' OR j.shipment_id = ?)
            ORDER BY j.updated_at DESC LIMIT 100`
         )
-        .bind(status, status, shipmentId, shipmentId)
+        .bind(actor.tenantId, status, status, shipmentId, shipmentId)
         .all();
       return response(c, { items: rows.results, total: rows.results.length });
     } catch (error) {
@@ -68,10 +69,31 @@ export function registerV14TransportRoutes(app: ApiApp, requireRoles: RequireRol
       const duplicate = await findOperationByIdempotency(db, actor.tenantId, idem);
       if (duplicate) return response(c, { transport_job_id: duplicate.aggregate_id, duplicate: true });
       const shipmentId = requiredText(body, 'shipment_id');
-      const shipment = await loadRequired<{ station_id: string }>(
-        db, `SELECT station_id FROM shipments WHERE shipment_id = ?`, [shipmentId],
+      const shipment = await loadRequired<{ station_id: string; flight_id: string }>(
+        db,
+        `SELECT s.station_id, i.flight_id
+         FROM shipments s
+         JOIN v14_awb_intakes i ON i.shipment_id = s.shipment_id
+         WHERE s.shipment_id = ? AND i.tenant_id = ? AND i.origin_execution_station_id = 'SZX'`,
+        [shipmentId, actor.tenantId],
         'SHIPMENT_NOT_FOUND', 'Shipment was not found'
       );
+      const approvedReceipt = await db.prepare(
+        `SELECT receipt_session_id FROM warehouse_receipt_sessions
+         WHERE tenant_id = ? AND shipment_id = ? AND status = 'APPROVED'
+         ORDER BY approved_at DESC LIMIT 1`
+      ).bind(actor.tenantId, shipmentId).first<{ receipt_session_id: string }>();
+      if (!approvedReceipt) {
+        throw new V14OperationError(409, 'PREWAREHOUSE_APPROVAL_REQUIRED', 'Approved SZX pre-warehouse receipt is required');
+      }
+      const activeJob = await db.prepare(
+        `SELECT transport_job_id, status FROM transport_jobs
+         WHERE tenant_id = ? AND shipment_id = ? AND status <> 'CANCELLED'
+         ORDER BY updated_at DESC LIMIT 1`
+      ).bind(actor.tenantId, shipmentId).first<{ transport_job_id: string; status: string }>();
+      if (activeJob) {
+        throw new V14OperationError(409, 'TRANSPORT_JOB_ALREADY_EXISTS', 'An active transport job already exists', activeJob);
+      }
       const routeCode = optionalText(body, 'route_template_code') ?? 'SZX_ALASHANKOU_DOSTYK_TAS_LGG_V2';
       const route = await loadRequired<{
         route_template_id: string; version_no: number; status: string;
@@ -93,7 +115,14 @@ export function registerV14TransportRoutes(app: ApiApp, requireRoles: RequireRol
       }
       const jobId = `TRJ-${crypto.randomUUID()}`;
       const now = new Date().toISOString();
-      const stationId = optionalText(body, 'station_id') ?? shipment.station_id ?? 'SZX';
+      const stationId = String(optionalText(body, 'station_id') ?? 'SZX').toUpperCase();
+      if (stationId !== 'SZX') {
+        throw new V14OperationError(409, 'ORIGIN_EXECUTION_STATION_MISMATCH', 'V1.4 transport job must originate at SZX');
+      }
+      const requestedFlightId = optionalText(body, 'flight_id') ?? shipment.flight_id;
+      if (requestedFlightId !== shipment.flight_id) {
+        throw new V14OperationError(409, 'FLIGHT_SCOPE_MISMATCH', 'Transport job flight must match the AWB intake flight');
+      }
       await db
         .prepare(
           `INSERT INTO transport_jobs (
@@ -105,7 +134,7 @@ export function registerV14TransportRoutes(app: ApiApp, requireRoles: RequireRol
            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PLANNED', 'UNKNOWN', 'A1', ?, ?, ?, ?, ?, ?)`
         )
         .bind(
-          jobId, actor.tenantId, stationId, shipmentId, optionalText(body, 'flight_id'),
+          jobId, actor.tenantId, stationId, shipmentId, requestedFlightId,
           JSON.stringify(stringArray(body, 'awb_ids')),
           optionalText(body, 'origin_facility_id') ?? 'SZX_PREWAREHOUSE',
           optionalText(body, 'destination_facility_id') ?? 'TAS_AIRPORT_STAGING',
@@ -135,7 +164,7 @@ export function registerV14TransportRoutes(app: ApiApp, requireRoles: RequireRol
       }
       await appendOperationEvent(db, actor, {
         aggregateType: 'TransportJob', aggregateId: jobId, eventType: 'TRANSPORT_JOB_CREATED',
-        idempotencyKey: idem, stationId, shipmentId, flightId: optionalText(body, 'flight_id'),
+        idempotencyKey: idem, stationId, shipmentId, flightId: requestedFlightId,
         payload: { route_template_code: routeCode, route_template_version: route.version_no }
       });
       return response(c, { transport_job_id: jobId, status: 'PLANNED', checkpoint_count: templates.results.length, duplicate: false }, 201);

@@ -35,6 +35,7 @@ const pageChecks = [
   { path: '/platform/occ-control', text: '新建运行计划' },
   { path: '/station/v14-execution', text: '跨境前段执行中心' },
   { path: '/station/tas', text: 'TAS 站点管理' },
+  { path: '/station/tas/outbound', text: 'TAS–LGG 独立出港作业' },
   { path: '/station/users', text: '货站用户与权限' },
   { path: '/mobile/pre-warehouse', text: '前置仓逐件清点' },
   { path: '/mobile/headhaul', text: '卡车节点持续跟踪' },

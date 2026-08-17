@@ -6,7 +6,9 @@ const secret = process.env.SINO_SKY_INTEGRATION_SECRET || 'sinoport-skyledger-lo
 const runId = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 const skyledgerFixture = process.env.SKYLEDGER_FIXTURE_JSON ? JSON.parse(process.env.SKYLEDGER_FIXTURE_JSON) : null;
 const manualStop = process.env.TAS_MANUAL_STOP || '';
-const tenantId = ['upstream', 'planning'].includes(manualStop) ? 'sinoport-demo' : `sinoport-v14-smoke-${runId}`;
+const tenantId = skyledgerFixture || ['upstream', 'planning'].includes(manualStop)
+  ? 'sinoport-demo'
+  : `sinoport-v14-smoke-${runId}`;
 const adminHeaders = {
   Authorization: 'Bearer demo-token',
   'Content-Type': 'application/json',
@@ -29,6 +31,23 @@ const tasMobileHeaders = {
 const outOfScopeMobileHeaders = {
   ...tasMobileHeaders,
   'X-Debug-User-Id': 'smoke-out-of-scope-mobile',
+  'X-Debug-Station-Scope': 'MME'
+};
+const intakeHeaders = {
+  ...adminHeaders,
+  'X-Debug-User-Id': 'smoke-document-desk',
+  'X-Debug-Roles': 'document_desk',
+  'X-Debug-Station-Scope': 'TAS'
+};
+const intakeOutOfScopeHeaders = {
+  ...intakeHeaders,
+  'X-Debug-User-Id': 'smoke-document-desk-mme',
+  'X-Debug-Station-Scope': 'MME'
+};
+const platformAdminMmeHeaders = {
+  ...intakeHeaders,
+  'X-Debug-User-Id': 'smoke-platform-admin-mme',
+  'X-Debug-Roles': 'platform_admin',
   'X-Debug-Station-Scope': 'MME'
 };
 
@@ -96,6 +115,7 @@ const transportFlightId = process.env.TAS_TARGET_FLIGHT_ID || flightId;
 const shipmentId = `SHP-SKY-${externalShipmentId}`;
 
 const flightPayload = {
+  tenant_id: tenantId,
   skyledger_flight_id: externalFlightId,
   station_id: 'TAS',
   flight_no: `SP${String(Date.now()).slice(-4)}`,
@@ -125,6 +145,7 @@ if (!skyledgerFixture) {
   });
 
   await signedSkyledgerEvent('awb.baseline_upserted.v1', 'Awb', externalAwbId, 1, {
+    tenant_id: tenantId,
     skyledger_awb_id: externalAwbId,
     skyledger_shipment_id: externalShipmentId,
     skyledger_flight_id: externalFlightId,
@@ -436,6 +457,18 @@ const tasHandover = await api(`/api/v1/airports/TAS/flights/${tasHandlingId}/han
   }
 });
 assert.equal(tasHandover.json.result, 'HANDED_TO_AIRLINE');
+
+const tasLoadBeforeUld = await api(`/api/v1/airports/TAS/flights/${tasHandlingId}/loading/complete`, {
+  method: 'POST', idem: 'tas-aircraft-loaded-too-early', headers: supervisorHeaders, expected: [409],
+  body: { occurred_at: new Date().toISOString(), evidence_ids: ['EV-TAS-LOAD-CONFIRMATION'] }
+});
+assert.equal(tasLoadBeforeUld.json.error.code, 'TAS_ULD_LOADING_INCOMPLETE');
+
+const tasUldLoaded = await api(`/api/v1/airports/TAS/flights/${tasHandlingId}/loading/ulds/${tasUldId}/confirm`, {
+  method: 'POST', idem: 'tas-uld-loaded', headers: tasMobileHeaders,
+  body: { position_code: '11P', evidence_ids: ['EV-TAS-ULD-LOAD'] }
+});
+assert.equal(tasUldLoaded.json.result, 'LOADED');
 
 const tasLoaded = await api(`/api/v1/airports/TAS/flights/${tasHandlingId}/loading/complete`, {
   method: 'POST', idem: 'tas-aircraft-loaded', headers: supervisorHeaders,

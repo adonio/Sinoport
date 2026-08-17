@@ -103,6 +103,7 @@ export function registerV14BorderRoutes(app: ApiApp, requireRoles: RequireRoles)
   app.get('/api/v1/border-operations', requireRoles(viewRoles), async (c) => {
     try {
       const db = requireV14Db(c.env);
+      const actor = c.var.actor;
       const status = String(c.req.query('status') ?? '').trim();
       const rows = await db
         .prepare(
@@ -111,9 +112,10 @@ export function registerV14BorderRoutes(app: ApiApp, requireRoles: RequireRoles)
            FROM border_operations b
            JOIN transport_jobs j ON j.transport_job_id = b.transport_job_id
            LEFT JOIN port_service_calendars c ON c.calendar_id = b.port_service_calendar_id
-           WHERE (? = '' OR b.status = ?) ORDER BY b.updated_at DESC LIMIT 100`
+           WHERE b.tenant_id = ? AND j.tenant_id = ? AND (? = '' OR b.status = ?)
+           ORDER BY b.updated_at DESC LIMIT 100`
         )
-        .bind(status, status).all();
+        .bind(actor.tenantId, actor.tenantId, status, status).all();
       return response(c, { items: rows.results, total: rows.results.length });
     } catch (error) { return handleError(c, error); }
   });
@@ -134,13 +136,16 @@ export function registerV14BorderRoutes(app: ApiApp, requireRoles: RequireRoles)
         db,
         `SELECT j.shipment_id, j.station_id, j.flight_id, j.route_template_id, j.status, r.route_template_code
          FROM transport_jobs j JOIN route_templates r ON r.route_template_id = j.route_template_id
-         WHERE j.transport_job_id = ?`,
-        [jobId], 'TRANSPORT_JOB_NOT_FOUND', 'Transport job was not found'
+         WHERE j.tenant_id = ? AND j.transport_job_id = ?`,
+        [actor.tenantId, jobId], 'TRANSPORT_JOB_NOT_FOUND', 'Transport job was not found'
       );
       if (job.route_template_code !== 'SZX_ALASHANKOU_DOSTYK_TAS_LGG_V2') {
         throw new V14OperationError(409, 'ALTERNATE_ROUTE_TEMPLATE_REQUIRED', 'Border operations require the approved Alashankou-Dostyk V2 template');
       }
-      const existing = await db.prepare(`SELECT border_operation_id FROM border_operations WHERE transport_job_id = ? AND status <> 'CANCELLED'`).bind(jobId).first<{ border_operation_id: string }>();
+      const existing = await db.prepare(
+        `SELECT border_operation_id FROM border_operations
+         WHERE tenant_id = ? AND transport_job_id = ? AND status <> 'CANCELLED'`
+      ).bind(actor.tenantId, jobId).first<{ border_operation_id: string }>();
       if (existing) throw new V14OperationError(409, 'BORDER_OPERATION_ALREADY_EXISTS', 'An active border operation already exists', existing);
       const calendar = await db
         .prepare(`SELECT calendar_id, status FROM port_service_calendars WHERE port_pair_code = 'ALASHANKOU_DOSTYK' ORDER BY version_no DESC LIMIT 1`)

@@ -289,8 +289,9 @@ export default function TasStationManagementPage() {
           chips={['TAS 收货 Gate', 'ULD 逐件装载', 'Manifest 数据冻结', 'OCC 自动投影']}
           action={
             <Stack direction="row" sx={{ gap: 1 }}>
+              <Button component={RouterLink} to="/station/tas/outbound" variant="contained">{m('TAS–LGG 出港作业')}</Button>
               <Button component={RouterLink} to="/mobile/tas" variant="outlined">{m('打开 TAS PDA')}</Button>
-              <Button component={RouterLink} to="/platform/occ-control" variant="contained">{m('查看 OCC')}</Button>
+              <Button component={RouterLink} to="/platform/occ-control" variant="outlined">{m('查看 OCC')}</Button>
             </Stack>
           }
         />

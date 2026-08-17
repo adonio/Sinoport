@@ -162,14 +162,18 @@ async function releasedCargoSummary(db: any, tenantId: string, flightId: string)
       `SELECT COALESCE(SUM(u.aggregate_quantity), 0) AS pieces,
               COALESCE(SUM(COALESCE(u.actual_weight_kg, u.expected_weight_kg, 0)), 0) AS weight_kg
        FROM cargo_units u
-       WHERE u.tenant_id = ? AND u.inventory_state = 'RELEASED' AND u.archived_at IS NULL
-         AND EXISTS (
-           SELECT 1 FROM airport_receipt_sessions r
-           WHERE r.tenant_id = ? AND r.flight_id = ? AND r.shipment_id = u.shipment_id
-             AND r.status IN ('ACCEPTED', 'CONDITIONAL_ACCEPTED', 'COMPLETED')
+       LEFT JOIN awbs a ON a.awb_id = u.awb_id
+       WHERE u.tenant_id = ? AND u.inventory_state = 'RELEASED'
+         AND u.archived_at IS NULL AND (a.awb_id IS NULL OR a.deleted_at IS NULL)
+         AND (
+           a.flight_id = ? OR EXISTS (
+             SELECT 1 FROM airport_receipt_sessions r
+             WHERE r.tenant_id = ? AND r.flight_id = ? AND r.shipment_id = u.shipment_id
+               AND r.status IN ('ACCEPTED', 'CONDITIONAL_ACCEPTED', 'COMPLETED')
+           )
          )`
     )
-    .bind(tenantId, tenantId, flightId)
+    .bind(tenantId, flightId, tenantId, flightId)
     .first() as { pieces: number; weight_kg: number } | null;
   return { pieces: Number(row?.pieces ?? 0), weight_kg: Number(row?.weight_kg ?? 0) };
 }
@@ -180,10 +184,19 @@ async function assignedCargoSummary(db: any, handlingId: string) {
       `SELECT COALESCE(SUM(piece_count), 0) AS pieces,
               COALESCE(SUM(COALESCE(weight_kg, 0)), 0) AS weight_kg,
               COUNT(*) AS unit_count
-       FROM tas_uld_items
-       WHERE tas_flight_handling_session_id = ? AND removed_at IS NULL AND status IN ('ASSIGNED', 'LOADED')`
+       FROM (
+         SELECT piece_count, weight_kg
+         FROM tas_uld_items
+         WHERE tas_flight_handling_session_id = ? AND removed_at IS NULL
+           AND status IN ('ASSIGNED', 'LOADED')
+         UNION ALL
+         SELECT piece_count, weight_kg
+         FROM tas_bulk_load_items
+         WHERE tas_flight_handling_session_id = ? AND removed_at IS NULL
+           AND status IN ('ASSIGNED', 'HANDED_TO_AIRLINE', 'LOADED')
+       ) assigned`
     )
-    .bind(handlingId)
+    .bind(handlingId, handlingId)
     .first() as { pieces: number; weight_kg: number; unit_count: number } | null;
   return {
     pieces: Number(row?.pieces ?? 0),
@@ -231,6 +244,12 @@ async function activeUlds(db: any, handlingId: string) {
 async function syncCargoMaster(db: any, actor: any, handling: HandlingContext, status: string) {
   if (!handling.operation_control_plan_id) return null;
   const ulds = await activeUlds(db, handling.tas_flight_handling_session_id);
+  const bulkRows = await db.prepare(
+    `SELECT tas_bulk_load_item_id, cargo_unit_id, awb_id, position_code, piece_count, weight_kg, status
+     FROM tas_bulk_load_items
+     WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL
+     ORDER BY assigned_at`
+  ).bind(actor.tenantId, handling.tas_flight_handling_session_id).all() as { results: Array<Record<string, unknown>> };
   const summary = await assignedCargoSummary(db, handling.tas_flight_handling_session_id);
   const snapshot = {
     flight_id: handling.flight_id,
@@ -246,7 +265,8 @@ async function syncCargoMaster(db: any, actor: any, handling: HandlingContext, s
       pieces: item.piece_count,
       weight_kg: item.actual_gross_weight_kg,
       status: item.status
-    }))
+    })),
+    bulk: bulkRows.results
   };
   const hash = await sha256Json(snapshot);
   const existing = await db
@@ -333,10 +353,14 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
         db.prepare(
           `SELECT COUNT(*) AS total,
                   SUM(CASE WHEN status IN ('ARRIVED_STAGING','TRUCK_ARRIVED','UNLOADING','COUNTING','MATCHED','RECONCILIATION_PENDING') THEN 1 ELSE 0 END) AS pending,
-                  SUM(CASE WHEN status = 'DISCREPANCY_REVIEW' THEN 1 ELSE 0 END) AS discrepancies,
+                  SUM(CASE WHEN status IN ('DISCREPANCY_REVIEW','BLOCKED') THEN 1 ELSE 0 END) AS discrepancies,
                   SUM(CASE WHEN status IN ('ACCEPTED','CONDITIONAL_ACCEPTED','COMPLETED') THEN 1 ELSE 0 END) AS accepted
-           FROM airport_receipt_sessions WHERE tenant_id = ?`
-        ).bind(actor.tenantId).first(),
+           FROM (
+             SELECT status FROM airport_receipt_sessions WHERE tenant_id = ?
+             UNION ALL
+             SELECT status FROM tas_direct_receipt_sessions WHERE tenant_id = ?
+           ) receipt_statuses`
+        ).bind(actor.tenantId, actor.tenantId).first(),
         db.prepare(
           `SELECT COUNT(*) AS total,
                   SUM(CASE WHEN status NOT IN ('DEPARTED','CANCELLED') AND archived_at IS NULL THEN 1 ELSE 0 END) AS active,
@@ -385,13 +409,19 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
                   f.flight_no, f.flight_date, f.etd_at, f.aircraft_type, f.runtime_status,
                   p.operation_control_plan_id,
                   h.tas_flight_handling_session_id, h.status AS handling_status,
-                  COALESCE(SUM(CASE WHEN r.status IN ('ACCEPTED','CONDITIONAL_ACCEPTED','COMPLETED') THEN r.airport_received_pieces ELSE 0 END), 0) AS accepted_pieces
-           FROM operation_control_plans p
-           JOIN flights f ON f.flight_id = p.flight_id
-           LEFT JOIN tas_flight_handling_sessions h ON h.tenant_id = p.tenant_id AND h.flight_id = p.flight_id
-           LEFT JOIN airport_receipt_sessions r ON r.tenant_id = p.tenant_id AND r.flight_id = p.flight_id
-           WHERE p.tenant_id = ? AND f.origin_code = 'TAS' AND f.destination_code = 'LGG'
-             AND p.status NOT IN ('CANCELLED','CLOSED')
+                  COALESCE(SUM(CASE WHEN r.status IN ('ACCEPTED','CONDITIONAL_ACCEPTED','COMPLETED') THEN r.airport_received_pieces ELSE 0 END), 0)
+                    + COALESCE((SELECT SUM(l.received_pieces)
+                                FROM tas_direct_receipt_lines l
+                                JOIN tas_direct_receipt_sessions dr ON dr.tas_direct_receipt_session_id = l.tas_direct_receipt_session_id
+                                WHERE dr.tenant_id = fs.tenant_id AND dr.flight_id = f.flight_id
+                                  AND dr.status IN ('ACCEPTED','CONDITIONAL_ACCEPTED')), 0) AS accepted_pieces
+           FROM v14_flight_tenant_scopes fs
+           JOIN flights f ON f.flight_id = fs.flight_id
+           LEFT JOIN operation_control_plans p ON p.tenant_id = fs.tenant_id AND p.flight_id = f.flight_id
+           LEFT JOIN tas_flight_handling_sessions h ON h.tenant_id = fs.tenant_id AND h.flight_id = f.flight_id
+           LEFT JOIN airport_receipt_sessions r ON r.tenant_id = fs.tenant_id AND r.flight_id = f.flight_id
+           WHERE fs.tenant_id = ? AND f.origin_code = 'TAS' AND f.destination_code = 'LGG'
+             AND (p.operation_control_plan_id IS NULL OR p.status NOT IN ('CANCELLED','CLOSED'))
            GROUP BY f.flight_id, p.operation_control_plan_id, h.tas_flight_handling_session_id
            ORDER BY COALESCE(f.etd_at, f.flight_date) DESC LIMIT 100`
         ).bind(actor.tenantId).all()
@@ -432,7 +462,8 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
                 f.etd_at, f.actual_takeoff_at, f.runtime_status, f.aircraft_type,
                 p.operation_control_plan_id,
                 (SELECT COUNT(*) FROM tas_ulds u WHERE u.tas_flight_handling_session_id = h.tas_flight_handling_session_id AND u.archived_at IS NULL) AS uld_count,
-                (SELECT COUNT(*) FROM airport_receipt_sessions r WHERE r.tenant_id = h.tenant_id AND r.flight_id = h.flight_id) AS receipt_count
+                (SELECT COUNT(*) FROM airport_receipt_sessions r WHERE r.tenant_id = h.tenant_id AND r.flight_id = h.flight_id)
+                  + (SELECT COUNT(*) FROM tas_direct_receipt_sessions r WHERE r.tenant_id = h.tenant_id AND r.flight_id = h.flight_id) AS receipt_count
          FROM tas_flight_handling_sessions h
          JOIN flights f ON f.flight_id = h.flight_id
          LEFT JOIN operation_control_plans p ON p.tenant_id = h.tenant_id AND p.flight_id = h.flight_id
@@ -453,11 +484,13 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       const flight = await loadRequired<Record<string, any>>(
         db,
         `SELECT f.*, p.operation_control_plan_id
-         FROM flights f JOIN operation_control_plans p ON p.flight_id = f.flight_id AND p.tenant_id = ?
+         FROM flights f
+         JOIN v14_flight_tenant_scopes fs ON fs.flight_id = f.flight_id AND fs.tenant_id = ?
+         LEFT JOIN operation_control_plans p ON p.flight_id = f.flight_id AND p.tenant_id = fs.tenant_id
          WHERE f.flight_id = ?`,
         [actor.tenantId, flightId],
         'TAS_FLIGHT_NOT_FOUND',
-        'TAS-LGG flight with an operation control plan was not found'
+        'TAS-LGG flight was not found for the current tenant'
       );
       if (flight.origin_code !== 'TAS' || flight.destination_code !== 'LGG') {
         throw new V14OperationError(409, 'TAS_FLIGHT_ROUTE_INVALID', 'TAS station handling only supports TAS-LGG flights');
@@ -519,19 +552,25 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
                   a.awb_no, u.aggregate_quantity, u.actual_weight_kg, u.expected_weight_kg,
                   u.condition_status, u.inventory_state
            FROM cargo_units u LEFT JOIN awbs a ON a.awb_id = u.awb_id
-           WHERE u.tenant_id = ? AND u.inventory_state = 'RELEASED' AND u.archived_at IS NULL
-             AND EXISTS (
+           WHERE u.tenant_id = ? AND u.inventory_state = 'RELEASED'
+             AND u.archived_at IS NULL AND (a.awb_id IS NULL OR a.deleted_at IS NULL)
+             AND (a.flight_id = ? OR EXISTS (
                SELECT 1 FROM airport_receipt_sessions r
                WHERE r.tenant_id = ? AND r.flight_id = ? AND r.shipment_id = u.shipment_id
                  AND r.status IN ('ACCEPTED','CONDITIONAL_ACCEPTED','COMPLETED')
-             )
+             ))
              AND NOT EXISTS (
                SELECT 1 FROM tas_uld_items i
                WHERE i.tenant_id = u.tenant_id AND i.cargo_unit_id = u.cargo_unit_id
                  AND i.removed_at IS NULL AND i.status IN ('ASSIGNED','LOADED')
              )
+             AND NOT EXISTS (
+               SELECT 1 FROM tas_bulk_load_items b
+               WHERE b.tenant_id = u.tenant_id AND b.cargo_unit_id = u.cargo_unit_id
+                 AND b.removed_at IS NULL AND b.status IN ('ASSIGNED','HANDED_TO_AIRLINE','LOADED')
+             )
            ORDER BY a.awb_no, u.unit_sequence, u.business_barcode`
-        ).bind(actor.tenantId, actor.tenantId, handling.flight_id).all(),
+        ).bind(actor.tenantId, handling.flight_id, actor.tenantId, handling.flight_id).all(),
         handling.operation_control_plan_id
           ? db.prepare(
               `SELECT i.*, d.milestone_code, d.name_zh, d.name_en, d.sequence, d.stage_code
@@ -633,9 +672,13 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       const receiptState = await db.prepare(
         `SELECT COUNT(*) AS total,
                 SUM(CASE WHEN status IN ('ACCEPTED','CONDITIONAL_ACCEPTED','COMPLETED') THEN 1 ELSE 0 END) AS accepted,
-                SUM(CASE WHEN status NOT IN ('ACCEPTED','CONDITIONAL_ACCEPTED','REJECTED_OR_QUARANTINED','COMPLETED') THEN 1 ELSE 0 END) AS pending
-         FROM airport_receipt_sessions WHERE tenant_id = ? AND flight_id = ?`
-      ).bind(actor.tenantId, handling.flight_id).first<{ total: number; accepted: number; pending: number }>();
+                SUM(CASE WHEN status NOT IN ('ACCEPTED','CONDITIONAL_ACCEPTED','REJECTED_OR_QUARANTINED','COMPLETED','BLOCKED','CANCELLED') THEN 1 ELSE 0 END) AS pending
+         FROM (
+           SELECT status FROM airport_receipt_sessions WHERE tenant_id = ? AND flight_id = ?
+           UNION ALL
+           SELECT status FROM tas_direct_receipt_sessions WHERE tenant_id = ? AND flight_id = ?
+         ) receipts`
+      ).bind(actor.tenantId, handling.flight_id, actor.tenantId, handling.flight_id).first<{ total: number; accepted: number; pending: number }>();
       if (Number(receiptState?.total ?? 0) === 0 || Number(receiptState?.accepted ?? 0) === 0) {
         throw new V14OperationError(409, 'TAS_RECEIPT_REQUIRED', 'At least one accepted TAS receipt is required before closing receiving');
       }
@@ -762,21 +805,27 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       const unit = await loadRequired<Record<string, any>>(
         db,
         `SELECT u.* FROM cargo_units u
-         WHERE u.tenant_id = ? AND u.business_barcode = ? AND u.inventory_state = 'RELEASED' AND u.archived_at IS NULL
-           AND EXISTS (
+         LEFT JOIN awbs a ON a.awb_id = u.awb_id
+         WHERE u.tenant_id = ? AND u.business_barcode = ? AND u.inventory_state = 'RELEASED'
+           AND u.archived_at IS NULL AND (a.awb_id IS NULL OR a.deleted_at IS NULL)
+           AND (a.flight_id = ? OR EXISTS (
              SELECT 1 FROM airport_receipt_sessions r
              WHERE r.tenant_id = ? AND r.flight_id = ? AND r.shipment_id = u.shipment_id
                AND r.status IN ('ACCEPTED','CONDITIONAL_ACCEPTED','COMPLETED')
-           )`,
-        [actor.tenantId, barcode, actor.tenantId, handling.flight_id],
+           ))`,
+        [actor.tenantId, barcode, handling.flight_id, actor.tenantId, handling.flight_id],
         'TAS_CARGO_NOT_ELIGIBLE',
         'Cargo unit is not released for this TAS-LGG flight'
       );
       const alreadyAssigned = await db.prepare(
-        `SELECT tas_uld_item_id, tas_uld_id FROM tas_uld_items
-         WHERE tenant_id = ? AND cargo_unit_id = ? AND removed_at IS NULL AND status IN ('ASSIGNED','LOADED')`
-      ).bind(actor.tenantId, unit.cargo_unit_id).first() as Record<string, unknown> | null;
-      if (alreadyAssigned) throw new V14OperationError(409, 'TAS_CARGO_ALREADY_ASSIGNED', 'Cargo unit is already assigned to an active ULD', alreadyAssigned);
+        `SELECT 'ULD' AS assignment_type, tas_uld_item_id AS assignment_id FROM tas_uld_items
+         WHERE tenant_id = ? AND cargo_unit_id = ? AND removed_at IS NULL AND status IN ('ASSIGNED','LOADED')
+         UNION ALL
+         SELECT 'BULK' AS assignment_type, tas_bulk_load_item_id AS assignment_id FROM tas_bulk_load_items
+         WHERE tenant_id = ? AND cargo_unit_id = ? AND removed_at IS NULL
+           AND status IN ('ASSIGNED','HANDED_TO_AIRLINE','LOADED') LIMIT 1`
+      ).bind(actor.tenantId, unit.cargo_unit_id, actor.tenantId, unit.cargo_unit_id).first() as Record<string, unknown> | null;
+      if (alreadyAssigned) throw new V14OperationError(409, 'TAS_CARGO_ALREADY_ASSIGNED', 'Cargo unit is already assigned to an active ULD or bulk load', alreadyAssigned);
       const pieces = Number(unit.aggregate_quantity || 1);
       const weight = Number(unit.actual_weight_kg ?? unit.expected_weight_kg ?? 0);
       const projectedGross = uld.actual_gross_weight_kg + weight;
@@ -859,7 +908,7 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       const evidenceIds = requireEvidence(body, 'MILESTONE_EVIDENCE_INCOMPLETE', 'ULD build-up evidence is required');
       const summary = await assignedCargoSummary(db, handling.tas_flight_handling_session_id);
       const ulds = await activeUlds(db, handling.tas_flight_handling_session_id);
-      if (ulds.length === 0 || summary.unit_count === 0) throw new V14OperationError(409, 'TAS_ULD_REQUIRED', 'At least one populated ULD is required');
+      if (summary.unit_count === 0) throw new V14OperationError(409, 'TAS_LOAD_ASSIGNMENT_REQUIRED', 'At least one ULD or bulk cargo assignment is required');
       if (summary.pieces !== handling.received_pieces) {
         throw new V14OperationError(409, 'TAS_BUILDUP_PIECES_MISMATCH', 'All released TAS cargo must be assigned before build-up completion', {
           received_pieces: handling.received_pieces,
@@ -906,11 +955,18 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       const evidenceIds = requireEvidence(body, 'MILESTONE_EVIDENCE_INCOMPLETE', 'Manifest evidence is required');
       const manifestDocumentId = requiredText(body, 'manifest_document_id');
       const ulds = await activeUlds(db, handling.tas_flight_handling_session_id);
+      const bulk = await db.prepare(
+        `SELECT tas_bulk_load_item_id, cargo_unit_id, awb_id, position_code, piece_count, weight_kg, status
+         FROM tas_bulk_load_items
+         WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL
+         ORDER BY assigned_at`
+      ).bind(actor.tenantId, handling.tas_flight_handling_session_id).all<Record<string, unknown>>();
       const manifestHash = optionalText(body, 'manifest_hash') ?? await sha256Json({
         flight_id: handling.flight_id,
         manifest_document_id: manifestDocumentId,
         manifest_version: optionalText(body, 'manifest_version') ?? '1',
-        ulds: ulds.map((uld) => ({ code: uld.uld_code, pieces: uld.piece_count, weight: uld.actual_gross_weight_kg }))
+        ulds: ulds.map((uld) => ({ code: uld.uld_code, pieces: uld.piece_count, weight: uld.actual_gross_weight_kg })),
+        bulk: bulk.results
       });
       const occurredAt = optionalText(body, 'occurred_at') ?? new Date().toISOString();
       await db.prepare(
@@ -951,6 +1007,10 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
          WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND archived_at IS NULL`
       ).bind(JSON.stringify(evidenceIds), occurredAt, actor.tenantId, handling.tas_flight_handling_session_id).run();
       await db.prepare(
+        `UPDATE tas_bulk_load_items SET status = 'HANDED_TO_AIRLINE'
+         WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL AND status = 'ASSIGNED'`
+      ).bind(actor.tenantId, handling.tas_flight_handling_session_id).run();
+      await db.prepare(
         `UPDATE tas_flight_handling_sessions SET status = 'HANDED_TO_AIRLINE', airline_party_code = ?,
            handed_to_airline_pieces = ?, airline_handover_at = ?, handover_evidence_ids_json = ?,
            updated_by = ?, updated_at = ?, row_version = row_version + 1
@@ -980,28 +1040,24 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       if (handling.status !== 'HANDED_TO_AIRLINE') throw new V14OperationError(409, 'CHECKPOINT_OUT_OF_SEQUENCE', 'Airline handover must be completed before aircraft loading');
       const evidenceIds = requireEvidence(body, 'MILESTONE_EVIDENCE_INCOMPLETE', 'Aircraft loading evidence is required');
       const ulds = await activeUlds(db, handling.tas_flight_handling_session_id);
-      if (!ulds.length || ulds.some((uld) => uld.status !== 'HANDED_TO_AIRLINE')) throw new V14OperationError(409, 'TAS_ULD_HANDOVER_INCOMPLETE', 'All active ULDs must be handed to the airline');
+      const bulkState = await db.prepare(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN status = 'LOADED' THEN 1 ELSE 0 END) AS loaded
+         FROM tas_bulk_load_items
+         WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL`
+      ).bind(actor.tenantId, handling.tas_flight_handling_session_id).first<{ total: number; loaded: number }>();
+      if (ulds.some((uld) => uld.status !== 'LOADED')) {
+        throw new V14OperationError(409, 'TAS_ULD_LOADING_INCOMPLETE', 'Confirm every active ULD as loaded before closing aircraft loading');
+      }
+      if (Number(bulkState?.total ?? 0) !== Number(bulkState?.loaded ?? 0)) {
+        throw new V14OperationError(409, 'TAS_BULK_LOADING_INCOMPLETE', 'Confirm every bulk cargo item as loaded before closing aircraft loading');
+      }
       const summary = await assignedCargoSummary(db, handling.tas_flight_handling_session_id);
+      if (summary.unit_count === 0) throw new V14OperationError(409, 'TAS_LOAD_ASSIGNMENT_REQUIRED', 'No ULD or bulk cargo is assigned to this flight');
       if (summary.pieces !== handling.buildup_pieces || summary.pieces !== handling.handed_to_airline_pieces) {
         throw new V14OperationError(409, 'TAS_LOADING_MANIFEST_MISMATCH', 'Loaded pieces must match build-up and airline handover totals');
       }
       const occurredAt = optionalText(body, 'occurred_at') ?? new Date().toISOString();
-      await db.prepare(
-        `UPDATE tas_ulds SET status = 'LOADED', evidence_ids_json = ?, updated_at = ?, row_version = row_version + 1
-         WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND archived_at IS NULL`
-      ).bind(JSON.stringify(evidenceIds), occurredAt, actor.tenantId, handling.tas_flight_handling_session_id).run();
-      await db.prepare(
-        `UPDATE tas_uld_items SET status = 'LOADED', loaded_at = ?
-         WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL AND status = 'ASSIGNED'`
-      ).bind(occurredAt, actor.tenantId, handling.tas_flight_handling_session_id).run();
-      await db.prepare(
-        `UPDATE cargo_units SET inventory_state = 'LOADED', current_location_type = 'AIRCRAFT',
-           current_location_id = ?, updated_at = ?
-         WHERE tenant_id = ? AND cargo_unit_id IN (
-           SELECT cargo_unit_id FROM tas_uld_items
-           WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL
-         )`
-      ).bind(handling.flight_id, occurredAt, actor.tenantId, actor.tenantId, handling.tas_flight_handling_session_id).run();
       await db.prepare(
         `UPDATE tas_flight_handling_sessions SET status = 'LOADED', loaded_pieces = ?,
            loading_completed_at = ?, loading_evidence_ids_json = ?, updated_by = ?, updated_at = ?, row_version = row_version + 1
@@ -1035,8 +1091,11 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
       const requestedBy = requiredText(body, 'requested_by');
       const cargoUnitRows = await db.prepare(
         `SELECT cargo_unit_id FROM tas_uld_items
+         WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL AND status = 'LOADED'
+         UNION ALL
+         SELECT cargo_unit_id FROM tas_bulk_load_items
          WHERE tenant_id = ? AND tas_flight_handling_session_id = ? AND removed_at IS NULL AND status = 'LOADED'`
-      ).bind(actor.tenantId, handling.tas_flight_handling_session_id).all<{ cargo_unit_id: string }>();
+      ).bind(actor.tenantId, handling.tas_flight_handling_session_id, actor.tenantId, handling.tas_flight_handling_session_id).all<{ cargo_unit_id: string }>();
       const gateId = await createGateDecision(db, actor, {
         gateCode: 'TAS_FLIGHT_DEPARTURE_GATE', objectType: 'TasFlightHandlingSession',
         objectId: handling.tas_flight_handling_session_id, decision: 'PASS',
@@ -1063,6 +1122,10 @@ export function registerV14TasFlightRoutes(app: ApiApp, requireRoles: RequireRol
         `UPDATE airport_receipt_sessions SET status = 'COMPLETED', updated_at = ?, row_version = row_version + 1
          WHERE tenant_id = ? AND flight_id = ? AND status IN ('ACCEPTED','CONDITIONAL_ACCEPTED')`
       ).bind(occurredAt, actor.tenantId, handling.flight_id).run();
+      await db.prepare(
+        `UPDATE tas_direct_receipt_sessions SET status = 'COMPLETED', updated_by = ?, updated_at = ?, row_version = row_version + 1
+         WHERE tenant_id = ? AND flight_id = ? AND status IN ('ACCEPTED','CONDITIONAL_ACCEPTED')`
+      ).bind(actor.userId, occurredAt, actor.tenantId, handling.flight_id).run();
       await db.prepare(
         `UPDATE transport_jobs SET status = 'COMPLETED', updated_at = ?, row_version = row_version + 1
          WHERE tenant_id = ? AND flight_id = ? AND status = 'DELIVERED_TO_AIRPORT'`

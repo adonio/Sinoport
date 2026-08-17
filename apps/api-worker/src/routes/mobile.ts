@@ -1,7 +1,17 @@
 import type { MiddlewareHandler } from 'hono';
 import type { RoleCode } from '@sinoport/contracts';
 import type { StationServices } from '@sinoport/domain';
-import { allowLocalOnlyAuth, mapMobileRoleKeyToRoleCodes, resolveAuthTokenSecret, signAuthToken, verifyPasswordHash } from '@sinoport/auth';
+import {
+  allowLocalOnlyAuth,
+  canUseMobileRoleKey,
+  inferMobileRoleKey,
+  isMobileRoleKey,
+  mapMobileRoleKeyToRoleCodes,
+  PolicyDeniedError,
+  resolveAuthTokenSecret,
+  signAuthToken,
+  verifyPasswordHash
+} from '@sinoport/auth';
 import { handleServiceError, jsonError } from '../lib/http';
 import { normalizeStationListQuery } from '../lib/policy';
 import type { ApiApp } from '../index';
@@ -26,6 +36,22 @@ const mobileLoginRoleOptions = [
   { value: 'document_clerk', label: '单证文员' },
   { value: 'driver', label: '司机 / 车队协调' },
   { value: 'delivery_clerk', label: '交付岗' }
+];
+
+const mobileSelectRoles: RoleCode[] = [
+  'platform_admin',
+  'mobile_operator',
+  'station_supervisor',
+  'document_desk',
+  'check_worker',
+  'delivery_desk',
+  'inbound_operator',
+  'TAS_OPERATOR',
+  'B1_TAS_STATION_CONTROLLER',
+  'DQC_DATA_QUALITY_CONTROLLER',
+  'TRUCK_OPERATOR',
+  'A2_DOMESTIC_TRUCK_CONTROLLER',
+  'A3_CROSS_BORDER_CONTROLLER'
 ];
 
 const mobileRoleViews = {
@@ -1190,7 +1216,7 @@ async function authenticateMobileUser(c: any, body: any) {
     throw new Error('PASSWORD_CHANGE_REQUIRED');
   }
 
-  const requestedRoleIds = mapMobileRoleKeyToRoleCodes(body.roleKey || body.role_key || 'receiver');
+  const requestedRoleKey = String(body.roleKey || body.role_key || 'receiver').trim();
   const roleRows = (await c.env.DB?.prepare(
     `
       SELECT role_code
@@ -1203,10 +1229,13 @@ async function authenticateMobileUser(c: any, body: any) {
     .bind(credential.user_id, stationCode)
     .all()) as { results?: Array<{ role_code: RoleCode }> } | undefined;
   const availableRoleIds = (roleRows?.results || []).map((item) => item.role_code);
-  const roleIds = requestedRoleIds.filter((roleCode) => availableRoleIds.includes(roleCode));
 
   if (!availableRoleIds.length) {
     throw new Error('INVALID_CREDENTIALS');
+  }
+
+  if (!isMobileRoleKey(requestedRoleKey) || !canUseMobileRoleKey(requestedRoleKey, availableRoleIds)) {
+    throw new PolicyDeniedError('The selected mobile role is not assigned to this account');
   }
 
   await c.env.DB?.prepare(
@@ -1217,7 +1246,8 @@ async function authenticateMobileUser(c: any, body: any) {
     userId: credential.user_id,
     tenantId: credential.tenant_id,
     stationCode,
-    roleIds: roleIds.length ? roleIds : availableRoleIds,
+    roleKey: requestedRoleKey,
+    roleIds: availableRoleIds,
     user: {
       user_id: credential.user_id,
       display_name: credential.display_name || credential.user_id,
@@ -1228,21 +1258,20 @@ async function authenticateMobileUser(c: any, body: any) {
 
 function resolveMobileRoleKey(actor: any, requestedRoleKey?: string) {
   const normalizedRequestedRoleKey = String(requestedRoleKey || '').trim();
+  const roleIds = (Array.isArray(actor?.roleIds) ? actor.roleIds : []) as RoleCode[];
 
-  if (normalizedRequestedRoleKey && Object.prototype.hasOwnProperty.call(mobileRoleViews, normalizedRequestedRoleKey)) {
+  if (normalizedRequestedRoleKey) {
+    if (!isMobileRoleKey(normalizedRequestedRoleKey) || !canUseMobileRoleKey(normalizedRequestedRoleKey, roleIds)) {
+      throw new PolicyDeniedError('The selected mobile role is not assigned to this account');
+    }
     return normalizedRequestedRoleKey;
   }
 
-  const roleIds = Array.isArray(actor?.roleIds) ? actor.roleIds : [];
-
-  if (roleIds.includes('station_supervisor')) return 'supervisor';
-  if (roleIds.includes('document_desk')) return 'document_clerk';
-  if (roleIds.includes('check_worker')) return 'checker';
-  if (roleIds.includes('delivery_desk')) return 'delivery_clerk';
-  if (roleIds.includes('inbound_operator')) return 'receiver';
-  if (roleIds.includes('mobile_operator')) return 'driver';
-
-  return 'supervisor';
+  const inferredRoleKey = inferMobileRoleKey(roleIds);
+  if (!inferredRoleKey) {
+    throw new PolicyDeniedError('This account does not have an eligible mobile role');
+  }
+  return inferredRoleKey;
 }
 
 function buildMobileRoleView(roleKey: keyof typeof mobileRoleViews) {
@@ -2323,6 +2352,9 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
         if (error instanceof Error && error.message === 'PASSWORD_CHANGE_REQUIRED') {
           throw jsonError(c, 403, 'PASSWORD_CHANGE_REQUIRED', 'Change the temporary password in the station web portal before using the mobile app');
         }
+        if (error instanceof PolicyDeniedError) {
+          throw jsonError(c, 403, 'MOBILE_ROLE_NOT_ASSIGNED', error.message);
+        }
 
         throw error;
       });
@@ -2332,7 +2364,10 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
       }
 
       const stationCode = formalLogin?.stationCode || body.stationCode || body.station_code || 'MME';
-      const roleKey = body.roleKey || body.role_key || 'receiver';
+      const roleKey = formalLogin?.roleKey || String(body.roleKey || body.role_key || 'receiver').trim();
+      if (!isMobileRoleKey(roleKey)) {
+        return jsonError(c, 400, 'VALIDATION_ERROR', 'roleKey is invalid');
+      }
       const roleIds = formalLogin?.roleIds || mapMobileRoleKeyToRoleCodes(roleKey);
       const secret = resolveAuthTokenSecret(c.env.AUTH_TOKEN_SECRET, c.env.ENVIRONMENT);
       const requestedUserId = body.employeeId ? `mobile-${body.employeeId}` : body.userId || body.user_id;
@@ -2372,7 +2407,7 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
 
   app.get(
     '/api/v1/mobile/select',
-    requireRoles(['mobile_operator', 'station_supervisor', 'document_desk', 'check_worker', 'delivery_desk', 'inbound_operator']),
+    requireRoles(mobileSelectRoles),
     async (c) => {
       try {
         const requestedRoleKey = c.req.query('role_key') || c.req.query('roleKey') || undefined;
@@ -2387,7 +2422,7 @@ export function registerMobileRoutes(app: ApiApp, getStationServices: (c: any) =
 
   app.get(
     '/api/v1/mobile/options/select',
-    requireRoles(['mobile_operator', 'station_supervisor', 'document_desk', 'check_worker', 'delivery_desk', 'inbound_operator']),
+    requireRoles(mobileSelectRoles),
     async (c) => {
       try {
         const requestedRoleKey = c.req.query('role_key') || c.req.query('roleKey') || undefined;

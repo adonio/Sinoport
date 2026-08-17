@@ -46,6 +46,13 @@ const station = {
       icon: icons.ExportOutlined
     },
     {
+      id: 'station-tas-outbound',
+      title: 'TAS-LGG 出港作业',
+      type: 'item',
+      url: '/station/tas/outbound',
+      icon: icons.ExportOutlined
+    },
+    {
       id: 'station-inbound',
       title: '进港管理',
       type: 'collapse',

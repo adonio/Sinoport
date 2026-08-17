@@ -80,12 +80,14 @@ let refreshPromise = null;
 
 export function buildUserFromActor(actor) {
   const primaryRole = actor?.role_ids?.[0] || 'station_supervisor';
+  const roleIds = Array.isArray(actor?.role_ids) && actor.role_ids.length ? actor.role_ids : [primaryRole];
 
   return {
     id: actor?.user_id || 'station-user',
     name: actor?.display_name || actor?.user_id || 'Station User',
     email: actor?.email || `${actor?.user_id || 'station-user'}@sinoport.local`,
     role: primaryRole,
+    roleIds,
     stationScope: actor?.station_scope || ['MME'],
     mustChangePassword: Boolean(actor?.must_change_password)
   };

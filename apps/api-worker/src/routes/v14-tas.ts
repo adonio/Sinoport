@@ -23,6 +23,7 @@ import { jsonError } from '../lib/http';
 import { assertTasAccess, projectTasMilestone } from '../lib/tas-station';
 
 type RequireRoles = (roles: RoleCode[]) => MiddlewareHandler;
+type V14Db = ReturnType<typeof requireV14Db>;
 
 type AirportContext = {
   airport_receipt_session_id: string;
@@ -37,6 +38,18 @@ type AirportContext = {
   seal_actual: string | null;
   seal_condition: string | null;
   received_by: string | null;
+};
+
+type SealCheckAudit = {
+  operation_event_id: string;
+  aggregate_sequence: number;
+  actor_id: string;
+  occurred_at: string;
+};
+
+type SealMismatchApprovalAudit = SealCheckAudit & {
+  actor_role: string;
+  payload_json: string;
 };
 
 function handleError(c: any, error: unknown) {
@@ -68,9 +81,36 @@ async function recordEvent(db: any, actor: any, receipt: AirportContext, idem: s
   });
 }
 
+async function loadLatestSealCheck(db: V14Db, tenantId: string, receiptId: string) {
+  return db.prepare(
+    `SELECT operation_event_id, aggregate_sequence, actor_id, occurred_at
+     FROM operation_events
+     WHERE tenant_id = ? AND aggregate_type = 'AirportReceiptSession'
+       AND aggregate_id = ? AND event_type = 'TAS_SEAL_CHECKED'
+     ORDER BY aggregate_sequence DESC LIMIT 1`
+  ).bind(tenantId, receiptId).first<SealCheckAudit>();
+}
+
+async function loadSealMismatchApproval(
+  db: V14Db,
+  tenantId: string,
+  receiptId: string,
+  sealCheckSequence: number
+) {
+  return db.prepare(
+    `SELECT operation_event_id, aggregate_sequence, actor_id, actor_role, occurred_at, payload_json
+     FROM operation_events
+     WHERE tenant_id = ? AND aggregate_type = 'AirportReceiptSession'
+       AND aggregate_id = ? AND event_type = 'TAS_SEAL_MISMATCH_APPROVED'
+       AND aggregate_sequence > ?
+     ORDER BY aggregate_sequence DESC LIMIT 1`
+  ).bind(tenantId, receiptId, sealCheckSequence).first<SealMismatchApprovalAudit>();
+}
+
 export function registerV14TasRoutes(app: ApiApp, requireRoles: RequireRoles) {
   const viewRoles: RoleCode[] = ['platform_admin', 'station_supervisor', 'mobile_operator', 'TAS_OPERATOR', 'B1_TAS_STATION_CONTROLLER', 'A3_CROSS_BORDER_CONTROLLER', 'OCC_DM'];
   const operatorRoles: RoleCode[] = ['platform_admin', 'station_supervisor', 'mobile_operator', 'TAS_OPERATOR', 'B1_TAS_STATION_CONTROLLER'];
+  const sealMismatchApprovalRoles: RoleCode[] = ['platform_admin', 'station_supervisor', 'B1_TAS_STATION_CONTROLLER'];
 
   app.get('/api/v1/airports/TAS/receipts', requireRoles(viewRoles), async (c) => {
     try {
@@ -245,6 +285,71 @@ export function registerV14TasRoutes(app: ApiApp, requireRoles: RequireRoles) {
     } catch (error) { return handleError(c, error); }
   });
 
+  app.post('/api/v1/airport-receipts/:id/seal-mismatch/approve', requireRoles(sealMismatchApprovalRoles), async (c) => {
+    try {
+      const db = requireV14Db(c.env); const actor = c.var.actor; assertTasAccess(actor);
+      const body = await c.req.json<Record<string, unknown>>(); const idem = idempotencyKey(c.req.raw.headers, body);
+      const duplicate = await findOperationByIdempotency(db, actor.tenantId, idem);
+      if (duplicate) {
+        if (
+          duplicate.aggregate_type !== 'AirportReceiptSession' ||
+          duplicate.aggregate_id !== c.req.param('id') ||
+          duplicate.event_type !== 'TAS_SEAL_MISMATCH_APPROVED'
+        ) {
+          throw new V14OperationError(409, 'IDEMPOTENCY_KEY_REUSED', 'Idempotency key was already used for another operation');
+        }
+        let payload: Record<string, unknown>;
+        try {
+          const parsed = JSON.parse(duplicate.payload_json || '{}') as unknown;
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid approval payload');
+          payload = parsed as Record<string, unknown>;
+        } catch {
+          throw new V14OperationError(500, 'APPROVAL_AUDIT_INVALID', 'Recorded seal mismatch approval audit is invalid');
+        }
+        return response(c, {
+          result: 'APPROVED',
+          approval_event_id: duplicate.operation_event_id,
+          requested_by: payload.requested_by ?? null,
+          approved_by: payload.approved_by ?? null,
+          duplicate: true
+        });
+      }
+      const receipt = await loadAirport(db, actor.tenantId, c.req.param('id'));
+      if (receipt.seal_condition !== 'MISMATCH' || receipt.status !== 'DISCREPANCY_REVIEW') {
+        throw new V14OperationError(409, 'SEAL_MISMATCH_NOT_AWAITING_APPROVAL', 'Receipt is not awaiting seal mismatch approval');
+      }
+      const latestSealCheck = await loadLatestSealCheck(db, actor.tenantId, receipt.airport_receipt_session_id);
+      if (!latestSealCheck) {
+        throw new V14OperationError(409, 'SEAL_CHECK_AUDIT_MISSING', 'Seal mismatch approval requires a recorded seal check');
+      }
+      if (latestSealCheck.actor_id === actor.userId) {
+        throw new V14OperationError(409, 'MAKER_CHECKER_ROLE_CONFLICT', 'The seal checker cannot approve the same seal mismatch');
+      }
+      const reason = requiredText(body, 'reason');
+      const evidenceIds = stringArray(body, 'evidence_ids');
+      if (evidenceIds.length === 0) {
+        throw new V14OperationError(409, 'MILESTONE_EVIDENCE_INCOMPLETE', 'Seal mismatch approval evidence is required');
+      }
+      const approvedAt = new Date().toISOString();
+      const approval = await recordEvent(db, actor, receipt, idem, 'TAS_SEAL_MISMATCH_APPROVED', {
+        requested_by: latestSealCheck.actor_id,
+        request_event_id: latestSealCheck.operation_event_id,
+        approved_by: actor.userId,
+        approved_role_ids: actor.roleIds,
+        reason,
+        evidence_ids: evidenceIds
+      }, approvedAt);
+      return response(c, {
+        result: 'APPROVED',
+        approval_event_id: approval.operation_event_id,
+        requested_by: latestSealCheck.actor_id,
+        approved_by: actor.userId,
+        approved_at: approvedAt,
+        duplicate: false
+      });
+    } catch (error) { return handleError(c, error); }
+  });
+
   app.post('/api/v1/airport-receipts/:id/unloading/start', requireRoles(operatorRoles), async (c) => {
     try {
       const db = requireV14Db(c.env); const actor = c.var.actor; assertTasAccess(actor);
@@ -252,13 +357,31 @@ export function registerV14TasRoutes(app: ApiApp, requireRoles: RequireRoles) {
       const idem = idempotencyKey(c.req.raw.headers, body);
       if (await findOperationByIdempotency(db, actor.tenantId, idem)) return response(c, { result: 'DUPLICATE' });
       const receipt = await loadAirport(db, actor.tenantId, c.req.param('id'));
-      if (receipt.seal_condition !== 'MATCHED' && body.seal_mismatch_approved !== true) {
-        throw new V14OperationError(409, 'SEAL_MISMATCH_REQUIRES_APPROVAL', 'Seal mismatch must be approved before unloading');
+      if (!['UNLOADING', 'DISCREPANCY_REVIEW'].includes(receipt.status)) {
+        throw new V14OperationError(409, 'CHECKPOINT_OUT_OF_SEQUENCE', 'Seal check must be completed before unloading');
+      }
+      let approval: SealMismatchApprovalAudit | null = null;
+      if (receipt.seal_condition === 'MISMATCH') {
+        const latestSealCheck = await loadLatestSealCheck(db, actor.tenantId, receipt.airport_receipt_session_id);
+        approval = latestSealCheck
+          ? await loadSealMismatchApproval(db, actor.tenantId, receipt.airport_receipt_session_id, latestSealCheck.aggregate_sequence)
+          : null;
+        if (!approval) {
+          throw new V14OperationError(409, 'SEAL_MISMATCH_APPROVAL_REQUIRED', 'A recorded supervisor or B1 approval is required before unloading');
+        }
+      } else if (receipt.seal_condition !== 'MATCHED') {
+        throw new V14OperationError(409, 'CHECKPOINT_OUT_OF_SEQUENCE', 'Seal check must be completed before unloading');
       }
       const occurredAt = optionalText(body, 'occurred_at') ?? new Date().toISOString();
       await db.prepare(`UPDATE airport_receipt_sessions SET status = 'COUNTING', unloading_started_at = ?, updated_at = ?, row_version = row_version + 1 WHERE airport_receipt_session_id = ?`)
         .bind(occurredAt, new Date().toISOString(), receipt.airport_receipt_session_id).run();
-      await recordEvent(db, actor, receipt, idem, 'TAS_UNLOADING_STARTED', body, occurredAt);
+      const eventPayload = { ...body };
+      delete eventPayload.seal_mismatch_approved;
+      await recordEvent(db, actor, receipt, idem, 'TAS_UNLOADING_STARTED', {
+        ...eventPayload,
+        seal_mismatch_approval_event_id: approval?.operation_event_id ?? null,
+        seal_mismatch_approved_by: approval?.actor_id ?? null
+      }, occurredAt);
       return response(c, { result: 'COUNTING', occurred_at: occurredAt });
     } catch (error) { return handleError(c, error); }
   });

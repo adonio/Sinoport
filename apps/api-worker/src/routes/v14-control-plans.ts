@@ -340,12 +340,15 @@ export function registerV14ControlPlanRoutes(app: ApiApp, requireRoles: RequireR
       }
 
       const existing = await db.prepare(
-        `SELECT flight_id, flight_no, flight_date
-         FROM flights
-         WHERE UPPER(flight_no) = ? AND flight_date = ?
-           AND origin_code = 'TAS' AND destination_code = 'LGG'
+        `SELECT f.flight_id, f.flight_no, f.flight_date
+         FROM flights f
+         JOIN v14_flight_tenant_scopes fs ON fs.flight_id = f.flight_id
+         WHERE fs.tenant_id = ? AND fs.station_id = 'TAS'
+           AND UPPER(f.flight_no) = ? AND f.flight_date = ?
+           AND f.origin_code = 'TAS' AND f.destination_code = 'LGG'
+           AND f.deleted_at IS NULL
          LIMIT 1`
-      ).bind(flightNo, flightDate).first<Record<string, unknown>>();
+      ).bind(actor.tenantId, flightNo, flightDate).first<Record<string, unknown>>();
       if (existing) {
         throw new V14OperationError(409, 'FLIGHT_ALREADY_EXISTS', 'The TAS-LGG flight already exists; select the existing flight instead', existing);
       }
@@ -357,15 +360,23 @@ export function registerV14ControlPlanRoutes(app: ApiApp, requireRoles: RequireR
          VALUES ('TAS', 'Tashkent International Airport', 'Central Asia', 'L1', 'v1.4-pilot', ?, ?)
          ON CONFLICT(station_id) DO NOTHING`
       ).bind(now, now).run();
-      await db.prepare(
-        `INSERT INTO flights (
-           flight_id, station_id, flight_no, flight_date, origin_code, destination_code,
-           std_at, etd_at, runtime_status, service_level, aircraft_type, notes, created_at, updated_at
-         ) VALUES (?, 'TAS', ?, ?, 'TAS', 'LGG', ?, ?, 'Scheduled', 'P1', ?, ?, ?, ?)`
-      ).bind(
-        flightId, flightNo, flightDate, baselineEtd, currentEtd,
-        optionalText(body, 'aircraft_type'), optionalText(body, 'notes') ?? 'Created from OCC control-plan wizard', now, now
-      ).run();
+      if (!db.batch) throw new V14OperationError(500, 'DATABASE_BATCH_REQUIRED', 'Atomic D1 batch support is required');
+      await db.batch([
+        db.prepare(
+          `INSERT INTO flights (
+             flight_id, station_id, flight_no, flight_date, origin_code, destination_code,
+             std_at, etd_at, runtime_status, service_level, aircraft_type, notes, created_at, updated_at
+           ) VALUES (?, 'TAS', ?, ?, 'TAS', 'LGG', ?, ?, 'Scheduled', 'P1', ?, ?, ?, ?)`
+        ).bind(
+          flightId, flightNo, flightDate, baselineEtd, currentEtd,
+          optionalText(body, 'aircraft_type'), optionalText(body, 'notes') ?? 'Created from OCC control-plan wizard', now, now
+        ),
+        db.prepare(
+          `INSERT INTO v14_flight_tenant_scopes (
+             flight_id, tenant_id, station_id, source_type, source_ref, created_by, created_at
+           ) VALUES (?, ?, 'TAS', 'OCC_FLIGHT_DRAFT', ?, ?, ?)`
+        ).bind(flightId, actor.tenantId, idem, actor.userId, now)
+      ]);
       await appendOperationEvent(db, actor, {
         aggregateType: 'Flight', aggregateId: flightId, eventType: 'OCC_FLIGHT_DRAFT_CREATED',
         idempotencyKey: idem, flightId, stationId: 'TAS',
