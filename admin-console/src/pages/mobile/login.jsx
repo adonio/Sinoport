@@ -41,6 +41,27 @@ const defaultCredentials = isTestStationEnvironment()
   ? TEST_DEFAULT_STATION_CREDENTIALS
   : { email: '', password: '' };
 
+function resolveMobileLoginErrorMessage(error, language) {
+  const payload = error?.response?.data || error;
+  const code = payload?.error?.code;
+
+  if (code === 'PASSWORD_CHANGE_REQUIRED') {
+    return t(language, 'login_password_change_required');
+  }
+  if (code === 'INVALID_CREDENTIALS') {
+    return t(language, 'login_invalid_credentials');
+  }
+  if (code === 'FORMAL_AUTH_REQUIRED') {
+    return t(language, 'login_credentials_required');
+  }
+  if (code === 'INTERNAL_ERROR') {
+    return t(language, 'login_failed');
+  }
+
+  const backendMessage = payload?.error?.message;
+  return backendMessage || t(language, 'login_failed');
+}
+
 export default function MobileLoginPage() {
   const navigate = useNavigate();
   const { state, setField } = useConfig();
@@ -88,12 +109,12 @@ export default function MobileLoginPage() {
           roleKey: prev.roleKey || defaults.role_key || roleOptions[0]?.value || ''
         }));
         setOptionsError('');
-        } catch {
+      } catch {
         if (active) {
           setLoginOptions({
             stationOptions: fallbackLoginOptions.stationOptions,
             roleOptions: fallbackLoginOptions.roleOptions,
-            requiresFormalAuth: false
+            requiresFormalAuth: !isTestStationEnvironment()
           });
           setForm((prev) => ({
             ...prev,
@@ -216,10 +237,11 @@ export default function MobileLoginPage() {
             <TextField
               name="demo_role"
               select
-              label={localizeMobileText(language, 'Demo 角色')}
+              label={requiresFormalAuth ? t(language, 'work_role') : localizeMobileText(language, 'Demo 角色')}
               value={form.roleKey}
               disabled={optionsLoading || !loginOptions.roleOptions.length}
               onChange={(event) => setForm((prev) => ({ ...prev, roleKey: event.target.value }))}
+              helperText={requiresFormalAuth ? t(language, 'formal_auth_hint') : undefined}
             >
               {optionsLoading ? (
                 <MenuItem value="" disabled>
@@ -287,7 +309,7 @@ export default function MobileLoginPage() {
                 } catch (error) {
                   openSnackbar({
                     open: true,
-                    message: error?.error?.message || localizeMobileText(language, '移动端登录失败'),
+                    message: resolveMobileLoginErrorMessage(error, language),
                     variant: 'alert',
                     alert: { color: 'error' }
                   });

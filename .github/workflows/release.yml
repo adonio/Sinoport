@@ -75,6 +75,36 @@ jobs:
     needs: release-meta
 
     steps:
+      - name: Require endpoints for the selected environment
+        env:
+          TARGET: ${{ inputs.target }}
+          STATION_API_URL: ${{ inputs.station_api_url }}
+          API_URL: ${{ inputs.api_url }}
+          AGENT_URL: ${{ inputs.agent_url }}
+        run: |
+          if [ "$TARGET" = "production" ]; then
+            EXPECTED_STATION_API_URL="https://api.sinoport.co"
+            EXPECTED_API_URL="https://api.sinoport.co"
+            EXPECTED_AGENT_URL="https://agent.sinoport.co"
+          else
+            EXPECTED_STATION_API_URL="https://staging-api.sinoport.co"
+            EXPECTED_API_URL="https://staging-api.sinoport.co"
+            EXPECTED_AGENT_URL="https://staging-agent.sinoport.co"
+          fi
+
+          if [ "$STATION_API_URL" != "$EXPECTED_STATION_API_URL" ]; then
+            echo "::error::station_api_url must be $EXPECTED_STATION_API_URL for $TARGET"
+            exit 1
+          fi
+          if [ "$API_URL" != "$EXPECTED_API_URL" ]; then
+            echo "::error::api_url must be $EXPECTED_API_URL for $TARGET"
+            exit 1
+          fi
+          if [ "$AGENT_URL" != "$EXPECTED_AGENT_URL" ]; then
+            echo "::error::agent_url must be $EXPECTED_AGENT_URL for $TARGET"
+            exit 1
+          fi
+
       - name: Require staging validation before production
         if: ${{ inputs.target == 'production' }}
         run: |
@@ -136,7 +166,9 @@ jobs:
 
   deploy-pages:
     runs-on: ubuntu-latest
-    needs: build-static
+    needs:
+      - release-meta
+      - build-static
     environment: ${{ inputs.target }}
 
     outputs:
@@ -146,6 +178,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -193,7 +227,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
-          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); const branch=process.argv[1]; const source=process.argv[2].slice(0,7); const item=items.find((entry) => entry.Branch === branch && String(entry.Source || '').startsWith(source)); process.stdout.write((item && (item.Deployment || item.url)) || '')" "${{ needs.release-meta.outputs.target_branch }}" "${{ needs.release-meta.outputs.release_ref }}")
+          test -n "$URL"
           echo "site_url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Resolve admin site URL
@@ -203,7 +238,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           ENVIRONMENT=$([ "${{ inputs.target }}" = "production" ] && echo "production" || echo "preview")
-          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport-admin --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write((items[0] && items[0].url) || '')")
+          URL=$(npx wrangler pages deployment list --project-name adonio-sinoport-admin --environment "$ENVIRONMENT" --json | node -e "const fs=require('fs'); const items=JSON.parse(fs.readFileSync(0,'utf8')); const branch=process.argv[1]; const source=process.argv[2].slice(0,7); const item=items.find((entry) => entry.Branch === branch && String(entry.Source || '').startsWith(source)); process.stdout.write((item && (item.Deployment || item.url)) || '')" "${{ needs.release-meta.outputs.target_branch }}" "${{ needs.release-meta.outputs.release_ref }}")
+          test -n "$URL"
           echo "admin_url=$URL" >> "$GITHUB_OUTPUT"
 
   deploy-workers:
@@ -270,6 +306,7 @@ jobs:
 
   smoke:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
     needs:
       - release-meta
       - deploy-pages
@@ -282,6 +319,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-meta.outputs.release_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -305,4 +344,7 @@ jobs:
           SMOKE_WEB_URL: ${{ needs.deploy-pages.outputs.site_url || (inputs.target == 'production' && 'https://sinoport.co' || 'https://staging.sinoport.co') }}
           SMOKE_EXPECTED_VERSION: ${{ needs.release-meta.outputs.release_ref }}
           SMOKE_EXPECTED_ENVIRONMENT: ${{ inputs.target }}
+          SMOKE_STATION_EMAIL: ${{ secrets.SMOKE_STATION_EMAIL }}
+          SMOKE_STATION_PASSWORD: ${{ secrets.SMOKE_STATION_PASSWORD }}
+          SMOKE_STATION_CODE: ${{ vars.SMOKE_STATION_CODE || 'MME' }}
         run: npm run test:frontend:smoke
